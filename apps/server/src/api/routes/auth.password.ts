@@ -92,7 +92,7 @@ async function sendResetMailIfEligible(prisma: PrismaClient, email: string): Pro
   const { token } = await issuePasswordResetToken(prisma, user.id);
   const resetUrl = buildPublicWebLink(baseUrl, `reset?token=${token}&email=${encodeURIComponent(user.email)}`);
 
-  // Locale chain (Block C): user.locale (DB) → MAIL_DEFAULT_LOCALE → 'de'.
+  // Locale chain: user.locale (DB) → MAIL_DEFAULT_LOCALE → 'de'.
   // Resolved here rather than by the mail module because `sendRaw` is a
   // pass-through — it renders nothing and takes no locale, so this call site
   // owns the choice. Same resolver the templated mails use.
@@ -106,9 +106,9 @@ async function sendResetMailIfEligible(prisma: PrismaClient, email: string): Pro
     logger.warn({ event: 'auth.forgot.email_failed', userId: user.id });
   }
 
-  // `sent: false` means no mail provider is configured. The token is NOT
-  // surfaced in the response (unlike e-mail verification, an unauthenticated
-  // caller must never receive it) — the admin can issue one out of band.
+  // Only reached with a delivering provider (checked above): `sent: false`
+  // means that provider failed to deliver. The token is NOT surfaced in the
+  // response, an unauthenticated caller must never receive it.
   logger.info({ event: 'auth.forgot.token_issued', userId: user.id, sent });
 }
 

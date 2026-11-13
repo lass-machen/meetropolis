@@ -90,7 +90,7 @@ async function setupCase(env: Partial<Record<EnvKey, string | undefined>>): Prom
 }
 
 describe('verification token surfacing', () => {
-  it('withholds the token when a configured provider cannot deliver', async () => {
+  it('answers 503 EMAIL_DELIVERY_UNAVAILABLE when a configured provider cannot deliver', async () => {
     const { app, userId } = await setupCase({
       NODE_ENV: 'production',
       SMTP_HOST: '127.0.0.1',
@@ -103,15 +103,22 @@ describe('verification token surfacing', () => {
       PUBLIC_BASE_URL_ALLOW_LOOPBACK: undefined,
     });
     const response = await request(app).post('/auth/verify/request').set('x-user', userId).send({});
-    const body = response.body as { sent?: unknown; token?: unknown; verifyUrl?: unknown };
-    expect(response.status).toBe(200);
-    expect(body.sent).toBe(false);
+    const body = response.body as { code?: unknown; token?: unknown; verifyUrl?: unknown };
+    expect(response.status).toBe(503);
+    expect(body.code).toBe('EMAIL_DELIVERY_UNAVAILABLE');
     expect(body.token).toBeUndefined();
     expect(body.verifyUrl).toBeUndefined();
-    expect(await prisma.emailVerification.count({ where: { userId } })).toBe(1);
+    expect(JSON.stringify(response.body)).not.toMatch(/token/i);
+    // The prepared proof row stays, never marked ready and expired at once
+    // after the failed delivery.
+    const proofs = await prisma.emailVerification.findMany({ where: { userId } });
+    expect(proofs).toHaveLength(1);
+    expect(proofs[0].readyAt).toBeNull();
+    expect(proofs[0].usedAt).toBeNull();
+    expect(proofs[0].expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
   });
 
-  it('keeps returning the token without a mail provider', async () => {
+  it('answers 503 EMAIL_DELIVERY_UNAVAILABLE without a delivering provider and returns no token', async () => {
     const { app, userId } = await setupCase({
       NODE_ENV: 'production',
       SMTP_HOST: undefined,
@@ -122,15 +129,18 @@ describe('verification token surfacing', () => {
       PUBLIC_BASE_URL_ALLOW_LOOPBACK: undefined,
     });
     const response = await request(app).post('/auth/verify/request').set('x-user', userId).send({});
-    const body = response.body as { sent?: unknown; token?: unknown; verifyUrl?: unknown };
-    expect(response.status).toBe(200);
-    expect(body.sent).toBe(false);
-    expect(typeof body.token).toBe('string');
-    expect(typeof body.verifyUrl).toBe('string');
-    expect((body.verifyUrl as string).startsWith('https://verify.example')).toBe(true);
+    const body = response.body as { code?: unknown; token?: unknown; verifyUrl?: unknown };
+    expect(response.status).toBe(503);
+    expect(body.code).toBe('EMAIL_DELIVERY_UNAVAILABLE');
+    expect(body.token).toBeUndefined();
+    expect(body.verifyUrl).toBeUndefined();
+    expect(JSON.stringify(response.body)).not.toMatch(/token/i);
+    // The console fallback does not count as delivery; the check runs
+    // before a proof row is prepared.
+    expect(await prisma.emailVerification.count({ where: { userId } })).toBe(0);
   });
 
-  it('returns the token in development', async () => {
+  it('returns neither a token nor a link in development', async () => {
     const { app, userId } = await setupCase({
       NODE_ENV: 'development',
       SMTP_HOST: '127.0.0.1',
@@ -143,9 +153,11 @@ describe('verification token surfacing', () => {
       PUBLIC_BASE_URL_ALLOW_LOOPBACK: undefined,
     });
     const response = await request(app).post('/auth/verify/request').set('x-user', userId).send({});
-    const body = response.body as { sent?: unknown; token?: unknown; verifyUrl?: unknown };
-    expect(response.status).toBe(200);
-    expect(body.sent).toBe(false);
-    expect(typeof body.token).toBe('string');
+    const body = response.body as { code?: unknown; token?: unknown; verifyUrl?: unknown };
+    expect(response.status).toBe(503);
+    expect(body.code).toBe('EMAIL_DELIVERY_UNAVAILABLE');
+    expect(body.token).toBeUndefined();
+    expect(body.verifyUrl).toBeUndefined();
+    expect(JSON.stringify(response.body)).not.toMatch(/token/i);
   });
 });

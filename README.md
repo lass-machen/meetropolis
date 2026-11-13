@@ -405,9 +405,10 @@ keys, ICE / NAT setup, verification).
 ## Production Mail Setup
 
 The OSS server can send transactional email (invites, guest magic links,
-verify links, welcome emails) over plain SMTP via
-[nodemailer](https://nodemailer.com/). Sensitive tokens (password reset)
-are NEVER sent by email — the admin generates them via the admin UI.
+verify links, welcome emails, password reset links) over plain SMTP via
+[nodemailer](https://nodemailer.com/). Password reset is self-service:
+`POST /auth/forgot` mails a reset link to the account's address and
+answers `{ ok: true }` without returning the link or token.
 
 ### Provider precedence
 
@@ -416,13 +417,38 @@ The mail loader resolves a single active provider at server boot:
 1. **EE-Resend** — when the optional `@meetropolis/tenancy` module is
    installed and both `RESEND_API_KEY` + `RESEND_FROM` are set.
 2. **OSS-SMTP (nodemailer)** — when `SMTP_HOST` + `SMTP_FROM` are set.
-3. **Console fallback** — last-resort, logs subject + recipient domain
-   only (no body in production), returns `false` from `send()` so
-   verify-requests keep surfacing tokens via the API response. A
-   one-time WARN log fires at boot: `email.fallback_console`. In this mode
-   the email address is confirmed without proof of mailbox access, so
-   configure a real provider for production. When delivery fails through
-   a configured provider, the API does not return the token.
+3. **Console fallback** — last resort when no provider is configured. It
+   delivers nothing and logs only a redacted marker without recipient,
+   subject, link or token; `send()` returns `false`. A one-time log entry
+   `email.fallback_console` fires at boot (error level in production,
+   warning otherwise). The console fallback does not count as delivery,
+   see [Running without a mail provider](#running-without-a-mail-provider).
+
+### Running without a mail provider
+
+Self-hosting needs a mail provider to admit new users. Without
+`SMTP_HOST` and `SMTP_FROM` (and without the enterprise mail module) the
+server cannot confirm or register new accounts:
+
+- `POST /auth/verify/request` answers `503 EMAIL_DELIVERY_UNAVAILABLE`.
+- `POST /auth/register` with an invitation code answers
+  `503 EMAIL_DELIVERY_UNAVAILABLE`.
+- `POST /invites/accept` by an account whose email address is not yet
+  confirmed answers `503 EMAIL_DELIVERY_UNAVAILABLE`.
+- `POST /auth/forgot` answers `{ ok: true }` but issues and sends nothing.
+
+No API response contains a confirmation token.
+
+What still works without mail:
+
+- Creating an invitation returns its link (`inviteUrl`) with
+  `emailSent: false`. Copy and share the link; accounts whose email
+  address is already confirmed can accept it.
+- Creating a guest returns the guest's magic link for copying.
+- A super admin can create a password reset link with
+  `POST /admin/users/:id/reset-token`; the response contains the link.
+  For tenant admins the same route answers
+  `503 EMAIL_DELIVERY_UNAVAILABLE` without a mail provider.
 
 ### Recommended providers
 
@@ -602,7 +628,7 @@ remote group on broadband at home, will rarely hit a NAT scenario that
 TURN solves. STUN-only (the OSS default) is enough. Only invest in
 TURN once a real user reports audio/video that never connects.
 
-## Out of scope (not implemented in Block C)
+## Out of scope (not implemented yet)
 
 These items are deliberately not part of the OSS-SMTP stack and would
 require dedicated blocks:
@@ -615,8 +641,6 @@ require dedicated blocks:
   relay with bounce logs.
 - Per-tenant rate-limiting for guest invites. `express-rate-limit` is
   installed but not wired up — track as a follow-up.
-- Self-service password reset via email. Block C is invite/verify/guest
-  only; password reset remains admin-triggered with token-in-UI.
 
 ## Contributing
 
