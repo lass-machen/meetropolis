@@ -17,6 +17,12 @@
  * the fix: a room slug that is not the session tenant is admitted with a
  * warning while the tenant enforcement is off and refused while it is on,
  * and a session whose tenant claim names a foreign tenant is refused.
+ *
+ * Three more cases cover the default of the tenant enforcement, which is on
+ * unless ZONE_PRIVACY_TENANT_ENFORCE is exactly `false`. With the flag unset a
+ * member of one tenant is refused at another tenant's room (fails while the
+ * default is off) and the room's own member gets in; with the explicit
+ * `false` the own member gets in as well.
  */
 
 import cookieParser from 'cookie-parser';
@@ -484,10 +490,72 @@ describe('proven sessions keep working', () => {
 });
 
 describe('room slug and session tenant', () => {
-  it('admits a mismatched room slug with a warning while tenant enforcement is off', async () => {
+  it('admits a member at its own tenant room while the flag is unset', async () => {
+    const other = await seedSecondTenant();
+    const owner = await seedMember(prisma, other.id);
+    const restore = useTenantEnforcement(undefined);
+    try {
+      const tracked = await joinWorld(owner.userId, owner.token, { tenant: other.slug });
+      try {
+        expect(tracked.error, 'a member must reach the room of its own tenant').toBeUndefined();
+        if (!tracked.room) throw new Error(`${FILE} the member join created no room`);
+        const seen = await waitForPlayers(tracked, 5_000);
+        expect(seen).toContain(owner.userId);
+      } finally {
+        await leaveQuietly(tracked);
+      }
+    } finally {
+      restore();
+    }
+  }, 30_000);
+
+  it('refuses a member of another tenant at that room while the flag is unset', async () => {
+    const other = await seedSecondTenant();
+    const owner = await seedMember(prisma, other.id);
+    const stranger = await seedMember(prisma, tenantId);
+    const restore = useTenantEnforcement(undefined);
+    try {
+      // The owner opens the room first, so the stranger targets an existing room of the other tenant.
+      const ownerJoin = await joinWorld(owner.userId, owner.token, { tenant: other.slug });
+      try {
+        expect(ownerJoin.error, 'the owner must reach its own room').toBeUndefined();
+        const strangerJoin = await joinWorld(stranger.userId, stranger.token, { tenant: other.slug });
+        await leaveQuietly(strangerJoin);
+        expect(strangerJoin.error).toMatchObject({ code: AUTH_REJECTED_CODE, message: 'tenant_mismatch' });
+        expect(strangerJoin.room).toBeUndefined();
+        const seen = await waitForPlayers(ownerJoin, 5_000);
+        expect(seen, 'the room must not list the refused stranger').not.toContain(stranger.userId);
+      } finally {
+        await leaveQuietly(ownerJoin);
+      }
+    } finally {
+      restore();
+    }
+  }, 30_000);
+
+  it('admits a member at its own tenant room while tenant enforcement is explicitly off', async () => {
+    const other = await seedSecondTenant();
+    const owner = await seedMember(prisma, other.id);
+    const restore = useTenantEnforcement('false');
+    try {
+      const tracked = await joinWorld(owner.userId, owner.token, { tenant: other.slug });
+      try {
+        expect(tracked.error, 'a member must reach the room of its own tenant').toBeUndefined();
+        if (!tracked.room) throw new Error(`${FILE} the member join created no room`);
+        const seen = await waitForPlayers(tracked, 5_000);
+        expect(seen).toContain(owner.userId);
+      } finally {
+        await leaveQuietly(tracked);
+      }
+    } finally {
+      restore();
+    }
+  }, 30_000);
+
+  it('admits a mismatched room slug with a warning while tenant enforcement is explicitly off', async () => {
     const other = await seedSecondTenant();
     const member = await seedMember(prisma, tenantId);
-    const restore = useTenantEnforcement(undefined);
+    const restore = useTenantEnforcement('false');
     const warnSpy = vi.spyOn(logger, 'warn');
     try {
       // A foreign identity option: the player must still carry the session identity.

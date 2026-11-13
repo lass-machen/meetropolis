@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   LiveKit before the overlay appears. Before, the client kept publishing
   and subscribing behind the overlay. AV resumes with the next join the
   world accepts.
+- Server: a world room now refuses a session of another tenant by default
+  (close code 4401, `tenant_mismatch`). Before, this needed
+  `ZONE_PRIVACY_TENANT_ENFORCE=true`; now only an explicit `false` admits
+  such a join, with a warning.
 - Web client: disposing the AV manager (unmount, or the reset of a join
   that failed after its room was set up) now leaves LiveKit before the
   teardown, which therefore runs up to 5 s later. A leave that exceeds

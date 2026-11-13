@@ -86,7 +86,7 @@ describe('onAuth logs stay bounded', () => {
 
   it.each([
     ['rejects', 'true'],
-    ['admits', undefined],
+    ['admits', 'false'],
   ])('for a mismatching options.tenant when the room match %s', async (_label, enforce) => {
     validateTenantSessionFreshMock.mockResolvedValue({
       status: 'allowed',
@@ -134,6 +134,8 @@ describe('onAuth logs stay bounded', () => {
       userId: 'user-1',
       tenantId: 'tenant-a-id',
     });
+    // The mismatch is only admitted, and so only logged, while the room match is explicitly off.
+    process.env.ZONE_PRIVACY_TENANT_ENFORCE = 'false';
     const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
 
     await authenticateWorldJoin(options, context(), prisma);

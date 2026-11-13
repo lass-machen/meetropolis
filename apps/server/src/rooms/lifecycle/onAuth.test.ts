@@ -372,7 +372,8 @@ describe('authenticateWorldJoin: room-tenant enforcement decoupled from H4 flag 
       userId: 'user-1',
       tenantId: 'tenant-a-id',
     });
-    // Tenant-room matching remains controlled by its dedicated setting.
+    // Tenant-room matching remains controlled by its dedicated setting, which
+    // is on unless explicitly off; the cases below start from its default.
     delete process.env.ZONE_PRIVACY_TENANT_ENFORCE;
   });
 
@@ -384,7 +385,8 @@ describe('authenticateWorldJoin: room-tenant enforcement decoupled from H4 flag 
   });
 
   it('DEPLOY-LOCKOUT GUARD (Finding 3): admits a tenant mismatch when only the H4 flag is ON', async () => {
-    // The dedicated tenant setting is unset, so the authenticated tenant remains authoritative.
+    // The dedicated tenant setting is explicitly off, so the authenticated tenant remains authoritative.
+    process.env.ZONE_PRIVACY_TENANT_ENFORCE = 'false';
     const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const auth = await authenticateWorldJoin(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
     expect(auth.identity).toBe('user-1'); // admitted, not rejected
@@ -400,6 +402,7 @@ describe('authenticateWorldJoin: room-tenant enforcement decoupled from H4 flag 
   });
 
   it('admits a mismatched options.tenant during rollout (tenant-enforce OFF) but keeps the AUTH slug', async () => {
+    process.env.ZONE_PRIVACY_TENANT_ENFORCE = 'false';
     const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const auth = await authenticateWorldJoin(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
     expect(auth.tenantSlug).toBe('auth-a'); // authoritative, not the spoofed 'spoof-b'

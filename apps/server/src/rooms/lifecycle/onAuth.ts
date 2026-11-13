@@ -83,12 +83,14 @@ export function resolveRawAuthToken(context: AuthContext, presentedToken?: strin
 }
 
 /**
- * Staged switch for the tenant-room match. Default off: a slug mismatch is
- * logged and admitted. On, it is rejected. Presence, maps and the per-client
- * state view already isolate data either way.
+ * Switch for the tenant-room match. On by default: a join whose room belongs
+ * to another tenant than the verified session is rejected. Only an explicit
+ * `ZONE_PRIVACY_TENANT_ENFORCE=false` turns it off; then the mismatch is
+ * logged and admitted. Off is not isolated: a room-wide message such as the
+ * presence relay reaches every client in the room, including a foreign one.
  */
 export function isTenantEnforced(): boolean {
-  return process.env.ZONE_PRIVACY_TENANT_ENFORCE === 'true';
+  return process.env.ZONE_PRIVACY_TENANT_ENFORCE !== 'false';
 }
 
 /**

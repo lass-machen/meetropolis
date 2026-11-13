@@ -50,7 +50,8 @@ describe('enforceRoomPartition', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('admits a tenant-less join into another tenant’s room with a warning while enforcement is off', () => {
+  it('admits a tenant-less join into another tenant’s room with a warning while enforcement is false', () => {
+    vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'false');
     expect(() => enforceRoomPartition({}, verified('beta'), 'acme')).not.toThrow();
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('no tenant requested'),
@@ -151,7 +152,8 @@ describe('WorldRoom.onAuth with a verified session', () => {
     return room as WorldRoom;
   }
 
-  it('admits a member of another tenant that sent no tenant into acme’s room while enforcement is off', async () => {
+  it('admits a member of another tenant that sent no tenant into acme’s room while enforcement is false', async () => {
+    vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'false');
     await acmeRoom();
     const { context } = sessionFor('user-1');
     const auth = await WorldRoom.onAuth(context.token ?? '', { zonePrivacyVersion: 1 }, context);

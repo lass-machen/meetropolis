@@ -4,8 +4,9 @@
  *
  * A real Colyseus server with the real `WorldRoom` (see
  * testUtils/matchmakeHarness.ts), a real PostgreSQL database (db.js is NOT
- * mocked) and real @colyseus/sdk clients. ZONE_PRIVACY_TENANT_ENFORCE stays
- * unset, so the legacy mixed-room join is admitted at join time.
+ * mocked) and real @colyseus/sdk clients. The mixed-room cases set
+ * ZONE_PRIVACY_TENANT_ENFORCE to `false`, so the legacy mixed-room join is
+ * admitted at join time; the operator case runs with the default (on).
  *
  * Before the R3 fix the sweep reads only `room.metadata.tenant` and every
  * room listens only on its own `access_revoked:<slug>` channel:
@@ -168,6 +169,11 @@ beforeEach(async () => {
   await disposeAllRooms();
 });
 
+/** A mixed room exists only while the tenant-room match is explicitly off; afterEach restores it. */
+function allowMixedRooms(): void {
+  vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'false');
+}
+
 afterEach(() => {
   vi.unstubAllEnvs();
 });
@@ -185,6 +191,7 @@ afterAll(async () => {
 
 describe('verified client tenant wins over the room slug (real database)', () => {
   it('keeps an allowed mixed-room client and sweeps one whose tenant is gone', async () => {
+    allowMixedRooms();
     // Fall 2 first, on the empty server: without options.tenant the join
     // creates a room whose metadata is DEFAULT_TENANT_SLUG.
     const missingSlug = `s1r3-gone-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
@@ -196,7 +203,7 @@ describe('verified client tenant wins over the room slug (real database)', () =>
     await prisma.membership.deleteMany({ where: { userId: gone.id } });
 
     // Fall 1: member of A in the room of M (M exists, the join is allowed
-    // while ZONE_PRIVACY_TENANT_ENFORCE is unset).
+    // while ZONE_PRIVACY_TENANT_ENFORCE is false).
     const mixed = await createUser([{ tenantId: tenantAId, role: 'member' }], tenantAId);
     const mixedJoin = await joinWorld(mixed.id, mixed.token, tenantMSlug);
     expect(mixedJoin.error, 'Fall 1: Mischraum-Beitritt muss gelingen').toBeUndefined();
@@ -221,6 +228,7 @@ describe('verified client tenant wins over the room slug (real database)', () =>
   }, 120_000);
 
   it('ends the mixed-room session on revocation in its own tenant, nobody else', async () => {
+    allowMixedRooms();
     const staying = await createUser([{ tenantId: tenantAId, role: 'member' }], tenantAId);
     const revoked = await createUser([{ tenantId: tenantAId, role: 'member' }], tenantAId);
     const stayingJoin = await joinWorld(staying.id, staying.token, tenantMSlug);

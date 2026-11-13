@@ -3,13 +3,15 @@
  *
  * Both clients send the host slug as `options.tenant` (the room partition
  * key). The guest session belongs to the other tenant. That mismatch is
- * admitted while `ZONE_PRIVACY_TENANT_ENFORCE` is not `'true'`, so both seats
- * land in one room. Shapes follow the web client, plus `zone_access_request`
- * `{ zoneName, mapId }` which only the room handler reads. The zone polygon
+ * admitted only while `ZONE_PRIVACY_TENANT_ENFORCE` is `'false'`, which the
+ * three cases with a client of another tenant set, so both seats land in one
+ * room; every other case runs with the default (on). Shapes follow the
+ * web client, plus `zone_access_request` `{ zoneName, mapId }` which only the
+ * room handler reads. The zone polygon
  * is stored on the zone row and on `Map.meta.zones`.
  */
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { matchMaker } from 'colyseus';
 import { Client, type Room } from '@colyseus/sdk';
 import { ZONE_PRIVACY_PROTOCOL_VERSION, type ZoneLockInfo } from '@meetropolis/shared';
@@ -289,6 +291,14 @@ afterAll(async () => {
 }, CASE_MS);
 
 describe('bubble updates from another tenant', () => {
+  // A client of another tenant shares the room only while the tenant-room match is explicitly off.
+  beforeEach(() => {
+    vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'false');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('leave the other tenant group unchanged', async () => {
     const [hostA, hostB] = await seedPlayers(hostId, 2);
     const [guest] = await seedPlayers(guestId, 1);
@@ -311,12 +321,10 @@ describe('bubble updates from another tenant', () => {
 describe('bubble updates from another map', () => {
   it('leave the group on the original map unchanged', async () => {
     const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
-    const [guest] = await seedPlayers(guestId, 1);
     const alice = await connect(hostA.token, INSIDE);
     const bob = await connect(hostB.token, INSIDE);
     const carol = await connect(hostC.token, INSIDE);
-    const eve = await connect(guest.token, INSIDE);
-    expectSameRoom([alice, bob, carol, eve]);
+    expectSameRoom([alice, bob, carol]);
     const seen = collect(alice, 'bubble_state');
     await formGroup(alice, bob);
     await moveTo(carol, studioId);
@@ -332,12 +340,10 @@ describe('bubble updates from another map', () => {
 describe('bubble updates from outside a group', () => {
   it('leave that group intact', async () => {
     const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
-    const [guest] = await seedPlayers(guestId, 1);
     const alice = await connect(hostA.token, INSIDE);
     const bob = await connect(hostB.token, INSIDE);
     const carol = await connect(hostC.token, INSIDE);
-    const eve = await connect(guest.token, INSIDE);
-    expectSameRoom([alice, bob, carol, eve]);
+    expectSameRoom([alice, bob, carol]);
     const seen = collect(alice, 'bubble_state');
     await formGroup(alice, bob);
     expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
@@ -352,11 +358,9 @@ describe('bubble updates from outside a group', () => {
 describe('bubble updates that rename a group', () => {
   it('keep the existing group id', async () => {
     const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const [guest] = await seedPlayers(guestId, 1);
     const alice = await connect(hostA.token, INSIDE);
     const bob = await connect(hostB.token, INSIDE);
-    const eve = await connect(guest.token, INSIDE);
-    expectSameRoom([alice, bob, eve]);
+    expectSameRoom([alice, bob]);
     const seen = collect(alice, 'bubble_state');
     await formGroup(alice, bob);
     const id = groupKey(alice, alice.sessionId);
@@ -372,6 +376,14 @@ describe('bubble updates that rename a group', () => {
 });
 
 describe('bubble state sent when a client joins', () => {
+  // A client of another tenant shares the room only while the tenant-room match is explicitly off.
+  beforeEach(() => {
+    vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'false');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('omits groups from another tenant', async () => {
     const [hostA, hostB] = await seedPlayers(hostId, 2);
     const [guest] = await seedPlayers(guestId, 1);
@@ -392,11 +404,9 @@ describe('bubble state sent when a client joins', () => {
 describe('zone access requests that name another map', () => {
   it('leave that lock without a new request', async () => {
     const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const [guest] = await seedPlayers(guestId, 1);
     const alice = await connect(hostA.token, INSIDE);
     const bob = await connect(hostB.token, OUTSIDE);
-    const eve = await connect(guest.token, OUTSIDE);
-    expectSameRoom([alice, bob, eve]);
+    expectSameRoom([alice, bob]);
     await waitForMap(alice, officeId);
     await waitForMap(bob, officeId);
     const seen = collect(alice, 'zone_lock_state');
@@ -414,11 +424,9 @@ describe('zone access requests that name another map', () => {
 describe('zone access responses without a pending request', () => {
   it('leave the access list unchanged', async () => {
     const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const [guest] = await seedPlayers(guestId, 1);
     const alice = await connect(hostA.token, INSIDE);
     const carol = await connect(hostB.token, OUTSIDE);
-    const eve = await connect(guest.token, OUTSIDE);
-    expectSameRoom([alice, carol, eve]);
+    expectSameRoom([alice, carol]);
     await waitForMap(alice, officeId);
     await waitForMap(carol, officeId);
     const seen = collect(carol, 'zone_lock_state');
@@ -434,6 +442,14 @@ describe('zone access responses without a pending request', () => {
 });
 
 describe('zone lock state sent when a client joins', () => {
+  // A client of another tenant shares the room only while the tenant-room match is explicitly off.
+  beforeEach(() => {
+    vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'false');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('omits locks from another tenant', async () => {
     const [host] = await seedPlayers(hostId, 1);
     const [guest] = await seedPlayers(guestId, 1);

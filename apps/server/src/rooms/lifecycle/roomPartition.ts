@@ -15,11 +15,11 @@ import { AUTH_REJECTED_CODE, isTenantEnforced, type WorldAuth } from './onAuth.j
  * `room.metadata.tenant`, so that is what this compares, for exactly the joins
  * `enforceTenantMatch` skips.
  *
- * Same staged rollout and flag as `enforceTenantMatch` (ZONE_PRIVACY_TENANT_ENFORCE,
- * see isTenantEnforced): off, the mismatch is admitted with a warning so the
- * clients that cause it can be counted; on, it is refused. Data stays isolated
- * either way (verified-tenant scoping, StateView filter, seat counting); this
- * closes the residual sharing of the Colyseus room.
+ * Same flag as `enforceTenantMatch` (ZONE_PRIVACY_TENANT_ENFORCE, see
+ * isTenantEnforced), on by default: the mismatch is refused. Only an explicit
+ * `false` admits it with a warning. The StateView filter and seat counting do
+ * not cover room-wide messages, so this check is what keeps a foreign client
+ * out of them.
  *
  * A join that carries no verified tenant (NPCs, which carry no session) has
  * nothing to compare and is left alone.
