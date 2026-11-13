@@ -67,6 +67,7 @@ import {
 } from './matchmake/tenantPartition.js';
 import { assertBaseAvatarAvailable, listenAfterStartupChecks } from './services/startupInvariant.js';
 import { startDeletionTaskWorker } from './services/deletionTaskScheduler.js';
+import { startAvAccessServices } from './rooms/lifecycle/avAccessServices.js';
 
 // The origin allowlist is read once, before anything is served. A missing or
 // malformed list is not a startable configuration: the server refuses to start
@@ -439,6 +440,9 @@ if (deletionJournalDir) {
   deletionTaskWorker = startDeletionTaskWorker({ prisma: getApiPrismaClient(), journalDir: deletionJournalDir });
 }
 
+// Tenant-call access: the reconciler removes participants without a live, session-bound grant.
+const avAccessServices = startAvAccessServices(getApiPrismaClient());
+
 // Central error handler last
 app.use(errorHandler);
 
@@ -474,6 +478,15 @@ async function gracefulShutdown(signal: string) {
   } catch (e) {
     logger.error({
       event: 'tenant_deletion.worker_stop_failed',
+      errorName: e instanceof Error ? e.name : 'NonError',
+    });
+  }
+
+  try {
+    await avAccessServices.stop();
+  } catch (e) {
+    logger.error({
+      event: 'av.reconciler_stop_failed',
       errorName: e instanceof Error ? e.name : 'NonError',
     });
   }
