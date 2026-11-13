@@ -8,7 +8,7 @@
  * ZONE_PRIVACY_TENANT_ENFORCE to `false`, so the legacy mixed-room join is
  * admitted at join time; the operator case runs with the default (on).
  *
- * Before the R3 fix the sweep reads only `room.metadata.tenant` and every
+ * Before the fix the sweep reads only `room.metadata.tenant` and every
  * room listens only on its own `access_revoked:<slug>` channel:
  *  1. an allowed mixed-room client (member of A in M's room) is swept as
  *     `not_member_of_tenant`, although its verified tenant A still grants
@@ -58,13 +58,13 @@ let fixturePackUuid = '';
  * a fully authorized join is refused later in onJoin with 526.
  */
 async function seedGlobalAvatarPack(): Promise<void> {
-  const uuid = `s1r3-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  const uuid = `wat-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
   await prisma.avatarPack.create({
     data: {
       uuid,
       name: uuid,
       description: 'tenant join fixture',
-      author: 's1r3-fixture',
+      author: 'wat-fixture',
       version: '1',
       avatars: [{ key: 'business_man' }],
       tenantId: null,
@@ -86,7 +86,7 @@ async function createUser(
 ): Promise<{ id: string; token: string }> {
   const user = await prisma.user.create({
     data: {
-      email: `s1r3-${crypto.randomUUID()}@example.test`,
+      email: `wat-${crypto.randomUUID()}@example.test`,
       avatarId: `${fixturePackUuid}:business_man`,
     },
   });
@@ -153,8 +153,8 @@ async function leaveQuietly(join: TrackedJoin): Promise<void> {
 }
 
 beforeAll(async () => {
-  tenantASlug = `s1r3-a-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
-  tenantMSlug = `s1r3-m-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+  tenantASlug = `wat-a-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+  tenantMSlug = `wat-m-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
   tenantAId = await createTenant(tenantASlug);
   await createTenant(tenantMSlug);
   await seedGlobalAvatarPack();
@@ -192,9 +192,9 @@ afterAll(async () => {
 describe('verified client tenant wins over the room slug (real database)', () => {
   it('keeps an allowed mixed-room client and sweeps one whose tenant is gone', async () => {
     allowMixedRooms();
-    // Fall 2 first, on the empty server: without options.tenant the join
+    // Case 2 first, on the empty server: without options.tenant the join
     // creates a room whose metadata is DEFAULT_TENANT_SLUG.
-    const missingSlug = `s1r3-gone-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+    const missingSlug = `wat-gone-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
     vi.stubEnv('DEFAULT_TENANT_SLUG', missingSlug);
     const gone = await createUser([{ tenantId: tenantAId, role: 'member' }], tenantAId);
     const goneJoin = await joinWorld(gone.id, gone.token);
@@ -202,7 +202,7 @@ describe('verified client tenant wins over the room slug (real database)', () =>
     // Direct membership removal, without any revocation event.
     await prisma.membership.deleteMany({ where: { userId: gone.id } });
 
-    // Fall 1: member of A in the room of M (M exists, the join is allowed
+    // Case 1: member of A in the room of M (M exists, the join is allowed
     // while ZONE_PRIVACY_TENANT_ENFORCE is false).
     const mixed = await createUser([{ tenantId: tenantAId, role: 'member' }], tenantAId);
     const mixedJoin = await joinWorld(mixed.id, mixed.token, tenantMSlug);
@@ -212,9 +212,9 @@ describe('verified client tenant wins over the room slug (real database)', () =>
     await new Promise((resolve) => setTimeout(resolve, 65_000));
 
     console.log(
-      `[s1r3-rot] nach 65 s: Fall 1 (Mischraum) verbunden=${String(!mixedJoin.left)} ` +
-        `Fehler=${JSON.stringify(mixedJoin.errorMessages)} | Fall 2 (Metadaten-Tenant fehlt) ` +
-        `verbunden=${String(!goneJoin.left)} Fehler=${JSON.stringify(goneJoin.errorMessages)}`,
+      `[tenant-sweep] after 65 s: case 1 (mixed room) connected=${String(!mixedJoin.left)} ` +
+        `error=${JSON.stringify(mixedJoin.errorMessages)} | case 2 (metadata tenant missing) ` +
+        `connected=${String(!goneJoin.left)} error=${JSON.stringify(goneJoin.errorMessages)}`,
     );
     expect(
       mixedJoin.left,
@@ -239,11 +239,11 @@ describe('verified client tenant wins over the room slug (real database)', () =>
 
     await removeMemberFromTenant(prisma, { userId: revoked.id, tenantId: tenantAId });
 
-    // Fall 3: the revocation in A must end the session in M's room at once.
+    // Case 3: the revocation in A must end the session in M's room at once.
     await waitFor(() => revokedJoin.left, 3_000);
     expect(revokedJoin.left, 'Case 3: revoked client must be disconnected').toBe(true);
-    // Fall 5 (Gegenprobe): the other member of A in the same room stays.
-    expect(stayingJoin.left, 'Fall 5: zweites Mitglied von A bleibt verbunden').toBe(false);
+    // Case 5 (control): the other member of A in the same room stays.
+    expect(stayingJoin.left, 'Case 5: second member of A must stay connected').toBe(false);
 
     await leaveQuietly(stayingJoin);
     await leaveQuietly(revokedJoin);
@@ -258,7 +258,7 @@ describe('verified client tenant wins over the room slug (real database)', () =>
       const operatorJoin = await joinWorld(operator.id, operator.token, tenantASlug);
       expect(operatorJoin.error, 'Case 4: operator join must succeed').toBeUndefined();
 
-      // Fall 4: account deletion publishes no slug of A, yet A's room must end
+      // Case 4: account deletion publishes no slug of A, yet A's room must end
       // the operator session at once.
       await deleteAccount(prisma, operator.id);
       await waitFor(() => operatorJoin.left, 3_000);
