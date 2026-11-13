@@ -629,7 +629,7 @@ function assertRAccepted(issue, ruleId, reviewCode) {
 function rNoLeak(result, marker) {
   assert.ok(!JSON.stringify(result).includes(marker));
 }
-describe('checkEnvExamples: safe defaults R1 ports', () => {
+describe('checkEnvExamples: safe defaults ports', () => {
   it('accepts listed port boundaries', () => {
     for (const key of R_PORT_KEYS) {
       for (const val of ['1', '65535']) {
@@ -657,7 +657,7 @@ describe('checkEnvExamples: safe defaults R1 ports', () => {
         assert.ok(codesOf(result).includes(R_VALUE));
       }
     }
-    const secret = 'synth-secret-r1-port-aa01';
+    const secret = 'synth-secret-port-aa01';
     const secResult = rRun({ '.env.example': `PORT=${secret}\n` });
     assert.ok(!secResult.issues.some((issue) => issue.code === R_ACCEPTED));
     assert.ok(codesOf(secResult).includes(R_VALUE));
@@ -670,7 +670,7 @@ describe('checkEnvExamples: safe defaults R1 ports', () => {
     assert.ok(codesOf(cred).includes(R_CRED));
   });
 });
-describe('checkEnvExamples: safe defaults R1 integers', () => {
+describe('checkEnvExamples: safe defaults integers', () => {
   it('accepts listed integer boundaries', () => {
     for (const key of R_INT_KEYS) {
       for (const val of ['0', '2147483647']) {
@@ -689,7 +689,7 @@ describe('checkEnvExamples: safe defaults R1 integers', () => {
         assert.ok(codesOf(result).includes(R_VALUE));
       }
     }
-    const secret = 'synth-secret-r1-int-bb02';
+    const secret = 'synth-secret-int-bb02';
     const secResult = rRun({ '.env.example': `VITE_LIVEKIT_TOKEN_TIMEOUT_MS=${secret}\n` });
     assert.ok(!secResult.issues.some((issue) => issue.code === R_ACCEPTED));
     assert.ok(codesOf(secResult).includes(R_VALUE));
@@ -712,7 +712,7 @@ describe('checkEnvExamples: safe defaults R1 integers', () => {
     rNoLeak(secResult, secret);
   });
 });
-describe('checkEnvExamples: safe defaults R2 booleans', () => {
+describe('checkEnvExamples: safe defaults booleans', () => {
   it('accepts listed boolean literals', () => {
     for (const key of R_BOOL_KEYS) {
       for (const val of ['true', 'false']) {
@@ -735,7 +735,7 @@ describe('checkEnvExamples: safe defaults R2 booleans', () => {
         assert.ok(!result.issues.some((issue) => issue.code === R_ACCEPTED));
       }
     }
-    const secret = 'synth-secret-r2-dd04';
+    const secret = 'synth-secret-dd04';
     const secResult = rRun({ '.env.example': `COOKIE_SECURE=${secret}\n` });
     assert.ok(!secResult.issues.some((issue) => issue.code === R_ACCEPTED));
     rNoLeak(secResult, secret);
@@ -746,7 +746,7 @@ describe('checkEnvExamples: safe defaults R2 booleans', () => {
     assert.ok(!unknown.issues.some((issue) => issue.code === R_ACCEPTED));
   });
 });
-describe('checkEnvExamples: safe defaults R3 literals', () => {
+describe('checkEnvExamples: safe defaults literals', () => {
   it('accepts each closed literal', () => {
     for (const key of Object.keys(R_LITERALS)) {
       for (const val of R_LITERALS[key]) {
@@ -780,7 +780,7 @@ describe('checkEnvExamples: safe defaults R3 literals', () => {
     assert.ok(codesOf(cred).includes(R_CRED));
   });
 });
-describe('checkEnvExamples: safe defaults R4 urls', () => {
+describe('checkEnvExamples: safe defaults urls', () => {
   it('accepts canonical loopback urls for listed keys', () => {
     for (const key of Object.keys(R_URL_SPECS)) {
       const spec = R_URL_SPECS[key];
@@ -839,7 +839,7 @@ describe('checkEnvExamples: safe defaults R4 urls', () => {
     assert.ok(codesOf(emptyF).includes(R_ADDRESS));
     const wsScheme = rRun({ '.env.example': 'VITE_API_BASE=ws://localhost/\n' });
     assert.ok(!wsScheme.issues.some((issue) => issue.code === R_ACCEPTED));
-    const secret = 'synth-secret-r4-ee05';
+    const secret = 'synth-secret-ee05';
     const secResult = rRun({ '.env.example': `VITE_API_BASE=http://localhost/${secret}\n` });
     assert.ok(!secResult.issues.some((issue) => issue.code === R_ACCEPTED));
     rNoLeak(secResult, secret);

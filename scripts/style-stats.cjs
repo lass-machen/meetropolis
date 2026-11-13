@@ -101,14 +101,14 @@ function collectFileDiagnostics(fileResult, relativePath) {
   for (const warning of fileResult.warnings ?? []) {
     if (warning.rule !== 'color-no-hex') {
       diagnostics.push(
-        `${relativePath}:${warning.line}:${warning.column} unbekannte Diagnose ` +
-          `"${warning.rule ?? 'ohne Regel'}": ${warning.text}`,
+        `${relativePath}:${warning.line}:${warning.column} unknown diagnostic ` +
+          `"${warning.rule ?? 'no rule'}": ${warning.text}`,
       );
     }
   }
 
   for (const problem of fileResult.parseErrors ?? []) {
-    diagnostics.push(`${relativePath}: Parse-Fehler: ${problem.text}`);
+    diagnostics.push(`${relativePath}: parse error: ${problem.text}`);
   }
 
   for (const problem of fileResult.invalidOptionWarnings ?? []) {
@@ -163,7 +163,7 @@ async function lintCssFile(stylelint, { relativePath, absolutePath, source }) {
 
   if (fileResult.errored && counts.size === 0) {
     return {
-      errors: [`${relativePath}: Stylelint meldet einen Fehler ohne erkennbare color-no-hex-Diagnose.`],
+      errors: [`${relativePath}: Stylelint reports an error without a recognizable color-no-hex diagnostic.`],
     };
   }
 
@@ -326,7 +326,7 @@ async function runStyleStats({ root = ROOT, baselinePath = BASELINE_PATH, files,
     try {
       outcome = await lintCssFile(stylelint, { ...target, source });
     } catch (error) {
-      errors.push(`${target.relativePath}: Stylelint ist fehlgeschlagen (${error.message}).`);
+      errors.push(`${target.relativePath}: Stylelint failed (${error.message}).`);
       continue;
     }
 
@@ -398,7 +398,7 @@ async function main() {
   console.log(formatSummary(result));
 
   if (result.errors.length > 0) {
-    console.error('\nstyle-stats: Fehler (Fail-Closed):');
+    console.error('\nstyle-stats: error (Fail-Closed):');
 
     for (const error of result.errors) console.error(`  ${error}`);
 
@@ -421,7 +421,7 @@ async function main() {
 
 if (require.main === module) {
   main().catch((error) => {
-    console.error(`style-stats: unerwarteter Fehler: ${error.message}`);
+    console.error(`style-stats: unexpected error: ${error.message}`);
     process.exitCode = 2;
   });
 }

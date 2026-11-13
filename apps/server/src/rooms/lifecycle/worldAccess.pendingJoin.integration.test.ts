@@ -15,7 +15,7 @@
  * awaited) -> wait until the gate is reached -> `removeMemberFromTenant` (a
  * real commit with a real revocation event) -> release the gate.
  *
- * After the R5 fix the join is rejected with 4401, the room holds no player
+ * After the fix the join is rejected with 4401, the room holds no player
  * of that identity, and the client never receives `presence_recent` or
  * `full_state`. Before the fix the join succeeds.
  *
@@ -111,13 +111,13 @@ let fixturePackUuid = '';
  * a fully authorized join is refused later in onJoin with 526.
  */
 async function seedGlobalAvatarPack(): Promise<void> {
-  const uuid = `s1r5-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  const uuid = `pjoin-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
   await prisma.avatarPack.create({
     data: {
       uuid,
       name: uuid,
       description: 'pending join fixture',
-      author: 's1r5-fixture',
+      author: 'pjoin-fixture',
       version: '1',
       avatars: [{ key: 'business_man' }],
       tenantId: null,
@@ -139,7 +139,7 @@ async function createUser(
 ): Promise<{ id: string; token: string }> {
   const user = await prisma.user.create({
     data: {
-      email: `s1r5-${crypto.randomUUID()}@example.test`,
+      email: `pjoin-${crypto.randomUUID()}@example.test`,
       avatarId: `${fixturePackUuid}:business_man`,
     },
   });
@@ -180,8 +180,8 @@ async function leaveQuietly(room: Room | undefined, left: () => boolean): Promis
 }
 
 beforeAll(async () => {
-  tenantASlug = `s1r5-a-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
-  const tenantBSlug = `s1r5-b-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+  tenantASlug = `pjoin-a-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+  const tenantBSlug = `pjoin-b-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
   tenantAId = await createTenant(tenantASlug);
   tenantBId = await createTenant(tenantBSlug);
   await seedGlobalAvatarPack();
@@ -277,7 +277,7 @@ describe('revocation between onAuth and player registration ends the pending joi
     }
 
     console.log(
-      `[s1r5-rot] join rejected=${JSON.stringify(joinError ?? seen.errors)} left=${String(seen.left)} ` +
+      `[pending-join] join rejected=${JSON.stringify(joinError ?? seen.errors)} left=${String(seen.left)} ` +
         `presence_recent=${String(seen.presenceRecent)} full_state=${String(seen.fullState)}`,
     );
 

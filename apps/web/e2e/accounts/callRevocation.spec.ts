@@ -83,7 +83,7 @@ test.describe('AV calls end with the tenant access', () => {
   test('removing a member puts them out of the tenant call at once', async ({ seed, stack, playwright, browser }) => {
     const tenant = seed.tenants.acme ?? seed.tenants.default ?? Object.values(seed.tenants)[0];
     const owner = tenant?.users.owner;
-    if (!tenant || !owner) throw new Error('Seed-Mandant mit Owner fehlt.');
+    if (!tenant || !owner) throw new Error('Seed tenant with owner is missing.');
 
     const ownerRequest = await createApiRequest(playwright.request, stack.apiUrl, tenant.slug);
     const ownerApi = new MeetropolisApi(ownerRequest, stack.apiUrl, tenant.slug);

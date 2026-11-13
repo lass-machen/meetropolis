@@ -228,7 +228,7 @@ describe('objectReducer: ADD_PENDING_OBJECT_DELETE', () => {
     }
   });
 
-  it('setzt die Negativ-ID-Sequenz nach EditorService.reset ohne Wiederverwendung fort', () => {
+  it('continues the negative ID sequence after EditorService.reset without reuse', () => {
     EditorService.dispatch({ type: 'SELECT_ASSET', asset: chair });
     const beforeReset = EditorService.getState();
     if (!beforeReset.pendingAsset) throw new Error('SELECT_ASSET must provide pendingAsset');

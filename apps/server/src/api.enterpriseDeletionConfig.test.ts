@@ -101,7 +101,7 @@ afterEach(async () => {
 });
 
 describe('enterprise admin deletion plan config', () => {
-  it('W1 registerApi passes resolveTenantDeletionPlan as a function when the journal directory is configured', async () => {
+  it('registerApi passes resolveTenantDeletionPlan as a function when the journal directory is configured', async () => {
     const journalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deletion-journal-'));
     journalDirs.push(journalDir);
     process.env.DELETION_JOURNAL_DIR = journalDir;
@@ -111,7 +111,7 @@ describe('enterprise admin deletion plan config', () => {
     expect(typeof resolveTenantDeletionPlanOf(config)).toBe('function');
   });
 
-  it('W2 registerApi leaves resolveTenantDeletionPlan undefined without DELETION_JOURNAL_DIR', async () => {
+  it('registerApi leaves resolveTenantDeletionPlan undefined without DELETION_JOURNAL_DIR', async () => {
     delete process.env.DELETION_JOURNAL_DIR;
     process.env.BACKUP_RETENTION_DAYS = '14';
 
@@ -119,7 +119,7 @@ describe('enterprise admin deletion plan config', () => {
     expect(resolveTenantDeletionPlanOf(config)).toBeUndefined();
   });
 
-  it('W3 two concurrent first calls create the resolver once and both get its result', async () => {
+  it('two concurrent first calls create the resolver once and both get its result', async () => {
     const journalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deletion-journal-'));
     journalDirs.push(journalDir);
     process.env.DELETION_JOURNAL_DIR = journalDir;
@@ -150,7 +150,7 @@ describe('enterprise admin deletion plan config', () => {
     expect(results[1]).toEqual(plan);
   });
 
-  it('W4 a failed resolver creation returns undefined and the next call creates a new resolver', async () => {
+  it('a failed resolver creation returns undefined and the next call creates a new resolver', async () => {
     const journalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deletion-journal-'));
     journalDirs.push(journalDir);
     process.env.DELETION_JOURNAL_DIR = journalDir;

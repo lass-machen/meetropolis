@@ -475,7 +475,7 @@ test('Case 2: background save keeps the foreign zone state', async ({ stack, see
  * No reload and no other remount replaces the
  * live synchronization. Pixel or AV effect is not claimed.
  */
-test('Fall 3: geleerte Zonenliste erreicht beide offene Clients live', async ({ stack, seed, loginAs, request }) => {
+test('Case 3: emptied zone list reaches both open clients live', async ({ stack, seed, loginAs, request }) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack);
   const { owner, admin, mapId, tenantSlug } = requireOwnerAndAdmin(seed);

@@ -191,7 +191,7 @@ export const test = base.extend<VisualActorOptions & VisualActorFixtures>({
 
     if (teardownErrors.length > 0) {
       const errors = testError === undefined ? teardownErrors : [asError(testError), ...teardownErrors];
-      throw new AggregateError(errors, 'Der Teardown des visuellen Actors ist fehlgeschlagen.');
+      throw new AggregateError(errors, 'The teardown of the visual actor failed.');
     }
     if (testError !== undefined) throw asError(testError);
   },

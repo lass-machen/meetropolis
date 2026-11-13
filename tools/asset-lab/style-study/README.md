@@ -1,4 +1,4 @@
-# Stilrichtung Pixelatelier — Entwurfsvorschlag
+# Pixel studio style direction: draft proposal
 
 Draft for calm avatar figures in the virtual office. Pure static
 Draft: the production catalog (`packages/shared/sprite/catalog.json`) and
@@ -12,7 +12,7 @@ Vom Worktree-Root:
 node --experimental-strip-types tools/asset-lab/style-study/generate.ts --preview-dir /tmp/meetropolis-style-preview
 ```
 
-`--preview-dir` zeigt auf einen beliebigen lokalen Zielordner. Der Befehl
+`--preview-dir` points to any local target folder. The command
 writes only `style.html` and `out/style/*.png` below it. Both remain
 local (gitignored) and never committed. The command checks during the build
 the acceptance check: 4 figures × 4 views, 32×32 grid, valid palette and
@@ -65,7 +65,7 @@ body (`body.ts`), face (`face.ts`) and four new hairstyle grids
 Gestaltung: 32×32-Canvas, Figur in y4…y29, Bodenlinie y30, Mitte x15.5.
 Little heavy outline, readable short body, 2px tall dark eyes,
 small mouth, small profile noses, no face pixels at the back. One
-Lichtquelle von links oben, auch im rechten Profil. Drei abgestimmte
+light source from the top left, also in the right profile. Three coordinated
 values per material, contiguous areas, no dithering.
 
 ## Color series and scale

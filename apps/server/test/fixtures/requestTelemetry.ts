@@ -57,7 +57,7 @@ async function waitForObservations(expected: number): Promise<void> {
       .reduce((sum, v) => sum + v.value, 0);
     if (count >= expected) return;
     if (Date.now() > deadline) {
-      throw new Error(`nur ${count} von ${expected} Metrikbeobachtungen nach 5 Sekunden`);
+      throw new Error(`only ${count} of ${expected} metric observations after 5 seconds`);
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }

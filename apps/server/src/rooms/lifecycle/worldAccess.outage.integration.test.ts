@@ -106,13 +106,13 @@ let fixturePackUuid = '';
  * a fully authorized join is refused later in onJoin with 526.
  */
 async function seedGlobalAvatarPack(): Promise<void> {
-  const uuid = `s1r6-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  const uuid = `outage-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
   await prisma.avatarPack.create({
     data: {
       uuid,
       name: uuid,
       description: 'outage join fixture',
-      author: 's1r6-fixture',
+      author: 'outage-fixture',
       version: '1',
       avatars: [{ key: 'business_man' }],
       tenantId: null,
@@ -134,7 +134,7 @@ async function createUser(
 ): Promise<{ id: string; token: string }> {
   const user = await prisma.user.create({
     data: {
-      email: `s1r6-${crypto.randomUUID()}@example.test`,
+      email: `outage-${crypto.randomUUID()}@example.test`,
       avatarId: `${fixturePackUuid}:business_man`,
     },
   });
@@ -212,7 +212,7 @@ beforeAll(async () => {
   }
   vi.stubEnv('WORLD_ACCESS_SWEEP_MS', '1000');
   vi.stubEnv('WORLD_ACCESS_LEASE_MS', '4000');
-  tenantSlug = `s1r6-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+  tenantSlug = `outage-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
   tenantId = await createTenant(tenantSlug);
   await seedGlobalAvatarPack();
   server = await startMatchmakeServer();
@@ -245,14 +245,14 @@ afterAll(async () => {
 describe('world access survives publish and database faults (real database)', () => {
   it('case 1: revocation reaches the room even when the publish fails', async () => {
     const joined = await joinWorld(
-      's1r6-case1',
+      'outage-case1',
       (await createUser([{ tenantId, role: 'member' }], tenantId)).token,
       tenantSlug,
     );
     expect(joined.error, 'Case 1: join must succeed').toBeUndefined();
     const presence = server.gameServer.presence;
-    if (!presence) throw new Error(`${FILE} Fall 1: matchmake server has no presence`);
-    const publishSpy = vi.spyOn(presence, 'publish').mockRejectedValue(new Error('s1r6 presence down'));
+    if (!presence) throw new Error(`${FILE} Case 1: matchmake server has no presence`);
+    const publishSpy = vi.spyOn(presence, 'publish').mockRejectedValue(new Error('outage presence down'));
     try {
       const userId = userIds[userIds.length - 1];
       await removeMemberFromTenant(prisma, { userId, tenantId });
@@ -267,7 +267,7 @@ describe('world access survives publish and database faults (real database)', ()
 
   it('case 2: an unreachable database ends the session with 4503 access_unverified', async () => {
     const joined = await joinWorld(
-      's1r6-case2',
+      'outage-case2',
       (await createUser([{ tenantId, role: 'member' }], tenantId)).token,
       tenantSlug,
     );
@@ -282,7 +282,7 @@ describe('world access survives publish and database faults (real database)', ()
     expect(joined.left, 'Case 2: client must be disconnected when the DB is unreachable').toBe(true);
     expect(
       joined.errorMessages,
-      `Fall 2: 4503 access_unverified erwartet, erhalten=${JSON.stringify(joined.errorMessages)}`,
+      `Case 2: 4503 access_unverified expected, got=${JSON.stringify(joined.errorMessages)}`,
     ).toContainEqual({ code: 4503, message: 'access_unverified' });
 
     await leaveQuietly(joined);
@@ -290,7 +290,7 @@ describe('world access survives publish and database faults (real database)', ()
 
   it('case 3: a short database hiccup disconnects nobody', async () => {
     const joined = await joinWorld(
-      's1r6-case3',
+      'outage-case3',
       (await createUser([{ tenantId, role: 'member' }], tenantId)).token,
       tenantSlug,
     );
@@ -310,7 +310,7 @@ describe('world access survives publish and database faults (real database)', ()
   it('case 4: a guest ends at its stored expiry with 4006 guest_expired', async () => {
     const expiresAtMs = Date.now() + 3_000;
     const joined = await joinWorld(
-      's1r6-case4',
+      'outage-case4',
       (await createUser([{ tenantId, role: 'guest', expiresAt: new Date(expiresAtMs) }], tenantId)).token,
       tenantSlug,
     );
@@ -319,7 +319,7 @@ describe('world access survives publish and database faults (real database)', ()
     expect(joined.left, 'Case 4: guest must be disconnected at expiry').toBe(true);
     expect(
       joined.errorMessages,
-      `Fall 4: 4006 guest_expired erwartet, erhalten=${JSON.stringify(joined.errorMessages)}`,
+      `Case 4: 4006 guest_expired expected, got=${JSON.stringify(joined.errorMessages)}`,
     ).toContainEqual({ code: 4006, message: 'guest_expired' });
     expect(
       joined.leftAt,
@@ -331,7 +331,7 @@ describe('world access survives publish and database faults (real database)', ()
 
   it('case 5: a deleted session ends the world session with 4401 session_revoked', async () => {
     const user = await createUser([{ tenantId, role: 'member' }], tenantId);
-    const joined = await joinWorld('s1r6-case5', user.token, tenantSlug);
+    const joined = await joinWorld('outage-case5', user.token, tenantSlug);
     expect(joined.error, 'Case 5: join must succeed').toBeUndefined();
     const userId = userIds[userIds.length - 1];
     // Only the session row goes: the membership stays, so the session check —
@@ -346,7 +346,7 @@ describe('world access survives publish and database faults (real database)', ()
     expect(joined.left, 'Case 5: client must be disconnected after session end').toBe(true);
     expect(
       joined.errorMessages,
-      `Fall 5: 4401 session_revoked erwartet, erhalten=${JSON.stringify(joined.errorMessages)}`,
+      `Case 5: 4401 session_revoked expected, got=${JSON.stringify(joined.errorMessages)}`,
     ).toContainEqual({ code: 4401, message: 'session_revoked' });
 
     await leaveQuietly(joined);

@@ -55,7 +55,7 @@ describe('computeFootprintTiles: foot-only collision', () => {
   });
 });
 
-describe('computeFootprintTiles: footprint tile limit (A26)', () => {
+describe('computeFootprintTiles: footprint tile limit', () => {
   it('rejects a footprint just over the limit (4097 tiles)', () => {
     expect(() => computeFootprintTiles(0, 0, 16 * 4097, 16, 16, 16, 32)).toThrow(ObjectFootprintLimitError);
   });

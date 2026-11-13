@@ -6,7 +6,7 @@
  * mocked) and a real @colyseus/sdk client. Every case runs with
  * ZONE_PRIVACY_AUTH_ENFORCE unset and with it set to 'true'.
  *
- * Before the R4 fix the token-less, revoked-session and deleted-account joins
+ * Before the fix the token-less, revoked-session and deleted-account joins
  * are admitted while enforcement is off (the legacy fallback); after the fix
  * every one of them is rejected with 4401 'unauthorized'.
  */
@@ -48,13 +48,13 @@ let fixturePackUuid = '';
  * a fully authorized join is refused later in onJoin with 526.
  */
 async function seedGlobalAvatarPack(): Promise<void> {
-  const uuid = `s1r4-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  const uuid = `osess-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
   await prisma.avatarPack.create({
     data: {
       uuid,
       name: uuid,
       description: 'session join fixture',
-      author: 's1r4-fixture',
+      author: 'osess-fixture',
       version: '1',
       avatars: [{ key: 'business_man' }],
       tenantId: null,
@@ -67,7 +67,7 @@ async function seedGlobalAvatarPack(): Promise<void> {
 async function createMember(role: Role = 'member'): Promise<{ id: string; token: string }> {
   const user = await prisma.user.create({
     data: {
-      email: `s1r4-${crypto.randomUUID()}@example.test`,
+      email: `osess-${crypto.randomUUID()}@example.test`,
       // Points at the seeded global pack so the avatar allow-list has a hit.
       avatarId: `${fixturePackUuid}:business_man`,
     },
@@ -118,7 +118,7 @@ async function expectUnauthorized(attempt: JoinAttempt): Promise<void> {
 }
 
 beforeAll(async () => {
-  tenantSlug = `s1r4-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  tenantSlug = `osess-${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
   const tenant = await prisma.tenant.create({ data: { slug: tenantSlug, name: tenantSlug } });
   tenantIds.push(tenant.id);
   tenantId = tenant.id;

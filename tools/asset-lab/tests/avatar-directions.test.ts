@@ -34,14 +34,14 @@ function pixels(image: RgbaImage, row: number, col: number, mirrored = false): U
 describe('direction and layer rules of the compact avatars', () => {
   for (const hat of [null, 'cap']) {
     const state = hat ? 'covered' : 'uncovered';
-    it(`${state}: der hinten gebundene Pferdeschwanz bleibt vorn hinter dem Kopf`, () => {
+    it(`${state}: the back-tied ponytail stays at the front, behind the head`, () => {
       const config = { ...base, hat };
       const resolved = resolveSpriteCatalog(catalog, config);
       expect(getGrid(resolved, 'hairstyles.ponytail.front', config)).toEqual(
         getGrid(resolved, 'hairstyles.messy.front', config),
       );
     });
-    it(`${state}: der hintere Schweif sitzt mittig am Nacken`, () => {
+    it(`${state}: the rear tail sits centered at the nape`, () => {
       const config = { ...base, hat };
       const resolved = resolveSpriteCatalog(catalog, config);
       const rear = getGrid(resolved, 'hairstyles.ponytail.rear', config);

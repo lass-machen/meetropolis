@@ -217,7 +217,7 @@ test('a disable-line comment must not switch off the hex check', async () => {
   }
 });
 
-test('die kanonische Token-Datei bleibt auch mit Disable-Kommentar erlaubt', async () => {
+test('the canonical token file stays allowed even with a disable comment', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -291,7 +291,7 @@ test('the same hex value appearing more often is a regression', async () => {
   }
 });
 
-test('ein anderer Wert bei gleicher Summe ist eine Regression', async () => {
+test('a different value with the same total is a regression', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -314,7 +314,7 @@ test('ein anderer Wert bei gleicher Summe ist eine Regression', async () => {
   }
 });
 
-test('eine Reduktion ist erlaubt', async () => {
+test('a reduction is allowed', async () => {
   const workspace = createWorkspace();
 
   try {

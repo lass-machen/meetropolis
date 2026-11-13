@@ -1,5 +1,5 @@
 /**
- * Legacy OSS contract snapshot for R3.2b compatibility testing (PHASE1 red test).
+ * Legacy OSS contract snapshot for compatibility testing (red test before the fix).
  * Origin: apps/server/src/services/accountDeletion.ts at commit
  * e9e3817d935c25a7774d475361b8836dab6d8a7d (f0b43db9 working-tree SHA256).
  * Implementation is unchanged; only relative import paths were shifted one

@@ -134,11 +134,11 @@ export async function expectInitialBodyTab(page: Page): Promise<void> {
   // The editor frame is the parent container of .av-ed; the tabs live there.
   const editor = page.locator('.av-ed').locator('xpath=..');
   const tabs = editor.locator('.sys-tabs__tab');
-  await expect(tabs, 'der Editor hat genau drei Kategorie-Tabs').toHaveCount(3);
-  await expect(editor.locator('.sys-tabs__tab.sys-tabs__tab--active'), 'genau ein Kategorie-Tab ist aktiv').toHaveCount(
+  await expect(tabs, 'the editor has exactly three category tabs').toHaveCount(3);
+  await expect(editor.locator('.sys-tabs__tab.sys-tabs__tab--active'), 'exactly one category tab is active').toHaveCount(
     1,
   );
-  await expect(tabs.first(), 'der erste Kategorie-Tab ist aktiv').toHaveClass(/sys-tabs__tab--active/);
+  await expect(tabs.first(), 'the first category tab is active').toHaveClass(/sys-tabs__tab--active/);
 
   const slots = editor.locator('.av-ed__slots');
   await expect(slots, 'the slots of the body tab are visible').toBeVisible();
@@ -148,10 +148,10 @@ export async function expectInitialBodyTab(page: Page): Promise<void> {
 
   for (const [index, group] of BODY_TAB_GROUPS.entries()) {
     const element = groups.nth(index);
-    await expect(element, `${group.field} nutzt das Raster ${group.gridClass}`).toHaveClass(
+    await expect(element, `${group.field} uses the grid ${group.gridClass}`).toHaveClass(
       new RegExp(`av-ed__grid ${group.gridClass}`),
     );
-    expect(fields[group.field].required, `${group.field} ist ein Pflichtfeld`).toBe(true);
+    expect(fields[group.field].required, `${group.field} is a required field`).toBe(true);
     // Without a "none" option: the group shows exactly the field's catalog values.
     const options = fields[group.field].values.length;
     await expect(element.getByRole('button'), `${group.field} zeigt genau ${options} Katalogoptionen`).toHaveCount(

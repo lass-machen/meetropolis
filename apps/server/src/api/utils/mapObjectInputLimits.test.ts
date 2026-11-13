@@ -18,7 +18,7 @@ import { computeFootprintTiles } from './collisionHelpers.js';
 const DIMS = { tileWidth: 16, tileHeight: 16 };
 
 describe('checkSingleFootprint', () => {
-  it('nimmt exakt 4096 Kacheln an (64 x 64 bei 16-px-Kacheln)', () => {
+  it('accepts exactly 4096 tiles (64 x 64 at 16 px per tile)', () => {
     expect(checkSingleFootprint({ width: 1024, height: 1024, scaleFactor: 1 }, DIMS)).toEqual({
       ok: true,
       tiles: 4096,
@@ -43,7 +43,7 @@ describe('checkSingleFootprint', () => {
     });
   });
 
-  it('lehnt einen Scale-Overflow ohne Absturz ab', () => {
+  it('rejects a scale overflow without crashing', () => {
     expect(checkSingleFootprint({ width: 32, height: 32, scaleFactor: 1e308 }, DIMS)).toEqual({
       ok: false,
       error: 'invalid_object_dimensions',
