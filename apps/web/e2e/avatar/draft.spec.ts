@@ -14,6 +14,8 @@ import {
   statusRegion,
 } from './helpers';
 
+test.use({ locale: 'de-DE' });
+
 /** Four real regressions of the avatar draft: delayed loading, network failure,
  * Status after a change and editing during saving. No API mocks. */
 test.describe('Avatar-Entwurf @avatar', () => {

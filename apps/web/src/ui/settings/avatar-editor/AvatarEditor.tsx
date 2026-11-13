@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Tabs } from '../../system';
 import type { TabItem } from '../../system';
 import { useSpriteCatalog } from './useSpriteCatalog';
@@ -17,6 +18,7 @@ const TAB_ITEMS: TabItem[] = EDITOR_TABS.map((tab) => ({ key: tab.key, label: ta
  * composer, so every tile is a literal preview of what a click stores.
  */
 export function AvatarEditor({ onSaved }: { onSaved: AvatarSavedHandler }) {
+  const { t } = useTranslation();
   const { catalog, loading, error } = useSpriteCatalog();
   const {
     config,
@@ -33,8 +35,8 @@ export function AvatarEditor({ onSaved }: { onSaved: AvatarSavedHandler }) {
   // as long as the catalog itself is missing. An error while loading the saved
   // recipe leaves the editor unusable: there is no honest
   // fallback draft to save with.
-  if (error !== null || loadError !== null) return <div style={styles.info}>Editor nicht verfügbar.</div>;
-  if (loading || !catalog || !config) return <div style={styles.info}>Lade Editor…</div>;
+  if (error !== null || loadError !== null) return <div style={styles.info}>{t('avatarEditor.unavailable')}</div>;
+  if (loading || !catalog || !config) return <div style={styles.info}>{t('avatarEditor.loading')}</div>;
 
   return (
     <div>
@@ -43,7 +45,7 @@ export function AvatarEditor({ onSaved }: { onSaved: AvatarSavedHandler }) {
         <div className="av-ed__preview">
           <AvatarLivePreview catalog={catalog} config={config} />
           <Button variant="primary" className="av-ed__save" onClick={save} disabled={saving || draftLoading}>
-            {saving ? 'Speichert…' : 'Avatar speichern'}
+            {saving ? t('avatarEditor.saving') : t('avatarEditor.save')}
           </Button>
           <AvatarStatus status={status} />
         </div>

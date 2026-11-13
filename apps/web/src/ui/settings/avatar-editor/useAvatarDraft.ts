@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { canonicalConfig, type AvatarConfig, type SpriteCatalog } from '@meetropolis/shared';
 import { getApiBaseFromWindow } from '../../../lib/apiBase';
 import { logger } from '../../../lib/logger';
@@ -118,6 +119,7 @@ function useStoredRecipe(
  * server composes the sheet once (response: avatarId + manifest).
  */
 export function useAvatarDraft(catalog: SpriteCatalog | null, onSaved: AvatarSavedHandler): AvatarDraft {
+  const { t } = useTranslation();
   const apiBase = getApiBaseFromWindow();
   const [saving, setSaving] = React.useState(false);
   const [status, setStatus] = React.useState<string | null>(null);
@@ -164,21 +166,21 @@ export function useAvatarDraft(catalog: SpriteCatalog | null, onSaved: AvatarSav
           body: JSON.stringify(snapshot),
         });
         if (!res.ok) {
-          setStatus('Speichern fehlgeschlagen.');
+          setStatus(t('avatarEditor.saveFailed'));
           return;
         }
         const data = (await res.json()) as ComposeResponse;
         onSaved(data.avatarId, data.manifest);
         // Only report if nothing has changed since saving.
-        if (editCounter.current === editsAtSave) setStatus('Avatar gespeichert.');
+        if (editCounter.current === editsAtSave) setStatus(t('avatarEditor.saved'));
       } catch (err) {
         logger.warn('[AvatarEditor] save failed', err);
-        setStatus('Speichern fehlgeschlagen.');
+        setStatus(t('avatarEditor.saveFailed'));
       } finally {
         setSaving(false);
       }
     })();
-  }, [config, apiBase, onSaved, loading, loadError, saving]);
+  }, [config, apiBase, onSaved, loading, loadError, saving, t]);
 
   return { config, setConfig, save, saving, status, loading, loadError };
 }
