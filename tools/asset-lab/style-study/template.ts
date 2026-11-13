@@ -71,10 +71,10 @@ function scaleSection(model: SheetModel): string {
   return (
     `<section class="panel"><h2>Scale · 1 sprite pixel = 1 world pixel</h2>` +
     `<img class="strip" src="${img}" alt="Scale strip with figure, desk and chair">` +
-    `<ul><li>16px-Weltraster, Standlinie als Signatur, alle drei auf derselben Grundlinie.</li>` +
-    `<li>Figur: Nachher-Raster vorne, 32x32 (Figur 1).</li>` +
-    `<li>Schreibtisch: tools/asset-lab/src/assets.ts (desk), 64x48, Thema holz.</li>` +
-    `<li>Stuhl: tools/asset-lab/src/assets.ts (chair), 24x32, Thema holz.</li>` +
+    `<ul><li>16px world grid, standing line as signature, all three on the same baseline.</li>` +
+    `<li>Figure: after grid, front view, 32x32 (figure 1).</li>` +
+    `<li>Desk: tools/asset-lab/src/assets.ts (desk), 64x48, theme holz.</li>` +
+    `<li>Chair: tools/asset-lab/src/assets.ts (chair), 24x32, theme holz.</li>` +
     `<li>No new furniture drawn; only approved existing office pixels.</li></ul></section>`
   );
 }
@@ -87,7 +87,7 @@ export function buildHtml(model: SheetModel): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Stilrichtung Pixelatelier — Entwurfsvorschlag</title>
+<title>Pixel studio style direction: draft proposal</title>
 <style>
 :root { color-scheme: light dark; }
 body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; background: #f7f4ee; color: #1f1b16; line-height: 1.5; }

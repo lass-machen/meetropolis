@@ -20,7 +20,7 @@ const LIVEKIT_UMD = fileURLToPath(
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
-  if (!value) throw new Error(`${name} fehlt: scripts/teststack.sh up`);
+  if (!value) throw new Error(`${name} is missing: run scripts/teststack.sh up`);
   return value;
 }
 

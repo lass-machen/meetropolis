@@ -26,7 +26,7 @@ describe('checkSingleFootprint', () => {
     expect(MAX_OBJECT_FOOTPRINT_TILES).toBe(4096);
   });
 
-  it('lehnt 4097 Kacheln mit stabilem Fehlercode ab', () => {
+  it('rejects 4097 tiles with a stable error code', () => {
     expect(checkSingleFootprint({ width: 16 * 4097, height: 16, scaleFactor: 1 }, DIMS)).toEqual({
       ok: false,
       error: 'object_footprint_too_large',
@@ -34,7 +34,7 @@ describe('checkSingleFootprint', () => {
   });
 
   it('scales before rounding up to tiles (ceil edges)', () => {
-    // 17 px -> 2 Kacheln je Achse, also 4 Kacheln.
+    // 17 px -> 2 tiles per axis, so 4 tiles.
     expect(checkSingleFootprint({ width: 17, height: 17 }, DIMS)).toEqual({ ok: true, tiles: 4 });
     // scale 1.5 on 16 px -> 24 px effective -> 2 x 2 tiles.
     expect(checkSingleFootprint({ width: 16, height: 16, scaleFactor: 1.5 }, DIMS)).toEqual({
@@ -63,7 +63,7 @@ describe('checkSingleFootprint', () => {
 });
 
 describe('checkBulkFootprints', () => {
-  it('nimmt exakt 65536 Summen-Kacheln an (64 Objekte a 1024 Kacheln)', () => {
+  it('accepts exactly 65536 total tiles (64 objects at 1024 tiles each)', () => {
     const objects = Array.from({ length: 64 }, () => ({ width: 512, height: 512, scaleFactor: 1 }));
     expect(checkBulkFootprints(objects, DIMS)).toEqual({ ok: true, tiles: 65536 });
     expect(MAX_BULK_FOOTPRINT_TILES).toBe(65536);

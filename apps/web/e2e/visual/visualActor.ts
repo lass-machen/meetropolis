@@ -225,7 +225,7 @@ async function assertNamespaceFree(db: Client, scope: { email: string; tenantId:
   );
   if (users > 0 || invites > 0) {
     throw new Error(
-      `Der visuelle Actor ${scope.email} existiert bereits (User ${users}, Invite ${invites}). ` +
+      `The visual actor ${scope.email} already exists (user ${users}, invite ${invites}). ` +
         'Fail closed: existing rows are not deleted.',
     );
   }

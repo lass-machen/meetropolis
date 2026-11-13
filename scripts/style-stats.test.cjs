@@ -58,7 +58,7 @@ async function runCheck(workspace, { baseline, files }) {
   });
 }
 
-test('die kanonische Token-Datei darf Hex-Werte enthalten', async () => {
+test('the canonical token file may contain hex values', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -90,7 +90,7 @@ test('a foreign tokens.css is blocked', async () => {
     assert.equal(result.regressions.length, 1);
     assert.equal(result.regressions[0].file, 'tools/asset-lab/src/tokens.css');
     assert.equal(result.regressions[0].hex, '#ff0000');
-    assert.equal(result.regressions[0].kind, 'neuer Wert');
+    assert.equal(result.regressions[0].kind, 'new value');
     assert.equal(result.ok, false);
   } finally {
     workspace.cleanup();
@@ -159,7 +159,7 @@ test('a disable comment must not switch off the hex check', async () => {
     assert.deepEqual(result.errors, []);
     assert.equal(result.regressions.length, 1);
     assert.equal(result.regressions[0].hex, '#123456');
-    assert.equal(result.regressions[0].kind, 'neuer Wert');
+    assert.equal(result.regressions[0].kind, 'new value');
     assert.equal(result.hexTotal, 1);
     assert.equal(result.ok, false);
   } finally {
@@ -184,7 +184,7 @@ test('a disable-next-line comment must not switch off the hex check', async () =
     assert.deepEqual(result.errors, []);
     assert.equal(result.regressions.length, 1);
     assert.equal(result.regressions[0].hex, '#123456');
-    assert.equal(result.regressions[0].kind, 'neuer Wert');
+    assert.equal(result.regressions[0].kind, 'new value');
     assert.equal(result.hexTotal, 1);
     assert.equal(result.ok, false);
   } finally {
@@ -209,7 +209,7 @@ test('a disable-line comment must not switch off the hex check', async () => {
     assert.deepEqual(result.errors, []);
     assert.equal(result.regressions.length, 1);
     assert.equal(result.regressions[0].hex, '#123456');
-    assert.equal(result.regressions[0].kind, 'neuer Wert');
+    assert.equal(result.regressions[0].kind, 'new value');
     assert.equal(result.hexTotal, 1);
     assert.equal(result.ok, false);
   } finally {
@@ -259,7 +259,7 @@ test('a foreign tokens.css with a disable comment is blocked', async () => {
     assert.equal(result.regressions.length, 1);
     assert.equal(result.regressions[0].file, 'tools/asset-lab/src/tokens.css');
     assert.equal(result.regressions[0].hex, '#ff0000');
-    assert.equal(result.regressions[0].kind, 'neuer Wert');
+    assert.equal(result.regressions[0].kind, 'new value');
     assert.equal(result.ok, false);
   } finally {
     workspace.cleanup();
@@ -285,7 +285,7 @@ test('the same hex value appearing more often is a regression', async () => {
     assert.equal(result.regressions[0].hex, '#fff');
     assert.equal(result.regressions[0].baseline, 1);
     assert.equal(result.regressions[0].current, 2);
-    assert.equal(result.regressions[0].kind, 'Anzahl gestiegen');
+    assert.equal(result.regressions[0].kind, 'count increased');
   } finally {
     workspace.cleanup();
   }
@@ -308,7 +308,7 @@ test('a different value with the same total is a regression', async () => {
     assert.deepEqual(result.errors, []);
     assert.equal(result.regressions.length, 1);
     assert.equal(result.regressions[0].hex, '#ccc');
-    assert.equal(result.regressions[0].kind, 'neuer Wert');
+    assert.equal(result.regressions[0].kind, 'new value');
   } finally {
     workspace.cleanup();
   }
@@ -380,7 +380,7 @@ test('a baseline with the wrong version fails the run', async () => {
 
     assert.equal(result.ok, false);
     assert.equal(result.errors.length, 1);
-    assert.match(result.errors[0], /Version/);
+    assert.match(result.errors[0], /has version/);
   } finally {
     workspace.cleanup();
   }
@@ -397,7 +397,7 @@ test('a baseline with an invalid hex value fails the run', async () => {
 
     assert.equal(result.ok, false);
     assert.equal(result.errors.length, 1);
-    assert.match(result.errors[0], /Hex-Wert/);
+    assert.match(result.errors[0], /lowercase hex value/);
   } finally {
     workspace.cleanup();
   }
@@ -457,7 +457,7 @@ test('a missing root directory fails the run', async () => {
     assert.equal(result.hexTotal, 0);
     assert.deepEqual(result.regressions, []);
     assert.equal(result.errors.length, 1);
-    assert.match(result.errors[0], /Dateisuche/);
+    assert.match(result.errors[0], /File search/);
     assert.ok(result.errors[0].includes(missingRoot));
   } finally {
     workspace.cleanup();
@@ -491,7 +491,7 @@ test('an unreadable subdirectory fails the run', async (t) => {
     assert.equal(result.hexTotal, 0);
     assert.deepEqual(result.regressions, []);
     assert.equal(result.errors.length, 1);
-    assert.match(result.errors[0], /Dateisuche/);
+    assert.match(result.errors[0], /File search/);
   } finally {
     fs.chmodSync(lockedDirectory, 0o700);
     workspace.cleanup();

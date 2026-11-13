@@ -19,7 +19,7 @@ export function hairValues(): string[] {
  * its labels currently use untranslated, polished catalog values. */
 export function hairIndex(value: string): number {
   const index = hairValues().indexOf(value);
-  if (index < 0) throw new Error(`Frisur „${value}“ fehlt im Katalog.`);
+  if (index < 0) throw new Error(`hairstyle "${value}" is missing from the catalog.`);
   return index;
 }
 
@@ -108,7 +108,7 @@ export async function expectEmptyStatusRegion(page: Page, testInfo: TestInfo): P
     body: JSON.stringify(layout, null, 2),
     contentType: 'application/json',
   });
-  expect(layout.height, 'die leere Statusregion darf keinen Platz belegen').toBe(0);
+  expect(layout.height, 'the empty status region must not take up any space').toBe(0);
   expect(layout.display, 'the empty status region must not be hidden').not.toBe('none');
   expect(layout.visibility, 'the empty status region must not be invisible').not.toBe('hidden');
   expect(layout.ariaHidden, 'the empty status region must not be aria-hidden').toBeNull();

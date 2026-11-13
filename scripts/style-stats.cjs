@@ -116,7 +116,7 @@ function collectFileDiagnostics(fileResult, relativePath) {
   }
 
   for (const problem of fileResult.deprecations ?? []) {
-    diagnostics.push(`${relativePath}: veraltete Funktion: ${problem.text}`);
+    diagnostics.push(`${relativePath}: deprecated feature: ${problem.text}`);
   }
 
   return diagnostics;
@@ -136,7 +136,7 @@ async function lintCssFile(stylelint, { relativePath, absolutePath, source }) {
   const results = result.results ?? [];
 
   if (results.length !== 1) {
-    return { errors: [`${relativePath}: Stylelint lieferte ${results.length} Ergebnisse statt einem.`] };
+    return { errors: [`${relativePath}: Stylelint returned ${results.length} results instead of one.`] };
   }
 
   const fileResult = results[0];
@@ -243,7 +243,7 @@ function compareFileCounts(baselineCounts, currentCounts) {
         hex,
         baseline,
         current,
-        kind: baseline === 0 ? 'neuer Wert' : 'Anzahl gestiegen',
+        kind: baseline === 0 ? 'new value' : 'count increased',
       });
     }
   }
@@ -302,7 +302,7 @@ async function runStyleStats({ root = ROOT, baselinePath = BASELINE_PATH, files,
     try {
       cssFiles = findCssFiles(root);
     } catch (error) {
-      return failedRun([`Dateisuche unter ${root} ist fehlgeschlagen: ${error.message}`]);
+      return failedRun([`File search under ${root} failed: ${error.message}`]);
     }
 
     targets = cssFiles.map((relativePath) => ({
@@ -369,15 +369,15 @@ async function runStyleStats({ root = ROOT, baselinePath = BASELINE_PATH, files,
 }
 
 function formatSummary(result) {
-  const stand = result.baselineUpdatedAt ? ` (Stand ${result.baselineUpdatedAt})` : '';
+  const stand = result.baselineUpdatedAt ? ` (as of ${result.baselineUpdatedAt})` : '';
   const lines = [
     `style-stats: ${result.checkedFiles} CSS files checked, ` +
       `${result.hexTotal} hex values outside the token file.`,
-    `Baseline:   ${result.baselineTotal} Hex-Werte in ${result.baselineFiles} Dateien${stand}.`,
+    `Baseline:   ${result.baselineTotal} hex values in ${result.baselineFiles} files${stand}.`,
   ];
 
   for (const exempt of result.exemptFiles) {
-    lines.push(`Ausnahme:   ${exempt.file} (${exempt.hexes} Hex-Werte, kanonische Token-Datei).`);
+    lines.push(`Exempt:     ${exempt.file} (${exempt.hexes} hex values, canonical token file).`);
   }
 
   return lines.join('\n');
@@ -386,7 +386,7 @@ function formatSummary(result) {
 function formatRegression(regression) {
   return (
     `  ${regression.file}: ${regression.hex} ${regression.kind} ` +
-    `(Baseline ${regression.baseline}, aktuell ${regression.current})`
+    `(Baseline ${regression.baseline}, current ${regression.current})`
   );
 }
 
@@ -407,7 +407,7 @@ async function main() {
   }
 
   if (result.regressions.length > 0) {
-    console.error('\nstyle-stats: REGRESSIONEN erkannt:');
+    console.error('\nstyle-stats: REGRESSIONS detected:');
 
     for (const regression of result.regressions) console.error(formatRegression(regression));
 

@@ -42,7 +42,7 @@ function buildApp(): express.Application {
 async function readRouteLabels(): Promise<RouteLabel[]> {
   const metric = registry.getSingleMetric('meetropolis_http_request_duration_seconds');
   if (!metric) {
-    throw new Error('Metrik meetropolis_http_request_duration_seconds fehlt im Registry');
+    throw new Error('metric meetropolis_http_request_duration_seconds is missing from the registry');
   }
   const data = (await metric.get()) as { values: RouteLabel[] };
   return data.values;
