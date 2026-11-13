@@ -21,6 +21,7 @@ import { Client, type Room } from '@colyseus/sdk';
 import { ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
 import { createPrismaClient } from '../../db.js';
 import { registerApi } from '../../api.js';
+import { DEFAULT_ZONE_NAME } from '../../api/routes/editorStateSchema.js';
 import { tenantMiddleware } from '../../tenancy.js';
 import { registry } from '../../metrics.js';
 import { cleanupTenants, seedMember, seedTenant, type SeededMember } from '../../testUtils/worldSeed.js';
@@ -628,6 +629,29 @@ describe('accepted payloads', () => {
     expect(stored).toHaveLength(1);
     expect(stored[0]?.name).toBe('Round');
     expect(stored[0]?.capacity).toBeNull();
+  }, 30_000);
+
+  it('accepted payloads > stores a missing, null or blank zone name as the default name', async () => {
+    const unnamedZones: Array<Record<string, unknown>> = [
+      { name: '', points: triangle() },
+      { name: '   ', points: triangle() },
+      { name: null, points: triangle() },
+      { points: triangle() },
+    ];
+    for (const unnamed of unnamedZones) {
+      await expectAcceptedEditor({ zones: [unnamed], replaceZones: true });
+      const fetched = await getEditor();
+      const zones =
+        typeof fetched === 'object' && fetched !== null && 'zones' in fetched && Array.isArray(fetched.zones)
+          ? fetched.zones
+          : [];
+      expect(zones).toHaveLength(1);
+      const zone: unknown = zones[0];
+      const name = typeof zone === 'object' && zone !== null && 'name' in zone ? zone.name : undefined;
+      expect(name).toBe(DEFAULT_ZONE_NAME);
+      const stored = await prisma.zone.findMany({ where: { mapId } });
+      expect(stored.map((row) => row.name)).toEqual([DEFAULT_ZONE_NAME]);
+    }
   }, 30_000);
 
   it('accepted payloads > accepts 256 tilesets', async () => {
