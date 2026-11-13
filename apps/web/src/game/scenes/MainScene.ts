@@ -13,6 +13,7 @@ import { loadVisibleChunks, applyChunkUpdates } from '../map/chunks';
 import type { ChunkLayerName } from '../map/chunks';
 import { registerTileset } from '../map/tilesets';
 import { EditorService } from '../../services/EditorService';
+import { subscribeToSceneEditor } from './main/sceneEditorSubscription';
 import { EditorIntegration } from '../editor/integration';
 import { AutotileGrid, AutotileRenderer, AutotileTextureLoader } from '../autotile';
 import { avatarRegistry } from '../avatarRegistry';
@@ -272,7 +273,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
   }
 
   private setupEditorSubscriptions() {
-    EditorService.subscribe(() => {
+    subscribeToSceneEditor(this.events, () => {
       this.tileManager.updateBackgrounds();
       this.tileManager.updateGrid();
       this.uiManager.updateCursor(

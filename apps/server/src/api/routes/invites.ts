@@ -113,7 +113,7 @@ async function handleResendInvite(prisma: PrismaClient, req: express.Request, re
   const updated = await prisma.invite.update({ where: { id }, data: { expiresAt: inviteExpiry() } });
   const inviteUrl = buildPublicWebLink(baseUrl, `?invite=${updated.code}`);
   const emailSent = await deliverInvite(prisma, {
-    invite: { id: updated.id, email: updated.email, tenantId: updated.tenantId },
+    invite: { id: updated.id, email: updated.email, tenantId: updated.tenantId, expiresAt: updated.expiresAt },
     inviterUserId: admin.auth.userId,
     tenantName: admin.tenant.name,
     inviteUrl,

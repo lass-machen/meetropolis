@@ -156,8 +156,12 @@ function hairstyle(view: View, name: string, covered: boolean): Grid {
       stampBraid(20, 13, true);
     }
   }
-  if (name === 'ponytail')
-    for (let py = 10; py < 22; py++) put(view === 'rear' ? 20 : 23, py, py === 10 || py === 21 ? '.OO.' : 'OijO');
+  if (name === 'ponytail') {
+    if (view === 'side')
+      for (let py = 10; py < 22; py++) put(23, py, py === 10 || py === 21 ? '.OO.' : 'OijO');
+    else if (view === 'rear')
+      for (let py = 12; py < 22; py++) put(14, py, py === 12 || py === 21 ? '.OO.' : 'OijO');
+  }
   if (name === 'bun') {
     put(13, 0, '.OOOO.');
     put(13, 1, 'OhhiiO');

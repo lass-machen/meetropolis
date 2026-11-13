@@ -13,6 +13,7 @@ import { getTenancyModule } from '../../tenancyLoader.js';
 import { sendIfAvailable } from '../../emailLoader.js';
 import { guestLoginRateLimiter } from '../middleware/rateLimit.js';
 import { credentialRoute } from '../middleware/tenantAccess.js';
+import { formatInviteExpiry } from '../utils/inviteLifecycle.js';
 
 type GuestAdminGate =
   | {
@@ -142,13 +143,7 @@ async function sendGuestInviteEmail(
         tenantName,
         guestName: name || user.name || '',
         magicLinkUrl: magicLink,
-        expiresAt: expiresAt.toLocaleDateString(localeForMail === 'en' ? 'en-GB' : 'de-DE', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        expiresAt: formatInviteExpiry(expiresAt, localeForMail),
         locale: localeForMail,
       }),
     'guest.invite.email_failed',

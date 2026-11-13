@@ -86,7 +86,7 @@ export async function handleAuthInvite(
       });
   const inviteUrl = buildPublicWebLink(baseUrl, `?invite=${invite.code}`);
   const emailSent = await inviteLifecycle.deliverInvite(prisma, {
-    invite: { id: invite.id, email: invite.email, tenantId: invite.tenantId },
+    invite: { id: invite.id, email: invite.email, tenantId: invite.tenantId, expiresAt: invite.expiresAt },
     inviterUserId: auth.userId,
     tenantName: tenant.name,
     inviteUrl,

@@ -41,7 +41,7 @@ describe('sprite catalog v6 proportions', () => {
       hashes[proportion] = [0, 1, 2, 3].map((row) => hash(frame(image, row, 0)));
     }
     expect(hashes).toEqual({
-      kompakt: ['6e7896bc45beffb2', 'b7c8500d565c563c', '61a2179b130d4f66', '96faad148aff6325'],
+      kompakt: ['6e7896bc45beffb2', '574254dd39430bae', 'cd7941142ad7f8a5', '96faad148aff6325'],
     });
   });
 

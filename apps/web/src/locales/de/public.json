@@ -91,9 +91,9 @@
     "q3Question": "Welche Lizenz hat die Software?",
     "q3Answer": "Server unter AGPL-3.0, Web-Frontend unter MIT. Du darfst die Software selbst betreiben, anpassen und in deine Infrastruktur einbetten — solange du die Lizenzbedingungen einhältst.",
     "q4Question": "Können wir jederzeit kündigen?",
-    "q4Answer": "Ja. Monatliche Pläne kündbar zum Monatsende, jährliche zum Jahresende. Keine Mindestlaufzeit, kein Lock-in.",
+    "q4Answer": "Ja. Ein Abo kannst du jederzeit zum Ende des laufenden Abrechnungszeitraums kündigen. Keine Mindestlaufzeit, kein Lock-in.",
     "q5Question": "Was passiert mit unseren Custom Maps, wenn wir kündigen?",
-    "q5Answer": "Du kannst alle Maps jederzeit als Datei exportieren — auch nach der Kündigung im read-only-Zeitraum. Eure Welten gehören euch.",
+    "q5Answer": "Du kannst alle Maps jederzeit als Datei exportieren, solange du Zugang zu deinem Arbeitsbereich hast. Exportiere sie also, bevor dein Zugang endet. Eure Welten gehören euch.",
     "q6Question": "Brauchen wir die Desktop-App?",
     "q6Answer": "Nein. Die Anwendung läuft komplett im Browser. Die Desktop-App ist optional und bietet zusätzlich einen Floating Mini-Modus für nebenher."
   },

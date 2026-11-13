@@ -31,6 +31,10 @@ if (!process.env.DATABASE_URL) {
 const TENANT_SLUG = `qacc-iso-${crypto.randomUUID()}`;
 process.env.DEFAULT_TENANT_SLUG = TENANT_SLUG;
 
+// registration starts the email verification only with a public base URL (Q-LINK)
+process.env.PUBLIC_BASE_URL = 'http://localhost:42000';
+process.env.PUBLIC_BASE_URL_ALLOW_LOOPBACK = 'true';
+
 const prisma = createPrismaClient();
 const userIds: string[] = [];
 const additionalTenantIds: string[] = [];

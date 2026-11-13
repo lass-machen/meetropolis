@@ -46,3 +46,6 @@ build_output.txt
 packages/brand/
 packages/desktop/
 packages/tenancy-enterprise/
+
+# Local editor settings
+.codex/

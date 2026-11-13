@@ -126,7 +126,7 @@ const projects: Project[] = [
         },
       ]
     : []),
-  // @stack specs pause shared stack containers, so they run once, in a single project with one worker (Q-TEST-46).
+  // @stack specs pause shared stack containers, so they run once, in a single project with one worker.
   {
     name: 'stack',
     grep: /@stack/,

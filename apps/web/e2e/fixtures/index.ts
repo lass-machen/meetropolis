@@ -50,7 +50,7 @@ export const test = base.extend<Fixtures>({
   },
 
   freshTenant: async ({ playwright, stack }, provide, testInfo) => {
-    testInfo.skip(stack.edition === 'oss', 'freshTenant braucht Enterprise (Mandanten)');
+    testInfo.skip(stack.edition === 'oss', 'freshTenant requires the enterprise edition (tenants)');
     await provide(await createFreshTenant(playwright.request, stack, testInfo.testId));
   },
 
@@ -66,7 +66,7 @@ export const test = base.extend<Fixtures>({
         contexts.push(context);
         const page = await context.newPage();
         if (user.role === 'guest') {
-          if (!user.guestUrl) throw new Error(`Gast ${user.email} hat keinen Magic-Link.`);
+          if (!user.guestUrl) throw new Error(`Guest ${user.email} has no magic link.`);
           await page.goto(user.guestUrl);
           await page.waitForURL(/#\/app(?:$|\?)/);
         } else {

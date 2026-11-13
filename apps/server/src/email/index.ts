@@ -46,10 +46,10 @@ class OssEmailModule implements EmailModule {
   readonly version = 1 as const;
 
   constructor(
+    readonly providerName: 'oss-smtp' | 'oss-console',
     private readonly provider: EmailProvider,
     private readonly brand: BrandContext,
     private readonly defaultLocale: EmailLocale,
-    readonly providerName: string,
   ) {}
 
   private effective(locale: EmailLocale | undefined): EmailLocale {
@@ -109,7 +109,7 @@ export function createOssEmailModule(): EmailModule | null {
       smtpPool: smtpOptions.pool,
       smtpVerifyOnBoot: smtpOptions.verifyOnBoot,
     });
-    return new OssEmailModule(provider, brand, defaultLocale, 'oss-smtp');
+    return new OssEmailModule('oss-smtp', provider, brand, defaultLocale);
   }
 
   if (process.env.NODE_ENV === 'test') return null;
@@ -125,5 +125,5 @@ export function createOssEmailModule(): EmailModule | null {
     brand: brand.brandName,
     defaultLocale,
   });
-  return new OssEmailModule(provider, brand, defaultLocale, 'oss-console');
+  return new OssEmailModule('oss-console', provider, brand, defaultLocale);
 }

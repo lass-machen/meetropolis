@@ -114,11 +114,8 @@ function isAbsentTranscriptionPackage(error: unknown): boolean {
   );
 }
 
-// Variable specifier: the optional package is not a build dependency, so TypeScript must not resolve it.
-const importTranscriptionPackage: TranscriptionImporter = () => {
-  const moduleName: string = '@meetropolis/transcription';
-  return import(moduleName);
-};
+// Literal specifier so the source policy can see the optional import; types/shims.d.ts declares the module.
+const importTranscriptionPackage: TranscriptionImporter = () => import('@meetropolis/transcription');
 
 /**
  * Loads and validates the optional module. The state separates an absent package,

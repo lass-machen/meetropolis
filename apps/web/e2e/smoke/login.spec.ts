@@ -1,17 +1,11 @@
 import { test, expect } from '../fixtures';
-import type { SeedData } from '../support/api';
+import { createSeedTenantUsers } from '../fixtures/tenant';
 
 test.use({ locale: 'en-US' });
 
-function seededTenant(seed: SeedData) {
-  const tenant = seed.tenants.acme ?? seed.tenants.default ?? Object.values(seed.tenants)[0];
-  if (!tenant) throw new Error('Seed-Datei enthält keinen Mandanten.');
-  return tenant;
-}
-
-test('seed member signs in through the UI @smoke', async ({ page, seed, stack }) => {
-  const member = seededTenant(seed).users.member;
-  if (!member?.password) throw new Error('Seed-Mandant enthält keinen Member mit Passwort.');
+test('seed member signs in through the UI @smoke', async ({ page, seed, stack, playwright }, testInfo) => {
+  const [member] = await createSeedTenantUsers(playwright.request, stack, seed, testInfo.testId, ['member']);
+  if (!member?.password) throw new Error('Seed tenant has no member with a password.');
 
   const loginUrl = new URL(stack.baseUrl);
   loginUrl.hash = '/login';
@@ -22,5 +16,5 @@ test('seed member signs in through the UI @smoke', async ({ page, seed, stack })
   await loginForm.locator('button[type="submit"]').click();
 
   await expect(page).toHaveURL(/#\/app$/);
-  await expect(page.getByRole('complementary').getByText(/Test Member/i)).toBeVisible();
+  await expect(page.getByRole('complementary').getByText(member.displayName)).toBeVisible();
 });

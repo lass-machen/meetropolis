@@ -15,21 +15,35 @@ sound effects, tilesets, fonts) that ships in the repository.
 ### Character sprites
 
 The six built-in office characters are generated procedurally from
-hand-authored pixel-grid templates (a small rendering engine plus data
-catalogs). No third-party pixel data is read, sampled, or referenced. The
-generator code and its catalogs live in
-[`tools/sprite-generator/`](tools/sprite-generator/) so the output is
-reproducible and the community can extend the cast without external
-dependencies.
+hand-authored pixel-grid templates by the Python generator in
+[`tools/sprite-generator/`](tools/sprite-generator/) (`generate.py`).
+No third-party pixel data is read, sampled, or referenced, so the PNG
+output is reproducible and the community can extend the cast without
+external dependencies.
+
+The versioned catalog `packages/shared/sprite/catalog.json` (schema
+`meetropolis-sprite-catalog/v6`) is produced separately through the
+asset-atelier catalog path:
+[`tools/asset-lab/scripts/sprite-catalog.ts`](tools/asset-lab/scripts/sprite-catalog.ts)
+reads the existing catalog as its base and applies `buildAtelierCatalog`
+from [`tools/asset-lab/src/avatar-catalog.ts`](tools/asset-lab/src/avatar-catalog.ts)
+with the Atelier raster additions. The Python `export_catalog.py` chain
+(schema v5, documented in
+[`tools/sprite-generator/README.md`](tools/sprite-generator/README.md))
+remains the legacy exporter and is no longer the authoritative
+generation for the current v6 catalog.
 
 | Asset path                                  | Artist    | License | Source                    |
 | ------------------------------------------- | --------- | ------- | ------------------------- |
 | `apps/web/public/assets/sprites/*.png` (6×) | Tiamat UG | MIT     | `tools/sprite-generator/` |
 
-The generator code in [`tools/sprite-generator/`](tools/sprite-generator/) is
-AGPL-3.0-only; its generated output — these six sprites and
-`packages/shared/sprite/catalog.json` — is MIT-licensed by Tiamat UG,
-consistent with the `apps/web` and `@meetropolis/shared` packages it ships in.
+The Python generator code in [`tools/sprite-generator/`](tools/sprite-generator/) is
+AGPL-3.0-only; its generated output — these six sprites — is MIT-licensed by Tiamat UG,
+consistent with the `apps/web` package it ships in.
+The current `packages/shared/sprite/catalog.json` (schema v6) is likewise
+MIT-licensed by Tiamat UG, consistent with the `@meetropolis/shared`
+package it ships in; it is produced through the asset-atelier catalog path
+described above, not the legacy Python v5 export.
 The AGPL-3.0 copyleft applies to third parties who run the generator themselves.
 
 ### Prepared atelier product generation
@@ -80,13 +94,20 @@ The build script itself is AGPL-3.0-only. `collision.png` is Tiamat's own genera
 
 ## Fonts
 
-| Family                                                | Source | License |
-| ----------------------------------------------------- | ------ | ------- |
-| _(none bundled in the repo today; system fonts only)_ | —      | —       |
+| Family         | Path                                       | Accompanying license text           |
+| -------------- | ------------------------------------------ | ----------------------------------- |
+| Press Start 2P | `apps/web/public/fonts/PressStart2P.woff2` | SIL OFL 1.1 (see accompanying text) |
 
-If a font ends up bundled later (for example to guarantee a consistent
-look across browsers), it must be SIL OFL or a similarly permissive
-license and listed here with a download source and version.
+The OSS source tree contains the local file
+`apps/web/public/fonts/PressStart2P.woff2` and the accompanying license text
+`apps/web/public/fonts/PressStart2P-OFL.txt`. The text identifies SIL
+OFL 1.1 and names the Press Start 2P Project Authors. The exact
+upstream revision of the included subset file is not pinned; the
+license text is no provenance record.
+
+Any additional font bundled later (for example to guarantee a consistent
+look across browsers) must be SIL OFL or a similarly permissive license
+and listed here with a download source and version.
 
 ## Sound effects
 

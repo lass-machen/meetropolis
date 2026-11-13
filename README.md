@@ -9,7 +9,7 @@ spatial audio/video, a live 2D world built on Phaser, and a real-time
 multi-user engine powered by Colyseus.
 
 [![CI](https://github.com/lass-machen/meetropolis/actions/workflows/ci.yml/badge.svg)](https://github.com/lass-machen/meetropolis/actions/workflows/ci.yml)
-![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)
+![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Node](https://img.shields.io/badge/Node-24-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.x-blue.svg)
@@ -45,6 +45,9 @@ Required env values: `JWT_SECRET`, `API_TOKEN_PEPPER`. Both are empty
 in `.env.example` on purpose — `compose.yaml` refuses to start
 (`:?required`) until you set them, so generate and fill them in
 **before** the first `docker compose up`, not after a failed start.
+
+Set `PUBLIC_BASE_URL` to the absolute public URL of the web app (for example `https://meet.example.com`). It is the only base for invitation, guest, email-verification, password-reset and welcome links. Without a usable value the server logs a warning at startup and refuses to create those links (`public_base_url_missing`) instead of handing out a broken one. A loopback or `*.localhost` base is accepted only with `PUBLIC_BASE_URL_ALLOW_LOOPBACK=true`, for a local try-out on `http://localhost:5173`; never set that flag in production.
+**Breaking change:** earlier versions fell back to relative links, to `BILLING_PUBLIC_URL` or to the request origin or host. These fallbacks are gone, so set `PUBLIC_BASE_URL` before upgrading.
 
 `compose.yaml` ships no reverse proxy and no TLS terminator — you are
 expected to put your own (Traefik, Caddy, nginx, etc.) in front of the
@@ -177,6 +180,7 @@ Copy `.env.example` to `.env`. Key variables:
 | `LIVEKIT_API_SECRET` | LiveKit API secret                                                                       |
 | `HOST_IP`            | Host LAN IP for LiveKit ICE (Docker Desktop on macOS)                                    |
 | `CORS_ORIGIN`        | Exact list of allowed browser origins (required)                                         |
+| `PUBLIC_BASE_URL`    | Absolute public web app URL used for shareable links                                     |
 | `METRICS_PORT`       | Optional scrape listener; unset disables it                                              |
 | `METRICS_HOST`       | Bind address for that listener (default loopback)                                        |
 | `VITE_API_BASE`      | Server URL baked into the web bundle at _build_ time                                     |
@@ -287,9 +291,7 @@ Before deploying for your team or customers:
 2. Provide your own legal pages (`/privacy`, `/terms`, `/impressum`). The
    default build renders neutral placeholders.
 3. Update the HTML title and meta description in `apps/web/index.html`.
-4. Configure your own analytics tracking (`VITE_META_PIXEL_ID`) or leave it
-   disabled.
-5. Review and adjust source strings that reference "Meetropolis" if you
+4. Review and adjust source strings that reference "Meetropolis" if you
    intend to publish a derivative product (see [TRADEMARKS.md](TRADEMARKS.md)).
 
 ## API tokens
@@ -417,7 +419,10 @@ The mail loader resolves a single active provider at server boot:
 3. **Console fallback** — last-resort, logs subject + recipient domain
    only (no body in production), returns `false` from `send()` so
    verify-requests keep surfacing tokens via the API response. A
-   one-time WARN log fires at boot: `email.fallback_console`.
+   one-time WARN log fires at boot: `email.fallback_console`. In this mode
+   the email address is confirmed without proof of mailbox access, so
+   configure a real provider for production. When delivery fails through
+   a configured provider, the API does not return the token.
 
 ### Recommended providers
 

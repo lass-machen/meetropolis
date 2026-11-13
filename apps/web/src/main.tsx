@@ -4,6 +4,7 @@
 import './lib/patchWebSocket';
 
 import React from 'react';
+import './styles/tokens.css';
 import './styles/theme.css';
 import './styles/system.css';
 import './styles/public.css';

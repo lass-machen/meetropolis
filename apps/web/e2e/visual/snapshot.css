@@ -1,0 +1,23 @@
+canvas {
+  visibility: hidden !important;
+}
+
+video {
+  visibility: hidden !important;
+}
+
+time {
+  visibility: hidden !important;
+}
+
+img[src*='avatar'] {
+  visibility: hidden !important;
+}
+
+img[class*='avatar'] {
+  visibility: hidden !important;
+}
+
+[role='complementary'] div[style*='rgba(229, 231, 235, 0.35)'] {
+  visibility: hidden !important;
+}

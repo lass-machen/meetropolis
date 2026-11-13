@@ -1,0 +1,347 @@
+/* ============================================
+   DESIGN TOKENS
+   Single source of truth for the root custom properties of the app
+   theme and of the public (marketing/auth) design system.
+
+   theme.css and public.css keep their historical variable names as
+   var() aliases at their original selector and specificity, so every
+   existing consumer keeps the exact same value.
+
+   The first :root block is the legacy palette: it holds the static
+   colors that the stylesheets used inline. Every color reference in
+   the four stylesheets points at it; the values are theme independent.
+   ============================================ */
+
+/* --- Legacy palette (static colors lifted out of the stylesheets) --- */
+:root {
+  --palette-legacy-hex-059669: #059669;
+  --palette-legacy-hex-0f0a1a: #0f0a1a;
+  --palette-legacy-hex-0f1115: #0f1115;
+  --palette-legacy-hex-10b981: #10b981;
+  --palette-legacy-hex-14b8a6: #14b8a6;
+  --palette-legacy-hex-18181b: #18181b;
+  --palette-legacy-hex-1a1035: #1a1035;
+  --palette-legacy-hex-22c55e: #22c55e;
+  --palette-legacy-hex-27272a: #27272a;
+  --palette-legacy-hex-2d1b69: #2d1b69;
+  --palette-legacy-hex-34d399: #34d399;
+  --palette-legacy-hex-3b82f6: #3b82f6;
+  --palette-legacy-hex-3f3f46: #3f3f46;
+  --palette-legacy-hex-450db3: #450db3;
+  --palette-legacy-hex-4c1d95: #4c1d95;
+  --palette-legacy-hex-60a5fa: #60a5fa;
+  --palette-legacy-hex-6b7280: #6b7280;
+  --palette-legacy-hex-6d28d9: #6d28d9;
+  --palette-legacy-hex-71717a: #71717a;
+  --palette-legacy-hex-7c3aed: #7c3aed;
+  --palette-legacy-hex-8b5cf6: #8b5cf6;
+  --palette-legacy-hex-9ca3af: #9ca3af;
+  --palette-legacy-hex-a1a1aa: #a1a1aa;
+  --palette-legacy-hex-a78bfa: #a78bfa;
+  --palette-legacy-hex-ccfbf1: #ccfbf1;
+  --palette-legacy-hex-e0e7ff: #e0e7ff;
+  --palette-legacy-hex-e4e4e7: #e4e4e7;
+  --palette-legacy-hex-e5e7eb: #e5e7eb;
+  --palette-legacy-hex-ede9fe: #ede9fe;
+  --palette-legacy-hex-ef4444: #ef4444;
+  --palette-legacy-hex-f3a814: #f3a814;
+  --palette-legacy-hex-f43f5e: #f43f5e;
+  --palette-legacy-hex-f472b6: #f472b6;
+  --palette-legacy-hex-f4f4f5: #f4f4f5;
+  --palette-legacy-hex-f59e0b: #f59e0b;
+  --palette-legacy-hex-f6f7fb: #f6f7fb;
+  --palette-legacy-hex-fbbf24: #fbbf24;
+  --palette-legacy-hex-fce7f3: #fce7f3;
+  --palette-legacy-hex-fee2e2: #fee2e2;
+  --palette-legacy-hex-fef3c7: #fef3c7;
+  --palette-legacy-hex-fff: #fff;
+  --palette-legacy-hex-ffffff: #ffffff;
+  --palette-legacy-rgba-0-0-0-0: rgba(0, 0, 0, 0);
+  --palette-legacy-rgba-0-0-0-0-06: rgba(0, 0, 0, 0.06);
+  --palette-legacy-rgba-0-0-0-0-08: rgba(0, 0, 0, 0.08);
+  --palette-legacy-rgba-0-0-0-0-1: rgba(0, 0, 0, 0.1);
+  --palette-legacy-rgba-0-0-0-0-14: rgba(0, 0, 0, 0.14);
+  --palette-legacy-rgba-0-0-0-0-2: rgba(0, 0, 0, 0.2);
+  --palette-legacy-rgba-0-0-0-0-3: rgba(0, 0, 0, 0.3);
+  --palette-legacy-rgba-0-0-0-0-35: rgba(0, 0, 0, 0.35);
+  --palette-legacy-rgba-0-0-0-0-4: rgba(0, 0, 0, 0.4);
+  --palette-legacy-rgba-0-0-0-0-5: rgba(0, 0, 0, 0.5);
+  --palette-legacy-rgba-0-0-0-0-68: rgba(0, 0, 0, 0.68);
+  --palette-legacy-rgba-107-114-128-0-2: rgba(107, 114, 128, 0.2);
+  --palette-legacy-rgba-139-92-246-0-125: rgba(139, 92, 246, 0.125);
+  --palette-legacy-rgba-16-185-129-0-15: rgba(16, 185, 129, 0.15);
+  --palette-legacy-rgba-16-185-129-0-18: rgba(16, 185, 129, 0.18);
+  --palette-legacy-rgba-16-185-129-0-2: rgba(16, 185, 129, 0.2);
+  --palette-legacy-rgba-16-185-129-0-35: rgba(16, 185, 129, 0.35);
+  --palette-legacy-rgba-16-185-129-0-45: rgba(16, 185, 129, 0.45);
+  --palette-legacy-rgba-17-17-20-0-7: rgba(17, 17, 20, 0.7);
+  --palette-legacy-rgba-17-17-20-0-85: rgba(17, 17, 20, 0.85);
+  --palette-legacy-rgba-17-17-20-0-92: rgba(17, 17, 20, 0.92);
+  --palette-legacy-rgba-17-17-20-0-98: rgba(17, 17, 20, 0.98);
+  --palette-legacy-rgba-20-184-166-0-125: rgba(20, 184, 166, 0.125);
+  --palette-legacy-rgba-234-179-8-0-2: rgba(234, 179, 8, 0.2);
+  --palette-legacy-rgba-239-68-68-0-15: rgba(239, 68, 68, 0.15);
+  --palette-legacy-rgba-239-68-68-0-2: rgba(239, 68, 68, 0.2);
+  --palette-legacy-rgba-239-68-68-0-3: rgba(239, 68, 68, 0.3);
+  --palette-legacy-rgba-243-168-20-0-45: rgba(243, 168, 20, 0.45);
+  --palette-legacy-rgba-244-114-182-0-125: rgba(244, 114, 182, 0.125);
+  --palette-legacy-rgba-244-63-94-0-12: rgba(244, 63, 94, 0.12);
+  --palette-legacy-rgba-244-63-94-0-15: rgba(244, 63, 94, 0.15);
+  --palette-legacy-rgba-244-63-94-0-25: rgba(244, 63, 94, 0.25);
+  --palette-legacy-rgba-244-63-94-0-35: rgba(244, 63, 94, 0.35);
+  --palette-legacy-rgba-244-63-94-0-45: rgba(244, 63, 94, 0.45);
+  --palette-legacy-rgba-245-158-11-0-125: rgba(245, 158, 11, 0.125);
+  --palette-legacy-rgba-245-158-11-0-15: rgba(245, 158, 11, 0.15);
+  --palette-legacy-rgba-245-158-11-0-3: rgba(245, 158, 11, 0.3);
+  --palette-legacy-rgba-255-255-255-0-05: rgba(255, 255, 255, 0.05);
+  --palette-legacy-rgba-255-255-255-0-06: rgba(255, 255, 255, 0.06);
+  --palette-legacy-rgba-255-255-255-0-08: rgba(255, 255, 255, 0.08);
+  --palette-legacy-rgba-255-255-255-0-1: rgba(255, 255, 255, 0.1);
+  --palette-legacy-rgba-255-255-255-0-12: rgba(255, 255, 255, 0.12);
+  --palette-legacy-rgba-255-255-255-0-15: rgba(255, 255, 255, 0.15);
+  --palette-legacy-rgba-255-255-255-0-18: rgba(255, 255, 255, 0.18);
+  --palette-legacy-rgba-255-255-255-0-19: rgba(255, 255, 255, 0.19);
+  --palette-legacy-rgba-255-255-255-0-2: rgba(255, 255, 255, 0.2);
+  --palette-legacy-rgba-255-255-255-0-92: rgba(255, 255, 255, 0.92);
+  --palette-legacy-rgba-255-255-255-0-98: rgba(255, 255, 255, 0.98);
+  --palette-legacy-rgba-34-197-94-0-15: rgba(34, 197, 94, 0.15);
+  --palette-legacy-rgba-34-197-94-0-2: rgba(34, 197, 94, 0.2);
+  --palette-legacy-rgba-34-197-94-0-3: rgba(34, 197, 94, 0.3);
+  --palette-legacy-rgba-69-13-179-0-4: rgba(69, 13, 179, 0.4);
+  --palette-legacy-rgba-69-13-179-0-45: rgba(69, 13, 179, 0.45);
+}
+
+/* --- App theme tokens (moved from theme.css) --- */
+:root {
+  /* Dark defaults */
+  --color-primary: var(--palette-legacy-hex-450db3);
+  --color-accent: var(--palette-legacy-hex-f3a814);
+  --color-bg: var(--palette-legacy-hex-0f1115);
+  --color-text: var(--palette-legacy-hex-e5e7eb);
+  --color-text-muted: var(--palette-legacy-hex-9ca3af);
+  --color-border: var(--palette-legacy-rgba-255-255-255-0-08);
+  --color-surface: var(--palette-legacy-rgba-255-255-255-0-06);
+  --color-surface-hover: var(--palette-legacy-rgba-255-255-255-0-12);
+  --shadow-panel: 0 12px 30px var(--palette-legacy-rgba-0-0-0-0-35);
+  --color-dialog-bg: var(--palette-legacy-rgba-17-17-20-0-98);
+  --color-dialog-text: var(--palette-legacy-hex-e5e7eb);
+  --color-panel-bg: var(--palette-legacy-rgba-17-17-20-0-92);
+  --color-panel-text: var(--color-text);
+  --color-chip-bg: var(--palette-legacy-rgba-17-17-20-0-7);
+  --color-hud-bg: var(--palette-legacy-rgba-0-0-0-0-5);
+  --color-hud-text: var(--palette-legacy-hex-e5e7eb);
+  --color-hud-chip-bg: var(--palette-legacy-rgba-255-255-255-0-06);
+  --color-hud-divider: var(--palette-legacy-rgba-255-255-255-0-12);
+  --color-focus: var(--palette-legacy-rgba-243-168-20-0-45);
+  --color-user-card-bg: var(--palette-legacy-rgba-255-255-255-0-1);
+  --radius-panel: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 8px;
+  --gradient-primary: linear-gradient(
+    135deg,
+    var(--palette-legacy-hex-450db3) 0%,
+    var(--palette-legacy-hex-f3a814) 100%
+  );
+  /* Brand gradient — shared by the app icon and the wordmark (blue → violet → green) */
+  --gradient-brand: linear-gradient(
+    135deg,
+    var(--palette-legacy-hex-60a5fa) 0%,
+    var(--palette-legacy-hex-a78bfa) 50%,
+    var(--palette-legacy-hex-34d399) 100%
+  );
+
+  --shadow-button-text: none;
+}
+
+/* System preference overrides */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg: var(--palette-legacy-hex-f6f7fb);
+    --color-text: var(--palette-legacy-hex-0f1115);
+    --color-text-muted: var(--palette-legacy-hex-6b7280);
+    --color-border: var(--palette-legacy-rgba-0-0-0-0-08);
+    --color-surface: var(--palette-legacy-rgba-255-255-255-0-92);
+    --color-surface-hover: var(--palette-legacy-rgba-0-0-0-0-06);
+    --shadow-panel: 0 12px 30px var(--palette-legacy-rgba-0-0-0-0-14);
+    --color-dialog-bg: var(--palette-legacy-rgba-255-255-255-0-98);
+    --color-dialog-text: var(--palette-legacy-hex-0f1115);
+    --color-panel-bg: var(--palette-legacy-rgba-17-17-20-0-92);
+    --color-panel-text: var(--palette-legacy-hex-e5e7eb);
+    --color-chip-bg: var(--palette-legacy-rgba-17-17-20-0-7);
+    --color-hud-bg: var(--palette-legacy-rgba-255-255-255-0-2);
+    --color-hud-text: var(--palette-legacy-hex-e5e7eb);
+    --color-hud-chip-bg: var(--palette-legacy-rgba-255-255-255-0-08);
+    --color-hud-divider: var(--palette-legacy-rgba-255-255-255-0-18);
+    --color-focus: var(--palette-legacy-rgba-69-13-179-0-45);
+    --color-user-card-bg: var(--palette-legacy-rgba-255-255-255-0-2);
+  }
+}
+
+/* Manual override wins over system preference */
+:root[data-theme='dark'] {
+  --color-primary: var(--palette-legacy-hex-450db3);
+  --color-accent: var(--palette-legacy-hex-f3a814);
+  --color-bg: var(--palette-legacy-hex-0f1115);
+  --color-text: var(--palette-legacy-hex-e5e7eb);
+  --color-text-muted: var(--palette-legacy-hex-9ca3af);
+  --color-border: var(--palette-legacy-rgba-255-255-255-0-08);
+  --color-surface: var(--palette-legacy-rgba-255-255-255-0-06);
+  --color-surface-hover: var(--palette-legacy-rgba-255-255-255-0-12);
+  --shadow-panel: 0 12px 30px var(--palette-legacy-rgba-0-0-0-0-35);
+  --color-dialog-bg: var(--palette-legacy-rgba-17-17-20-0-98);
+  --color-dialog-text: var(--palette-legacy-hex-e5e7eb);
+  --color-panel-bg: var(--palette-legacy-rgba-17-17-20-0-92);
+  --color-panel-text: var(--color-text);
+  --color-chip-bg: var(--palette-legacy-rgba-17-17-20-0-7);
+  --color-hud-bg: var(--palette-legacy-rgba-0-0-0-0-5);
+  --color-hud-text: var(--palette-legacy-hex-e5e7eb);
+  --color-hud-chip-bg: var(--palette-legacy-rgba-255-255-255-0-06);
+  --color-hud-divider: var(--palette-legacy-rgba-255-255-255-0-12);
+  --color-focus: var(--palette-legacy-rgba-243-168-20-0-45);
+  --radius-panel: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 8px;
+  --gradient-primary: linear-gradient(
+    135deg,
+    var(--palette-legacy-hex-450db3) 0%,
+    var(--palette-legacy-hex-f3a814) 100%
+  );
+  --gradient-brand: linear-gradient(
+    135deg,
+    var(--palette-legacy-hex-60a5fa) 0%,
+    var(--palette-legacy-hex-a78bfa) 50%,
+    var(--palette-legacy-hex-34d399) 100%
+  );
+  --shadow-button-text: 0 1px 1px var(--palette-legacy-rgba-0-0-0-0-3);
+  --color-user-card-bg: var(--palette-legacy-rgba-255-255-255-0-1);
+}
+
+:root[data-theme='light'] {
+  --color-bg: var(--palette-legacy-hex-f6f7fb);
+  --color-text: var(--palette-legacy-hex-0f1115);
+  --color-text-muted: var(--palette-legacy-hex-6b7280);
+  --color-border: var(--palette-legacy-rgba-0-0-0-0-08);
+  --color-surface: var(--palette-legacy-rgba-255-255-255-0-92);
+  --color-surface-hover: var(--palette-legacy-rgba-0-0-0-0-06);
+  --shadow-panel: 0 12px 30px var(--palette-legacy-rgba-0-0-0-0-14);
+  --color-dialog-bg: var(--palette-legacy-rgba-255-255-255-0-98);
+  --color-dialog-text: var(--palette-legacy-hex-0f1115);
+  --color-panel-bg: var(--palette-legacy-rgba-17-17-20-0-92);
+  --color-panel-text: var(--palette-legacy-hex-e5e7eb);
+  --color-chip-bg: var(--palette-legacy-rgba-17-17-20-0-7);
+  --color-hud-bg: var(--palette-legacy-rgba-255-255-255-0-2);
+  --color-hud-text: var(--palette-legacy-hex-e5e7eb);
+  --color-hud-chip-bg: var(--palette-legacy-rgba-255-255-255-0-08);
+  --color-hud-divider: var(--palette-legacy-rgba-255-255-255-0-18);
+  --color-focus: var(--palette-legacy-rgba-69-13-179-0-45);
+  --color-user-card-bg: var(--palette-legacy-rgba-255-255-255-0-2);
+}
+
+/* --- Public design system tokens (moved from public.css) --- */
+:root {
+  /* Fonts */
+  --font-display: 'Plus Jakarta Sans', sans-serif;
+  --font-ui: 'Inter', sans-serif;
+  --font-wordmark: 'Press Start 2P', monospace;
+
+  /* Backgrounds */
+  --color-public-bg-primary: var(--palette-legacy-hex-ffffff);
+  --color-public-bg-dark: var(--palette-legacy-hex-18181b);
+  --color-public-bg-dark-card: var(--palette-legacy-hex-27272a);
+  --color-public-bg-surface: var(--palette-legacy-hex-f4f4f5);
+  --color-public-bg-surface-hover: var(--palette-legacy-hex-e4e4e7);
+
+  /* Text */
+  --color-public-text-primary: var(--palette-legacy-hex-18181b);
+  --color-public-text-secondary: var(--palette-legacy-hex-71717a);
+  --color-public-text-tertiary: var(--palette-legacy-hex-a1a1aa);
+  --color-public-text-on-dark: var(--palette-legacy-hex-ffffff);
+  --color-public-text-on-dark-secondary: var(--palette-legacy-hex-a1a1aa);
+
+  /* Accents */
+  --color-public-accent-purple: var(--palette-legacy-hex-8b5cf6);
+  --color-public-accent-purple-dark: var(--palette-legacy-hex-7c3aed);
+  --color-public-accent-purple-soft: var(--palette-legacy-rgba-139-92-246-0-125);
+  --color-public-accent-teal: var(--palette-legacy-hex-14b8a6);
+  --color-public-accent-pink: var(--palette-legacy-hex-f472b6);
+  --color-public-accent-amber: var(--palette-legacy-hex-f59e0b);
+
+  /* Borders */
+  --color-public-border-light: var(--palette-legacy-hex-e4e4e7);
+  --color-public-border-dark: var(--palette-legacy-hex-3f3f46);
+
+  /* Icon Backgrounds */
+  --color-public-icon-bg-purple: var(--palette-legacy-hex-ede9fe);
+  --color-public-icon-bg-teal: var(--palette-legacy-hex-ccfbf1);
+  --color-public-icon-bg-pink: var(--palette-legacy-hex-fce7f3);
+  --color-public-icon-bg-amber: var(--palette-legacy-hex-fef3c7);
+  --color-public-icon-bg-red: var(--palette-legacy-hex-fee2e2);
+  --color-public-icon-bg-indigo: var(--palette-legacy-hex-e0e7ff);
+
+  /* Radii */
+  --radius-public-pill: 100px;
+  --radius-public-card: 20px;
+  --radius-public-card-lg: 24px;
+  --radius-public-image: 16px;
+  --radius-public-input: 12px;
+  --radius-public-icon: 12px;
+  --radius-public-logo: 10px;
+
+  /* Gradients */
+  --gradient-public-hero: linear-gradient(
+    180deg,
+    var(--palette-legacy-hex-0f0a1a) 0%,
+    var(--palette-legacy-hex-1a1035) 50%,
+    var(--palette-legacy-hex-2d1b69) 100%
+  );
+  --gradient-public-cta: linear-gradient(
+    180deg,
+    var(--palette-legacy-hex-2d1b69) 0%,
+    var(--palette-legacy-hex-1a1035) 50%,
+    var(--palette-legacy-hex-0f0a1a) 100%
+  );
+  --gradient-public-purple: linear-gradient(
+    135deg,
+    var(--palette-legacy-hex-8b5cf6) 0%,
+    var(--palette-legacy-hex-6d28d9) 100%
+  );
+  --gradient-public-auth-panel: linear-gradient(
+    160deg,
+    var(--palette-legacy-hex-7c3aed) 0%,
+    var(--palette-legacy-hex-4c1d95) 100%
+  );
+
+  /* Layout */
+  --layout-public-max-width: 1440px;
+  --layout-public-content-width: 1200px;
+  --layout-public-section-padding: 100px 120px;
+  --layout-public-header-padding: 16px 80px;
+  --layout-public-footer-padding: 64px 120px 40px 120px;
+}
+
+/* --- Responsive overrides --- */
+@media (max-width: 1280px) {
+  :root {
+    --layout-public-section-padding: 80px 80px;
+    --layout-public-header-padding: 16px 40px;
+    --layout-public-footer-padding: 64px 80px 40px 80px;
+  }
+}
+@media (max-width: 1024px) {
+  :root {
+    --layout-public-section-padding: 64px 40px;
+  }
+}
+@media (max-width: 768px) {
+  :root {
+    --layout-public-section-padding: 48px 24px;
+    --layout-public-header-padding: 12px 20px;
+    --layout-public-footer-padding: 48px 24px 32px 24px;
+  }
+}
+@media (max-width: 480px) {
+  :root {
+    --layout-public-section-padding: 48px 16px;
+    --layout-public-header-padding: 12px 16px;
+  }
+}

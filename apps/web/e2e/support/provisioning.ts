@@ -24,7 +24,7 @@ export function toTestUser(me: ApiMe, password?: string, guestUrl?: string): Tes
 
 export function assertTenantRole(me: ApiMe, tenantSlug: string, role: Role): void {
   if (me.tenantSlug !== tenantSlug || me.role !== role) {
-    throw new Error(`Konto ${me.email} hat nicht die erwartete Rolle ${role} in ${tenantSlug}.`);
+    throw new Error(`Account ${me.email} does not have the expected role ${role} in ${tenantSlug}.`);
   }
 }
 
@@ -33,7 +33,7 @@ async function ensureTenantTemplateMap(operatorApi: MeetropolisApi, tenantId: st
   const tenantMap = maps.find((map) => map.tenantId === tenantId && map.name === TEMPLATE_MAP_NAME);
   if (!tenantMap) {
     const templateMap = maps.find((map) => map.tenantSlug === 'template' && map.name === TEMPLATE_MAP_NAME);
-    if (!templateMap) throw new Error(`Vorlagenkarte ${TEMPLATE_MAP_NAME} wurde nicht gefunden.`);
+    if (!templateMap) throw new Error(`Template map ${TEMPLATE_MAP_NAME} was not found.`);
     await operatorApi.copyAdminMap(templateMap.id, tenantId, TEMPLATE_MAP_NAME);
   }
   await operatorApi.setAdminTenantDefaultMap(tenantId, TEMPLATE_MAP_NAME);

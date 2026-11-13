@@ -2,9 +2,9 @@ import { test } from '../fixtures';
 import { waitForParticipant } from '../fixtures/helpers';
 
 test('seed users see each other in the same room @smoke', async ({ roomUsers }) => {
-  const [owner, member] = await roomUsers(2, { tenant: 'seed' });
-  if (!owner || !member) throw new Error('roomUsers hat nicht beide Teilnehmer erstellt.');
+  const [admin, member] = await roomUsers(2, { tenant: 'seed' });
+  if (!admin || !member) throw new Error('roomUsers did not create both participants.');
 
-  await waitForParticipant(owner.page, member.user);
-  await waitForParticipant(member.page, owner.user);
+  await waitForParticipant(admin.page, member.user);
+  await waitForParticipant(member.page, admin.user);
 });

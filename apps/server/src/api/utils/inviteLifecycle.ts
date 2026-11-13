@@ -12,6 +12,22 @@ export function inviteExpiry(now = new Date()): Date {
   return new Date(now.getTime() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
 }
 
+/**
+ * Formats an invite expiry for the invite mail, in Europe/Berlin — same
+ * pattern as the guest invite mail.
+ */
+export function formatInviteExpiry(expiresAt: Date, locale: 'de' | 'en' | undefined): string {
+  return expiresAt.toLocaleString(locale === 'en' ? 'en-GB' : 'de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Berlin',
+    timeZoneName: 'short',
+  });
+}
+
 export function deriveInviteStatus(
   invite: { usedAt: Date | null; expiresAt: Date | null },
   now = new Date(),
@@ -85,7 +101,7 @@ export class InviteUnavailableError extends Error {
 export async function deliverInvite(
   prisma: PrismaClient,
   args: {
-    invite: { id: string; email: string | null; tenantId: string };
+    invite: { id: string; email: string | null; tenantId: string; expiresAt: Date | null };
     inviterUserId: string;
     tenantName: string;
     inviteUrl: string;
@@ -110,6 +126,7 @@ export async function deliverInvite(
           tenantName: args.tenantName,
           inviteUrl: args.inviteUrl,
           locale: inviterLocale,
+          ...(args.invite.expiresAt ? { expiresAt: formatInviteExpiry(args.invite.expiresAt, inviterLocale) } : {}),
         }),
       'invite.email_failed',
       { tenantId: args.invite.tenantId, inviteId: args.invite.id },

@@ -66,14 +66,14 @@ function assertExpectedSeed(edition: SeedData['edition'], tenants: Record<string
     const acme = tenants.acme?.users;
     const globex = tenants.globex?.users;
     if (!acme?.owner || !acme.admin || !acme.member || !acme.guest || !globex?.owner) {
-      throw new Error('EE-Seed muss acme mit Owner/Admin/Member/Gast und globex mit Owner enthalten.');
+      throw new Error('EE seed must contain acme with owner/admin/member/guest and globex with owner.');
     }
     return;
   }
   if (!tenants.default?.users.owner || !tenants.default.users.admin || !tenants.default.users.member) {
-    throw new Error('OSS-Seed muss den Default-Tenant mit Betreiber, Admin und Member enthalten.');
+    throw new Error('OSS seed must contain the default tenant with operator, admin and member.');
   }
-  if (tenants.default.users.guest) throw new Error('OSS-Seed darf keinen Gast enthalten.');
+  if (tenants.default.users.guest) throw new Error('OSS seed must not contain a guest.');
 }
 
 function seedUsers(seed: SeedData): TestUser[] {
@@ -98,10 +98,10 @@ async function verifySeedLogins(
       const api = new MeetropolisApi(request, apiUrl, user.tenantSlug);
       let me: ApiMe;
       if (user.role === 'guest') {
-        if (!user.guestUrl) throw new Error(`Gast ${user.email} hat keinen Magic-Link.`);
+        if (!user.guestUrl) throw new Error(`Guest ${user.email} has no magic link.`);
         me = await api.loginGuest(user.guestUrl);
       } else {
-        if (!user.password) throw new Error(`Seed-Konto ${user.email} hat kein Passwort im Seed.`);
+        if (!user.password) throw new Error(`Seed account ${user.email} has no password in the seed.`);
         me = await api.login(user.email, user.password);
       }
       assertTenantRole(me, user.tenantSlug, user.role);
@@ -182,7 +182,7 @@ test('create idempotent test seed', async ({ playwright, stack }) => {
     await mkdir(dirname(stack.seedFile), { recursive: true });
     await writeFile(stack.seedFile, `${JSON.stringify(seed, null, 2)}\n`, 'utf8');
     console.log(
-      `P2 seed ready: edition=${stack.edition}, tenants=${Object.keys(tenants).join(',')}, API logins=${verifiedCount}`,
+      `Seed ready: edition=${stack.edition}, tenants=${Object.keys(tenants).join(',')}, API logins=${verifiedCount}`,
     );
   } finally {
     await Promise.all(disposers.map((dispose) => dispose()));

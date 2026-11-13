@@ -88,6 +88,12 @@ describe('authHelpers', () => {
   });
 
   describe('setAuthCookie', () => {
+    // The test runner may export COOKIE_SECURE; start every case without an
+    // override so the defaults are tested, and let override cases set their own.
+    beforeEach(() => {
+      delete process.env.COOKIE_SECURE;
+    });
+
     it('should set httpOnly cookie with correct options in production', () => {
       process.env.NODE_ENV = 'production';
 

@@ -68,13 +68,13 @@ function appendRoute(baseUrl: string, route: string): string {
 
 function asRecord(value: unknown, label: string): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label}: erwartete JSON-Objektantwort.`);
+    throw new Error(`${label}: expected a JSON object response.`);
   }
   return value as Record<string, unknown>;
 }
 
 function requiredString(value: unknown, label: string): string {
-  if (typeof value !== 'string' || value.length === 0) throw new Error(`${label}: Feld fehlt.`);
+  if (typeof value !== 'string' || value.length === 0) throw new Error(`${label}: field is missing.`);
   return value;
 }
 
@@ -82,17 +82,17 @@ function roleValue(value: unknown, label: string): Role {
   if (value === 'owner' || value === 'admin' || value === 'member' || value === 'guest' || value === 'operator') {
     return value;
   }
-  throw new Error(`${label}: unbekannte Rolle.`);
+  throw new Error(`${label}: unknown role.`);
 }
 
 function adminRoleValue(value: unknown, label: string): AdminTenantUser['role'] {
   if (value === 'owner' || value === 'admin' || value === 'member' || value === 'guest') return value;
-  throw new Error(`${label}: unbekannte Betreiber-Rolle.`);
+  throw new Error(`${label}: unknown operator role.`);
 }
 
 function inviteRoleValue(value: unknown, label: string): InviteRole {
   if (value === 'admin' || value === 'member') return value;
-  throw new Error(`${label}: Einladung mit nicht unterstützter Rolle.`);
+  throw new Error(`${label}: invitation with unsupported role.`);
 }
 
 async function readJson(response: Awaited<ReturnType<APIRequestContext['get']>>, route: string): Promise<unknown> {
@@ -184,7 +184,7 @@ export class MeetropolisApi {
     const url = new URL(guestUrl);
     const hashQuery = url.hash.includes('?') ? url.hash.slice(url.hash.indexOf('?') + 1) : '';
     const token = new URLSearchParams(hashQuery).get('token');
-    if (!token) throw new Error('guestUrl enthält keinen Magic-Link-Token.');
+    if (!token) throw new Error('guestUrl contains no magic link token.');
 
     // POST /auth/guest is registered beside POST /guests in
     // apps/server/src/api/routes/guests.ts:333-339 and establishes the guest session at :267-331.
@@ -250,7 +250,7 @@ export class MeetropolisApi {
 
   async ensureAdminTenant(args: { slug: string; name: string }): Promise<string> {
     if (this.tenantSlug !== 'default') {
-      throw new Error('ensureAdminTenant muss mit dem Betreiber-Kontext des Default-Tenants aufgerufen werden.');
+      throw new Error('ensureAdminTenant must be called with the operator context of the default tenant.');
     }
     const existing = (await this.adminTenants()).find((tenant) => tenant.slug === args.slug);
     if (existing) return existing.id;
@@ -269,7 +269,7 @@ export class MeetropolisApi {
   async adminTenants(): Promise<Array<{ id: string; slug: string }>> {
     const route = '/admin/tenants';
     const value = await readJson(await this.request.get(appendRoute(this.apiUrl, route)), route);
-    if (!Array.isArray(value)) throw new Error(`${route}: erwartete Mandantenliste.`);
+    if (!Array.isArray(value)) throw new Error(`${route}: expected a tenant list.`);
     return value.map((entry, index) => {
       const tenant = asRecord(entry, `${route}[${index}]`);
       return {
@@ -282,7 +282,7 @@ export class MeetropolisApi {
   async adminTenantUsers(tenantId: string): Promise<AdminTenantUser[]> {
     const route = `/admin/tenants/${encodeURIComponent(tenantId)}/users`;
     const value = await readJson(await this.request.get(appendRoute(this.apiUrl, route)), route);
-    if (!Array.isArray(value)) throw new Error(`${route}: erwartete Nutzerliste.`);
+    if (!Array.isArray(value)) throw new Error(`${route}: expected a user list.`);
     return value.map((entry, index) => {
       const user = asRecord(entry, `${route}[${index}]`);
       return {
@@ -334,7 +334,7 @@ export class MeetropolisApi {
   async adminMaps(): Promise<AdminMapSummary[]> {
     const route = '/admin/maps';
     const value = await readJson(await this.request.get(appendRoute(this.apiUrl, route)), route);
-    if (!Array.isArray(value)) throw new Error(`${route}: erwartete Kartenliste.`);
+    if (!Array.isArray(value)) throw new Error(`${route}: expected a map list.`);
     return value.map((entry, index) => {
       const map = asRecord(entry, `${route}[${index}]`);
       return {
@@ -357,7 +357,7 @@ export class MeetropolisApi {
   async pendingInviteCode(email: string): Promise<string | null> {
     const route = '/invites';
     const value = await readJson(await this.request.get(appendRoute(this.apiUrl, route)), route);
-    if (!Array.isArray(value)) throw new Error(`${route}: erwartete Einladungsliste.`);
+    if (!Array.isArray(value)) throw new Error(`${route}: expected an invitation list.`);
     const normalizedEmail = email.trim().toLowerCase();
     const match = value
       .map((entry, index) => ({ entry: asRecord(entry, `${route}[${index}]`), index }))
@@ -388,7 +388,7 @@ export class MeetropolisApi {
     const tenant = await this.tenant();
     let maps = await this.maps();
     let map = maps.find((candidate) => candidate.name === tenant.defaultMapName) ?? maps[0];
-    if (!map) throw new Error(`Mandant ${tenant.slug} hat keine Karte über GET /maps geliefert.`);
+    if (!map) throw new Error(`Tenant ${tenant.slug} returned no map via GET /maps.`);
 
     if (map.rooms.length === 0) {
       const mapId = map.id;
@@ -397,7 +397,7 @@ export class MeetropolisApi {
       map = maps.find((candidate) => candidate.id === mapId) ?? map;
     }
     const room = map.rooms[0];
-    if (!room) throw new Error(`Karte ${map.name} hat nach POST /auth/position keinen Raum geliefert.`);
+    if (!room) throw new Error(`Map ${map.name} returned no room after POST /auth/position.`);
     return { tenantId: tenant.id, roomId: room.id, mapId: map.id };
   }
 
@@ -406,7 +406,7 @@ export class MeetropolisApi {
     // returns each map with its rooms at apps/server/src/api/routes/maps.read.ts:62-70.
     const route = '/maps';
     const value = await readJson(await this.request.get(appendRoute(this.apiUrl, route)), route);
-    if (!Array.isArray(value)) throw new Error(`${route}: erwartete Kartenliste.`);
+    if (!Array.isArray(value)) throw new Error(`${route}: expected a map list.`);
     return value.map((entry, index) => {
       const map = asRecord(entry, `${route}[${index}]`);
       const rooms = Array.isArray(map.rooms) ? map.rooms : [];

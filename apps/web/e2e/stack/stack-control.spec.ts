@@ -12,7 +12,7 @@ test('@stack mailpit pause blocks and unpause restores the mail api', async ({
 
   // Reachable through the existing mailpit fixture: the search answers, only the probe address has no mail.
   await expect(mailpit.waitForMail({ to: 'stack-control-probe@invalid.test', timeoutMs: 5_000 })).rejects.toThrow(
-    /keine Nachricht/,
+    /no message/,
   );
 
   await stackControl.pause('mailpit');

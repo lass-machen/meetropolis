@@ -470,7 +470,10 @@ export function EditorPanel(props: { onSave?: () => Promise<boolean> }) {
     setSaving(true);
     try {
       const mapId = useMapStore.getState().currentMapId;
-      if (props.onSave) await props.onSave();
+      if (props.onSave) {
+        const saved = await props.onSave();
+        if (!saved) return;
+      }
       if (mapId && EditorService.hasPendingChanges()) {
         const currentState = EditorService.getState();
         await EditorPersistence.saveAllChanges(mapId, currentState.pendingChanges, currentState);

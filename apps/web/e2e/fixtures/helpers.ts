@@ -6,7 +6,7 @@ import type { FreshTenant, Role, SeedData, TenantSeed, TestUser } from '../suppo
 import type { Page } from '@playwright/test';
 
 export const TESTSTACK_ENV_MESSAGE =
-  'Teststack-Env fehlt: /Users/ricoroder/Cursor/meetropolis-deploy/scripts/teststack.sh up';
+  'Test stack environment is missing: start a test stack and export its environment before running e2e tests.';
 
 export function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -16,21 +16,21 @@ export function requiredEnv(name: string): string {
 
 function asRecord(value: unknown, label: string): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label}: ungültige Seed-JSON-Struktur.`);
+    throw new Error(`${label}: invalid seed JSON structure.`);
   }
   return value as Record<string, unknown>;
 }
 
 function readString(record: Record<string, unknown>, name: string, label: string): string {
   const value = record[name];
-  if (typeof value !== 'string' || value.length === 0) throw new Error(`${label}: Feld ${name} fehlt.`);
+  if (typeof value !== 'string' || value.length === 0) throw new Error(`${label}: field ${name} is missing.`);
   return value;
 }
 
 function readOptionalString(record: Record<string, unknown>, name: string, label: string): string | undefined {
   const value = record[name];
   if (value === undefined) return undefined;
-  if (typeof value !== 'string' || value.length === 0) throw new Error(`${label}: Feld ${name} ist ungültig.`);
+  if (typeof value !== 'string' || value.length === 0) throw new Error(`${label}: field ${name} is invalid.`);
   return value;
 }
 
@@ -38,7 +38,7 @@ function parseRole(value: unknown, label: string): Role {
   if (value === 'owner' || value === 'admin' || value === 'member' || value === 'guest' || value === 'operator') {
     return value;
   }
-  throw new Error(`${label}: ungültige Rolle.`);
+  throw new Error(`${label}: invalid role.`);
 }
 
 function parseUser(value: unknown, label: string): TestUser {
@@ -79,12 +79,11 @@ export async function readSeedFile(path: string): Promise<SeedData> {
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new Error(`Seed-Datei ist kein gültiges JSON: ${path}`);
+    throw new Error(`Seed file is not valid JSON: ${path}`);
   }
-  const record = asRecord(parsed, 'Seed-Datei');
-  if (record.edition !== 'ee' && record.edition !== 'oss')
-    throw new Error('Seed-Datei: edition muss ee oder oss sein.');
-  const rawTenants = asRecord(record.tenants, 'Seed-Datei.tenants');
+  const record = asRecord(parsed, 'Seed file');
+  if (record.edition !== 'ee' && record.edition !== 'oss') throw new Error('Seed file: edition must be ee or oss.');
+  const rawTenants = asRecord(record.tenants, 'Seed file tenants');
   const tenants: Record<string, TenantSeed> = {};
   for (const [slug, tenant] of Object.entries(rawTenants)) tenants[slug] = parseTenant(tenant, `tenants.${slug}`);
   return { edition: record.edition, operator: parseUser(record.operator, 'operator'), tenants };
@@ -108,22 +107,22 @@ export async function waitForParticipant(page: Page, user: TestUser): Promise<vo
 
 export function getSeedTenant(seed: SeedData): TenantSeed {
   const tenant = seed.tenants.acme ?? seed.tenants.default ?? Object.values(seed.tenants)[0];
-  if (!tenant) throw new Error('Seed-Datei enthält keinen Mandanten.');
+  if (!tenant) throw new Error('Seed file contains no tenant.');
   return tenant;
 }
 
 export function pickUsers(tenant: TenantSeed | FreshTenant, n: number, roles?: Role[]): TestUser[] {
-  if (!Number.isInteger(n) || n < 1) throw new Error('roomUsers erwartet mindestens einen Nutzer.');
+  if (!Number.isInteger(n) || n < 1) throw new Error('roomUsers expects at least one user.');
   const selectedRoles = roles ?? Array.from({ length: n }, (_value, index) => (index === 0 ? 'owner' : 'member'));
-  if (selectedRoles.length !== n) throw new Error('roomUsers benötigt genau eine Rolle je Nutzer.');
+  if (selectedRoles.length !== n) throw new Error('roomUsers needs exactly one role per user.');
   return selectedRoles.map((role) => {
     const user = role === 'operator' ? undefined : tenant.users[role];
-    if (!user) throw new Error(`Mandant ${tenant.slug} enthält keinen Nutzer mit Rolle ${role}.`);
+    if (!user) throw new Error(`Tenant ${tenant.slug} has no user with role ${role}.`);
     return user;
   });
 }
 
 export function passwordFor(user: TestUser): string {
-  if (!user.password) throw new Error(`${user.role} ${user.email} hat kein Passwort und muss den Gastweg nutzen.`);
+  if (!user.password) throw new Error(`${user.role} ${user.email} has no password and must use the guest link.`);
   return user.password;
 }

@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "license": "AGPL-3.0-only",
   "engines": {
-    "node": ">=24.0.0 <25",
+    "node": ">=24.15.0 <25",
     "npm": ">=11.7.0"
   },
   "packageManager": "npm@11.7.0",
@@ -31,9 +31,10 @@
     "ci:local": "bash scripts/ci-local.sh",
     "prisma:migrate": "npm -w @meetropolis/server run prisma:migrate",
     "dev:loadtest": "npm -w @meetropolis/loadtest run dev",
-    "prepare": "node -e \"const fs=require('fs');try{require.resolve('husky')}catch{process.exit(0)}if(!fs.existsSync('./node_modules/.bin/husky')&&!fs.existsSync('./node_modules/.bin/husky.cmd'))process.exit(0);require('child_process').execSync('husky',{stdio:'inherit'})\""
+    "prepare": "node -e \"require('node:fs').existsSync('scripts/install-hooks.cjs')&&require('./scripts/install-hooks.cjs')\""
   },
   "devDependencies": {
+    "@babel/parser": "7.29.8",
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.0.0",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
@@ -42,9 +43,9 @@
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.12.0",
-    "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "prettier": "^3.9.8",
+    "stylelint": "17.16.0",
     "typescript-eslint": "^8.70.1"
   },
   "overrides": {

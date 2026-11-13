@@ -14,6 +14,8 @@ RUN npm run build -w @meetropolis/shared
 
 WORKDIR /app/apps/loadtest
 
+LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
+
 CMD ["npm", "run", "dev"]
 
 

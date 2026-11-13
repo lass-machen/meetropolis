@@ -7,10 +7,8 @@ import { test, expect, type Page } from '@playwright/test';
 // order, a form column that never drops below its content, hyphenation instead
 // of words cut in half - can be deleted without a single gate turning red.
 //
-// Runs against a dev server (WEB_BASE_URL, default http://localhost:5173) and
-// only with E2E_RUN=true, like the other specs in this folder.
-const SHOULD_RUN = process.env.E2E_RUN === 'true';
-const it = SHOULD_RUN ? test : test.skip;
+// Runs in every browser project of the default Playwright config against its
+// baseURL; the network is mocked, so it needs no seed and no backend.
 
 const WIDTHS = [320, 375, 768, 769, 820, 1024, 1025, 1051, 1100, 1280] as const;
 
@@ -146,7 +144,6 @@ async function preparePage(page: Page, { billing, lang }: Case): Promise<void> {
     r.fulfill({ json: { publicRegistrationEnabled: true, billingEnabled: billing, avatarEditorEnabled: false } }),
   );
   await page.route('**/public/pricing-plans', (r) => r.fulfill({ json: PLANS }));
-  await page.route('**/tenants/slug-available**', (r) => r.fulfill({ json: { available: true } }));
   // `POST /auth/guest` has no trailing path segment, so `**/auth/guest/**`
   // never matched and the view was measured while its spinner was still up.
   // Status and body are the ones apps/server/src/api/routes/guests.ts sends
@@ -244,7 +241,7 @@ const CASES: Case[] = (['de', 'en'] as const).flatMap((lang) => [
 
 for (const testCase of CASES) {
   const title = `auth layout holds: ${testCase.view} (${testCase.lang}, billing=${testCase.billing})`;
-  it(title, async ({ page }) => {
+  test(title, async ({ page }) => {
     test.setTimeout(120_000);
     await preparePage(page, testCase);
     await openView(page, testCase);
@@ -258,7 +255,7 @@ for (const testCase of CASES) {
   });
 }
 
-it('the form column keeps its floors and the panel is the one that gives way', async ({ page }) => {
+test('the form column keeps its floors and the panel is the one that gives way', async ({ page }) => {
   test.setTimeout(120_000);
   const layoutCase: Case = { view: 'login', billing: false, lang: 'de' };
   await preparePage(page, layoutCase);
@@ -288,7 +285,7 @@ it('the form column keeps its floors and the panel is the one that gives way', a
   expect((await geometry()).branding, 'panel keeps its width at 1280px').toBe(672);
 });
 
-it('the panel yields instead of pushing the page wider', async ({ page }) => {
+test('the panel yields instead of pushing the page wider', async ({ page }) => {
   test.setTimeout(120_000);
   const wideCase: Case = { view: 'register2', billing: true, lang: 'de' };
   await preparePage(page, wideCase);

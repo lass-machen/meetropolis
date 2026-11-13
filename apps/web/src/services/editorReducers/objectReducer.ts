@@ -29,11 +29,11 @@ function applyPendingObjectDelete(
       ...updatedPending,
       objectsToAdd: updatedPending.objectsToAdd.filter((o) => String(o.id) !== String(action.objectId)),
     };
-    const targetX = objToDelete.tileX * TILE_SIZE;
-    const targetY = objToDelete.tileY * TILE_SIZE;
-    const assetToRemove = state.assets.find((a) => a.x === targetX && a.y === targetY);
-    if (assetToRemove) {
-      updatedAssets = state.assets.filter((a) => a.id !== assetToRemove.id);
+    // Nur das exakt zugehörige Asset entfernen: über die beim Erzeugen
+    // gespeicherte Client-Instanzreferenz, nicht über die Kachelposition.
+    const assetId = objToDelete.clientAssetId;
+    if (assetId !== undefined) {
+      updatedAssets = state.assets.filter((a) => a.id !== assetId);
     }
   } else {
     updatedPending = { ...updatedPending, objectsToDelete: [...updatedPending.objectsToDelete, action.objectId] };

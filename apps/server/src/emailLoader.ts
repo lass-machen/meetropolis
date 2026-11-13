@@ -26,6 +26,8 @@ export interface SendInviteParams {
   tenantName: string;
   inviteUrl: string;
   locale?: EmailLocale;
+  /** Already formatted for the mail locale. */
+  expiresAt?: string;
 }
 
 export interface SendGuestInviteParams {
@@ -177,6 +179,30 @@ export async function getEmailModule(): Promise<EmailModule | null> {
 
   cached = null;
   return null;
+}
+
+/**
+ * Name of the mail provider backing the resolved email module.
+ *
+ * Returns the module's `providerName` (e.g. `oss-smtp`, `oss-console`,
+ * `ee-resend`), `ee-unknown` when a module is loaded but reports no name,
+ * or `null` when no module is available at all.
+ */
+export async function loadedEmailProviderName(): Promise<string | null> {
+  const mod = await getEmailModule();
+  return mod ? (mod.providerName ?? 'ee-unknown') : null;
+}
+
+/**
+ * Whether the given provider name (see {@link loadedEmailProviderName})
+ * delivers nothing and only logs to the console.
+ *
+ * This covers the no-module case (`null`) as well as both known console
+ * fallbacks, so callers keep their documented out-of-band behaviour
+ * wherever no real delivery happens.
+ */
+export function isConsoleDelivery(name: string | null): boolean {
+  return name === null || name === 'oss-console' || name === 'ee-console';
 }
 
 /**

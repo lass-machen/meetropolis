@@ -6,6 +6,7 @@ import { useAvatarDraft, type AvatarSavedHandler } from './useAvatarDraft';
 import { EDITOR_TABS } from './editorLayout';
 import { SlotPicker } from './SlotPicker';
 import { AvatarLivePreview } from './AvatarLivePreview';
+import { AvatarStatus } from './AvatarStatus';
 import './avatarEditor.css';
 
 const TAB_ITEMS: TabItem[] = EDITOR_TABS.map((tab) => ({ key: tab.key, label: tab.label }));
@@ -17,13 +18,22 @@ const TAB_ITEMS: TabItem[] = EDITOR_TABS.map((tab) => ({ key: tab.key, label: ta
  */
 export function AvatarEditor({ onSaved }: { onSaved: AvatarSavedHandler }) {
   const { catalog, loading, error } = useSpriteCatalog();
-  const { config, setConfig, save, saving, status } = useAvatarDraft(catalog, onSaved);
+  const {
+    config,
+    setConfig,
+    save,
+    saving,
+    status,
+    loading: draftLoading,
+    loadError,
+  } = useAvatarDraft(catalog, onSaved);
   const [tab, setTab] = React.useState(EDITOR_TABS[0].key);
 
-  // The draft config is seeded an effect AFTER the catalog resolves, so `loading`
-  // is already false while `config` is still null. Only a real failure is an
-  // empty state; everything else is still loading.
-  if (error !== null) return <div style={styles.info}>Editor nicht verfügbar.</div>;
+  // Der Basisentwurf folgt sofort aus dem Katalog; `config` ist nur null,
+  // solange der Katalog selbst fehlt. Ein Fehler beim Laden des gespeicherten
+  // Rezepts macht den Editor unbrauchbar: Es gibt keinen ehrlichen
+  // Ersatzentwurf zum Speichern.
+  if (error !== null || loadError !== null) return <div style={styles.info}>Editor nicht verfügbar.</div>;
   if (loading || !catalog || !config) return <div style={styles.info}>Lade Editor…</div>;
 
   return (
@@ -32,10 +42,10 @@ export function AvatarEditor({ onSaved }: { onSaved: AvatarSavedHandler }) {
       <div className="av-ed">
         <div className="av-ed__preview">
           <AvatarLivePreview catalog={catalog} config={config} />
-          <Button variant="primary" className="av-ed__save" onClick={save} disabled={saving}>
+          <Button variant="primary" className="av-ed__save" onClick={save} disabled={saving || draftLoading}>
             {saving ? 'Speichert…' : 'Avatar speichern'}
           </Button>
-          {status && <p className="av-ed__status">{status}</p>}
+          <AvatarStatus status={status} />
         </div>
         <SlotPicker catalog={catalog} config={config} onChange={setConfig} tabKey={tab} />
       </div>

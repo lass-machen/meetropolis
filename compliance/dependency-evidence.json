@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "description": "Technical mapping of seven packages without or with a non-SPDX raw license field to reviewed original license texts. Binding to lockfile, lock path, name, version, SRI and raw value; the text digests of the stored files are checked as well.",
+  "entries": [
+    {
+      "id": "better-fetch-fetch-1.1.21",
+      "name": "@better-fetch/fetch",
+      "lockfile": "package-lock.json",
+      "lockPath": "node_modules/@better-fetch/fetch",
+      "version": "1.1.21",
+      "integrity": "sha512-/ImESw0sskqlVR94jB+5+Pxjf+xBwDZF/N5+y2/q4EqD7IARUTSpPfIo8uf39SYpCxyOCtbyYpUrZ3F/k0zT4A==",
+      "rawLicense": null,
+      "license": "MIT",
+      "sources": [
+        {
+          "url": "https://registry.npmjs.org/@better-fetch/fetch/-/fetch-1.1.21.tgz",
+          "version": "1.1.21"
+        }
+      ],
+      "files": [
+        {
+          "path": "licenses/better-fetch-fetch-1.1.21/LICENSE",
+          "sha256": "54d710e643b5fd218f0c29cddea92432b2c730dddd594c7047c97993dd9f9a59"
+        }
+      ]
+    },
+    {
+      "id": "colyseus-playground-0.17.12",
+      "name": "@colyseus/playground",
+      "lockfile": "package-lock.json",
+      "lockPath": "node_modules/@colyseus/playground",
+      "version": "0.17.12",
+      "integrity": "sha512-p57C4ZaNUlPAGx/B3O2pLarya/W5LrnLmnTxphwM3shY8GPXL9INGVTP5CMfzxj9m0lGsp41DH2Uk8xyzOC9vw==",
+      "rawLicense": null,
+      "license": "MIT",
+      "sources": [
+        {
+          "url": "https://registry.npmjs.org/@colyseus/playground/-/playground-0.17.12.tgz",
+          "version": "0.17.12"
+        }
+      ],
+      "files": [
+        {
+          "path": "licenses/colyseus-playground-0.17.12/LICENSE",
+          "sha256": "58f5d8920f8d425a9eec9e8cb07f9d0ac5ac08d2aba15f98270c0caddb9de3e4"
+        }
+      ]
+    },
+    {
+      "id": "seq-queue-0.0.5",
+      "name": "seq-queue",
+      "lockfile": "package-lock.json",
+      "lockPath": "node_modules/seq-queue",
+      "version": "0.0.5",
+      "integrity": "sha512-hr3Wtp/GZIc/6DAGPDcV4/9WoZhjrkXsi5B/07QgX8tsdc6ilr7BFM6PM6rbdAX1kFSDYeZGLipIZZKyQP0O5Q==",
+      "rawLicense": null,
+      "license": "MIT",
+      "sources": [
+        {
+          "url": "https://registry.npmjs.org/seq-queue/-/seq-queue-0.0.5.tgz",
+          "version": "0.0.5"
+        }
+      ],
+      "files": [
+        {
+          "path": "licenses/seq-queue-0.0.5/LICENSE",
+          "sha256": "dcba4e24de35d4e5f0d9e14804f925babe6d670afc2989eb650eb1aec4e43dd1"
+        }
+      ]
+    },
+    {
+      "id": "busboy-1.6.0",
+      "name": "busboy",
+      "lockfile": "package-lock.json",
+      "lockPath": "node_modules/busboy",
+      "version": "1.6.0",
+      "integrity": "sha512-8SFQbg/0hQ9xy3UNTB0YEnsNBbWfhf7RtnzpL7TkBiTBRfrQ9Fxcnz7VJsleJpyp6rVLvXiuORqjlHi5q+PYuA==",
+      "rawLicense": null,
+      "license": "MIT",
+      "sources": [
+        {
+          "url": "https://registry.npmjs.org/busboy/-/busboy-1.6.0.tgz",
+          "version": "1.6.0"
+        }
+      ],
+      "files": [
+        {
+          "path": "licenses/busboy-1.6.0/LICENSE",
+          "sha256": "d06b5d27bbbbe22c36b1fd88406b1208876e2d37d795f5b8eaed951a459a3111"
+        }
+      ]
+    },
+    {
+      "id": "streamsearch-1.1.0",
+      "name": "streamsearch",
+      "lockfile": "package-lock.json",
+      "lockPath": "node_modules/streamsearch",
+      "version": "1.1.0",
+      "integrity": "sha512-Mcc5wHehp9aXz1ax6bZUyY5afg9u2rv5cqQI3mRrYkGC8rW2hM02jWuwjtL++LS5qinSyhj2QfLyNsuc+VsExg==",
+      "rawLicense": null,
+      "license": "MIT",
+      "sources": [
+        {
+          "url": "https://registry.npmjs.org/streamsearch/-/streamsearch-1.1.0.tgz",
+          "version": "1.1.0"
+        }
+      ],
+      "files": [
+        {
+          "path": "licenses/streamsearch-1.1.0/LICENSE",
+          "sha256": "7c28463b739e2e73a49bf127d0bda427f8c55f0b37365a044c3c3f254716118b"
+        }
+      ]
+    },
+    {
+      "id": "pm2-io-6.1.0",
+      "name": "@pm2/io",
+      "lockfile": "package-lock.json",
+      "lockPath": "node_modules/@pm2/io",
+      "version": "6.1.0",
+      "integrity": "sha512-IxHuYURa3+FQ6BKePlgChZkqABUKFYH6Bwbw7V/pWU1pP6iR1sCI26l7P9ThUEB385ruZn/tZS3CXDUF5IA1NQ==",
+      "rawLicense": "Apache-2",
+      "license": "Apache-2.0",
+      "sources": [
+        {
+          "url": "https://registry.npmjs.org/@pm2/io/-/io-6.1.0.tgz",
+          "version": "6.1.0"
+        }
+      ],
+      "files": [
+        {
+          "path": "licenses/pm2-io-6.1.0/LICENSE.md",
+          "sha256": "1e6a9d26bbe9f79de207c1fdaaea731122433d8c168c3d8991ac68091ae817b1"
+        }
+      ]
+    },
+    {
+      "id": "visx-vendor-4.0.0-alpha.0",
+      "name": "@visx/vendor",
+      "lockfile": "package-lock.json",
+      "lockPath": "node_modules/@visx/vendor",
+      "version": "4.0.0-alpha.0",
+      "integrity": "sha512-6I+MuqXBcv9jnlcVowHoHKSdk9gXTWkHLKyqBwRWg7LY6A3Ei8SHfubpqGV5rBUSppxMq2RszPJUS6w+H0YgmQ==",
+      "rawLicense": "MIT and ISC",
+      "license": "MIT AND ISC",
+      "sources": [
+        {
+          "url": "https://registry.npmjs.org/@visx/vendor/-/vendor-4.0.0-alpha.0.tgz",
+          "version": "4.0.0-alpha.0"
+        }
+      ],
+      "files": [
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/LICENSE",
+          "sha256": "8c766533b7d4200b4dfb1a1afff396e3665460d21d7b4c34d059efcb5a332c84"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/d3-array/LICENSE",
+          "sha256": "faa682e3e430941f958d26180458f5934a62f58dac4d70ccdd15608c15d0f884"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/d3-color/LICENSE",
+          "sha256": "faa682e3e430941f958d26180458f5934a62f58dac4d70ccdd15608c15d0f884"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/d3-delaunay/LICENSE",
+          "sha256": "582c3022bd01942336095f92b58a90b1be624dc547d987555c6c956512dd24c1"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/d3-format/LICENSE",
+          "sha256": "e008c5e25a6be382593089c29bfabbc553c6378eee02895aec46ce396cc404ee"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/d3-geo/LICENSE",
+          "sha256": "c53822a70309da589d4a7821c3a0dfc9449bbb4429cecaa295e0cb0461b950c9"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/d3-interpolate/LICENSE",
+          "sha256": "e008c5e25a6be382593089c29bfabbc553c6378eee02895aec46ce396cc404ee"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/d3-path/LICENSE",
+          "sha256": "a09b0d6d76e768fca2085fad05743ee81ddd11946bcda160a3cf5e1081a479aa"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/d3-scale/LICENSE",
+          "sha256": "e008c5e25a6be382593089c29bfabbc553c6378eee02895aec46ce396cc404ee"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/d3-shape/LICENSE",
+          "sha256": "faa682e3e430941f958d26180458f5934a62f58dac4d70ccdd15608c15d0f884"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/d3-time/LICENSE",
+          "sha256": "faa682e3e430941f958d26180458f5934a62f58dac4d70ccdd15608c15d0f884"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/d3-time-format/LICENSE",
+          "sha256": "e008c5e25a6be382593089c29bfabbc553c6378eee02895aec46ce396cc404ee"
+        },
+        {
+          "path": "licenses/visx-vendor-4.0.0-alpha.0/vendor-cjs/internmap/LICENSE",
+          "sha256": "9ea8903938dab5f12c4572d60725069bec2d1b0dc3bcc210b09bae946a5ebb1f"
+        }
+      ]
+    }
+  ]
+}

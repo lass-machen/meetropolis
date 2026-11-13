@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { computeFootprintTiles } from './collisionHelpers.js';
+import { ObjectFootprintLimitError } from './objectFootprintLimits.js';
 
 // A 1-wide, 3-tall object anchored at tile (0,0) in one 32x32 chunk. Row index
 // == ry because everything lands in chunk (0,0).
@@ -51,5 +52,49 @@ describe('computeFootprintTiles: foot-only collision', () => {
     // 2-wide (32px) x 3-tall, base 1 -> bottom row, both columns.
     const tiles = computeFootprintTiles(0, 0, 32, H, TILE, TILE, CHUNK, 1);
     expect(tiles.map((t) => `${t.rx},${t.ry}`).sort()).toEqual(['0,2', '1,2']);
+  });
+});
+
+describe('computeFootprintTiles: footprint tile limit (A26)', () => {
+  it('rejects a footprint just over the limit (4097 tiles)', () => {
+    expect(() => computeFootprintTiles(0, 0, 16 * 4097, 16, 16, 16, 32)).toThrow(ObjectFootprintLimitError);
+  });
+
+  it('allows exactly 4096 tiles (64x64) and returns them all', () => {
+    const tiles = computeFootprintTiles(0, 0, 16 * 64, 16 * 64, 16, 16, 32);
+    expect(tiles).toHaveLength(4096);
+  });
+
+  it('rejects more than 4096 tiles', () => {
+    expect(() => computeFootprintTiles(0, 0, 16 * 65, 16 * 64, 16, 16, 32)).toThrow(ObjectFootprintLimitError);
+  });
+
+  it('rejects invalid or non-finite widthPx', () => {
+    for (const v of [0, -1, NaN, Infinity, -Infinity]) {
+      expect(() => computeFootprintTiles(0, 0, v, 16, 16, 16, 32)).toThrow(ObjectFootprintLimitError);
+    }
+  });
+
+  it('rejects invalid or non-finite heightPx', () => {
+    for (const v of [0, -1, NaN, Infinity, -Infinity]) {
+      expect(() => computeFootprintTiles(0, 0, 16, v, 16, 16, 32)).toThrow(ObjectFootprintLimitError);
+    }
+  });
+
+  it('rejects invalid or non-finite tileWidth', () => {
+    for (const v of [0, -1, NaN, Infinity, -Infinity]) {
+      expect(() => computeFootprintTiles(0, 0, 16, 16, v, 16, 32)).toThrow(ObjectFootprintLimitError);
+    }
+  });
+
+  it('rejects invalid or non-finite tileHeight', () => {
+    for (const v of [0, -1, NaN, Infinity, -Infinity]) {
+      expect(() => computeFootprintTiles(0, 0, 16, 16, 16, v, 32)).toThrow(ObjectFootprintLimitError);
+    }
+  });
+
+  it('rejects high geometry even when collisionBaseTiles is 1', () => {
+    expect(() => computeFootprintTiles(0, 0, 16, 16 * 4097, 16, 16, 32, 1)).toThrow(ObjectFootprintLimitError);
+    expect(() => computeFootprintTiles(0, 0, 16 * 65, 16 * 64, 16, 16, 32, 1)).toThrow(ObjectFootprintLimitError);
   });
 });

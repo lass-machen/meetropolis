@@ -6,10 +6,14 @@ import { createPrismaClient } from '../../db.js';
 import { setAuthResolution } from '../utils/authState.js';
 import { handleAuthInvite, handleAuthRegister } from './auth.signin.js';
 import { registerMiscRoutes } from './misc.js';
+import { registerGuestRoutes } from './guests.js';
+import { formatInviteExpiry } from '../utils/inviteLifecycle.js';
 
 const capturedLogs = vi.hoisted(() => {
   process.env.RATE_LIMIT_ENABLED = 'false';
-  return { events: [] as Array<{ level: string; value: unknown }> };
+  const originalNodeEnv = process.env.NODE_ENV;
+  if (process.env.NODE_ENV === 'test') process.env.NODE_ENV = 'development';
+  return { events: [] as Array<{ level: string; value: unknown }>, originalNodeEnv };
 });
 
 vi.mock('../../logger.js', () => ({
@@ -99,6 +103,7 @@ function makeApp(): express.Application {
   app.post('/auth/invite', (req, res) => handleAuthInvite(prisma, req, res));
   app.post('/auth/register', (req, res) => handleAuthRegister(prisma, req, res));
   registerMiscRoutes(app, prisma);
+  registerGuestRoutes(app, prisma);
   return app;
 }
 
@@ -254,8 +259,8 @@ async function waitForMail(to: string, minimumCount = 1): Promise<{ text: string
     const query = new URLSearchParams({ query: `to:"${to}"` });
     const search = await fetch(`${mailpitUrl}/api/v1/search?${query.toString()}`);
     if (!search.ok) throw new Error('Mailpit search request failed');
-    const result = (await search.json()) as { total?: number; messages?: Array<{ ID: string }> };
-    const count = result.total ?? result.messages?.length ?? 0;
+    const result = (await search.json()) as { messages_count?: number; messages?: Array<{ ID: string }> };
+    const count = result.messages_count ?? result.messages?.length ?? 0;
     const latest = result.messages?.[0];
     if (count >= minimumCount && latest) {
       const detail = await fetch(`${mailpitUrl}/api/v1/message/${latest.ID}`);
@@ -312,6 +317,8 @@ afterEach(async () => {
 
 afterAll(async () => {
   await prisma.$disconnect();
+  if (capturedLogs.originalNodeEnv === undefined) delete process.env.NODE_ENV;
+  else process.env.NODE_ENV = capturedLogs.originalNodeEnv;
   smtpEnvKeys.forEach((key) =>
     originalSmtpEnv[key] === undefined ? delete process.env[key] : (process.env[key] = originalSmtpEnv[key]),
   );
@@ -330,6 +337,17 @@ describe('Q-ACC-7 invite delivery feedback and open invite reuse', () => {
     expect(new Date(first.expiresAt).getTime() - startedAt).toBeCloseTo(7 * 24 * 60 * 60 * 1000, -3);
     const firstMail = await waitForMail(email);
     expect(firstMail.text).toContain(first.inviteUrl);
+    expect(firstMail.text).toContain(
+      new Date(first.expiresAt).toLocaleString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Berlin',
+        timeZoneName: 'short',
+      }),
+    );
     const firstRow = await inviteLifecycle(first.code);
     expect(firstRow.lastSentAt).toBeInstanceOf(Date);
     expect(firstRow.sendCount).toBe(1);
@@ -803,5 +821,26 @@ describe('POST /auth/register display names', () => {
     expect(response.body.delivery).toBe('sent');
     expect(response.body).not.toHaveProperty('token');
     expect(user.name).toBeNull();
+  });
+});
+
+describe('Q-ACC-28 guest invite mail expiry', () => {
+  it('states the guest access expiry in Berlin time with its zone', async () => {
+    const fixture = await createFixture();
+    const email = `guest-${crypto.randomUUID()}@example.test`;
+    const expiresAt = new Date(Math.ceil((Date.now() + 3 * 24 * 60 * 60 * 1000) / 3_600_000) * 3_600_000);
+
+    const response = await request(fixture.app)
+      .post('/guests')
+      .set('x-user', fixture.ownerId)
+      .set('x-tenant', fixture.tenantId)
+      .send({ email, name: 'Test Guest', expiresAt: expiresAt.toISOString() });
+    expect(response.status).toBe(200);
+
+    const guestUser = await prisma.user.findFirst({ where: { email } });
+    if (guestUser) userIds.push(guestUser.id);
+
+    const mail = await waitForMail(email);
+    expect(mail.text).toContain(formatInviteExpiry(expiresAt, undefined));
   });
 });

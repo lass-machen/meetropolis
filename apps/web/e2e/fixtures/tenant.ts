@@ -2,8 +2,10 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import type { APIRequest } from '@playwright/test';
 
-import type { FreshTenant } from '../support/api';
+import { MeetropolisApi, createApiRequest } from '../support/api';
+import type { FreshTenant, InviteRole, SeedData, TestUser } from '../support/api';
 import { provisionGuest, provisionInvitedUser, provisionTenantOwnerViaOperator } from '../support/provisioning';
+import { getSeedTenant, passwordFor } from './helpers';
 import type { TestStackEnv } from './types';
 
 export async function createFreshTenant(
@@ -19,8 +21,8 @@ export async function createFreshTenant(
     operatorEmail: stack.operatorEmail,
     operatorPassword: stack.operatorPassword,
     tenantSlug: slug,
-    tenantName: `Q-Test ${suffix}`,
-    ownerEmail: `owner+${suffix}@qtest.test`,
+    tenantName: `E2E ${suffix}`,
+    ownerEmail: `owner+${suffix}@e2e.test`,
     ownerName: 'Test Owner',
     ownerPassword: stack.userPassword,
   });
@@ -36,7 +38,7 @@ export async function createFreshTenant(
         ownerApi,
         apiUrl: stack.apiUrl,
         tenantSlug: slug,
-        email: `admin+${suffix}@qtest.test`,
+        email: `admin+${suffix}@e2e.test`,
         name: 'Test Admin',
         role: 'admin',
         password: stack.userPassword,
@@ -46,7 +48,7 @@ export async function createFreshTenant(
         ownerApi,
         apiUrl: stack.apiUrl,
         tenantSlug: slug,
-        email: `member+${suffix}@qtest.test`,
+        email: `member+${suffix}@e2e.test`,
         name: 'Test Member',
         role: 'member',
         password: stack.userPassword,
@@ -57,7 +59,7 @@ export async function createFreshTenant(
         apiUrl: stack.apiUrl,
         baseUrl: stack.baseUrl,
         tenantSlug: slug,
-        email: `guest+${suffix}@qtest.test`,
+        email: `guest+${suffix}@e2e.test`,
       }),
     };
 
@@ -65,5 +67,42 @@ export async function createFreshTenant(
     return { tenantId, slug, users, roomId, mapId };
   } finally {
     await ownerSession.dispose();
+  }
+}
+
+// Fresh invited users per test, because the server allows one live session per identity (newest wins), so shared seed accounts kick each other across parallel projects. Works in OSS and EE; only REST, no room join for the owner.
+export async function createSeedTenantUsers(
+  playwrightRequest: APIRequest,
+  stack: TestStackEnv,
+  seed: SeedData,
+  testId: string,
+  roles: InviteRole[],
+): Promise<TestUser[]> {
+  const tenant = getSeedTenant(seed);
+  const owner = tenant.users.owner;
+  if (!owner) throw new Error('Seed tenant has no owner, so no fresh test users can be created.');
+  const suffix = createHash('sha256').update(`${testId}:${randomUUID()}`).digest('hex').slice(0, 10);
+  const request = await createApiRequest(playwrightRequest, stack.apiUrl, tenant.slug);
+  const ownerApi = new MeetropolisApi(request, stack.apiUrl, tenant.slug);
+  try {
+    await ownerApi.login(owner.email, passwordFor(owner));
+    const users: TestUser[] = [];
+    for (const [index, role] of roles.entries()) {
+      users.push(
+        await provisionInvitedUser({
+          playwrightRequest,
+          ownerApi,
+          apiUrl: stack.apiUrl,
+          tenantSlug: tenant.slug,
+          email: `${role}-${index + 1}+${suffix}@e2e.test`,
+          name: `E2E ${role} ${index + 1} ${suffix}`,
+          role,
+          password: stack.userPassword,
+        }),
+      );
+    }
+    return users;
+  } finally {
+    await request.dispose();
   }
 }

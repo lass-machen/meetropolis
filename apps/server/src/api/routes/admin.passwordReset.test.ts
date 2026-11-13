@@ -1,7 +1,11 @@
 import crypto from 'node:crypto';
 import request from 'supertest';
-import { afterAll, expect, it } from 'vitest';
+import { afterAll, expect, it, vi } from 'vitest';
 import { createEmailProofFixture } from '../../../test/fixtures/emailProofFixture.js';
+
+vi.hoisted(() => {
+  process.env.PUBLIC_BASE_URL = 'https://app.example.test';
+});
 
 // Real platform-operator contract, including its retained raw-token response.
 const setup = createEmailProofFixture();

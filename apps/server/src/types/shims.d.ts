@@ -136,3 +136,10 @@ declare module '@meetropolis/telemetry-node' {
   const mod: unknown;
   export default mod;
 }
+
+// Optional proprietary transcription module. Present only in enterprise builds.
+// Callers narrow at the load site (see transcriptionLoader.ts).
+declare module '@meetropolis/transcription' {
+  const mod: unknown;
+  export default mod;
+}

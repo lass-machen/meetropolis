@@ -72,6 +72,23 @@ describe('createRosterRefresher', () => {
     expect(args.rosterByIdentityRef.current['user-1']).toEqual({ name: 'Dave', x: 10, y: 20 });
   });
 
+  it('replaces an unmapped session row when its stable identity arrives', () => {
+    const identities = makeRef<Record<string, string>>({});
+    const names = makeRef<Record<string, string>>({});
+    const inputs = {
+      remotesRef: makeRef<Record<string, { x: number; y: number }>>({ 'session-a': { x: 10, y: 20 } }),
+      colyseusToLivekitMap: identities,
+      identityToNameMap: names,
+    };
+
+    const missing = runRefresher([], inputs);
+    identities.current['session-a'] = 'user-1';
+    names.current['user-1'] = 'Dave';
+    const { roster } = runRefresher(missing.roster, inputs);
+
+    expect(roster).toEqual([{ identity: 'user-1', name: 'Dave', online: true, x: 10, y: 20 }]);
+  });
+
   it('adds the local user under their stable user id', () => {
     const { roster } = runRefresher([], {
       me: { id: 'local-user', email: 'local@example.com', name: 'Local User' },

@@ -21,10 +21,10 @@ async function findContainerId(project: string, service: StackService): Promise<
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
   if (ids.length !== 1) {
-    throw new Error(`stackControl: ${service} in ${project} hat ${ids.length} Container, erwartet genau 1.`);
+    throw new Error(`stackControl: ${service} in ${project} has ${ids.length} containers, expected exactly 1.`);
   }
   const id = ids[0];
-  if (!id) throw new Error(`stackControl: ${service} in ${project} hat keinen Container.`);
+  if (!id) throw new Error(`stackControl: ${service} in ${project} has no container.`);
   return id;
 }
 
@@ -34,7 +34,7 @@ export async function provideStackControl(args: {
 }): Promise<void> {
   const project = args.stack.project;
   if (!PROJECT_PATTERN.test(project)) {
-    throw new Error(`stackControl: ungültiges Projekt ${project}, erwartet mtest-<n>.`);
+    throw new Error(`stackControl: invalid project ${project}, expected mtest-<n>.`);
   }
   const paused = new Set<StackService>();
   const control: StackControl = {

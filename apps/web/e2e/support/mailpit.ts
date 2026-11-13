@@ -20,7 +20,7 @@ export type MailpitClient = {
 
 function asRecord(value: unknown, label: string): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label}: unerwartete Mailpit-Antwort.`);
+    throw new Error(`${label}: unexpected Mailpit response.`);
   }
   return value as Record<string, unknown>;
 }
@@ -61,12 +61,12 @@ export function createMailpitClient(request: APIRequestContext, mailpitUrl: stri
 
     while (Date.now() < deadline) {
       const searchResponse = await request.get(searchUrl);
-      if (!searchResponse.ok()) throw new Error(`Mailpit-Suche: HTTP ${searchResponse.status()}.`);
-      const payload = asRecord((await searchResponse.json()) as unknown, 'Mailpit-Suche');
+      if (!searchResponse.ok()) throw new Error(`Mailpit search: HTTP ${searchResponse.status()}.`);
+      const payload = asRecord((await searchResponse.json()) as unknown, 'Mailpit search');
       const summaries = Array.isArray(payload.messages) ? payload.messages : [];
 
       for (const item of summaries) {
-        const summary = asRecord(item, 'Mailpit-Nachricht');
+        const summary = asRecord(item, 'Mailpit message');
         const messageTo = readRecipients(summary.To);
         const messageSubject = readString(summary, 'Subject');
         if (!messageTo.includes(to.toLowerCase()) || (subject && messageSubject !== subject)) continue;
@@ -76,8 +76,8 @@ export function createMailpitClient(request: APIRequestContext, mailpitUrl: stri
         checkedMessageIds.add(id);
         const messageUrl = appendPath(mailpitUrl, `/api/v1/message/${encodeURIComponent(id)}`);
         const messageResponse = await request.get(messageUrl);
-        if (!messageResponse.ok()) throw new Error(`Mailpit-Nachricht: HTTP ${messageResponse.status()}.`);
-        const fullMessage = asRecord((await messageResponse.json()) as unknown, 'Mailpit-Nachricht');
+        if (!messageResponse.ok()) throw new Error(`Mailpit message: HTTP ${messageResponse.status()}.`);
+        const fullMessage = asRecord((await messageResponse.json()) as unknown, 'Mailpit message');
         const message = {
           id,
           subject: readString(fullMessage, 'Subject') || messageSubject,
@@ -93,9 +93,9 @@ export function createMailpitClient(request: APIRequestContext, mailpitUrl: stri
       if (remainingMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, Math.min(250, remainingMs)));
     }
 
-    const filters = [subject && `Betreff „${subject}“`, linkPattern && `Linkmuster ${linkPattern}`].filter(Boolean);
+    const filters = [subject && `subject "${subject}"`, linkPattern && `link pattern ${linkPattern}`].filter(Boolean);
     throw new Error(
-      `Mailpit: keine Nachricht für ${to}${filters.length ? ` mit ${filters.join(' und ')}` : ''} innerhalb ${timeoutMs} ms.`,
+      `Mailpit: no message for ${to}${filters.length ? ` with ${filters.join(' and ')}` : ''} within ${timeoutMs} ms.`,
     );
   }
 

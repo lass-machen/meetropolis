@@ -22,14 +22,18 @@ export function renderInviteEn(params: SendInviteParams, brand: BrandContext): S
   const signoff = 'Best,';
   const team = `The ${brand.brandName} Team`;
 
+  const expirySentence = params.expiresAt ? `The invitation is valid until ${params.expiresAt}.` : undefined;
+  const expiryHtml = expirySentence ? `\n  <p>${escapeHtml(expirySentence)}</p>` : '';
+  const expiryText = expirySentence ? `\n\n${expirySentence}` : '';
+
   const html = htmlShell(`
   <h2 style="color: #1a1a1a;">${heading}</h2>
-  <p>${bodyHtml}</p>
+  <p>${bodyHtml}</p>${expiryHtml}
   ${button(params.inviteUrl, buttonLabel)}
   <p style="color: #666;">${descriptionHtml}</p>
   ${footer(brand.brandName)}`);
 
-  const text = `${bodyText}\n\n${params.inviteUrl}\n\n${description}\n\n${signoff}\n${team}`;
+  const text = `${bodyText}${expiryText}\n\n${params.inviteUrl}\n\n${description}\n\n${signoff}\n${team}`;
 
   return {
     to: params.to,

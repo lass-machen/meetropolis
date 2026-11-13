@@ -2,10 +2,19 @@ import type { Browser, BrowserContext, BrowserType, TestInfo } from '@playwright
 import type { APIRequest } from '@playwright/test';
 
 import { MeetropolisApi } from '../support/api';
-import type { FreshTenant, SeedData, TestUser } from '../support/api';
+import type { FreshTenant, InviteRole, Role, SeedData, TestUser } from '../support/api';
 import type { TestStackEnv, MediaPermission, RoomUser, RoomUsersFactory } from './types';
 import { appRouteUrl, getSeedTenant, passwordFor, pickUsers, waitForParticipant } from './helpers';
-import { createFreshTenant } from './tenant';
+import { createFreshTenant, createSeedTenantUsers } from './tenant';
+
+function seedTenantRoles(n: number, roles?: Role[]): InviteRole[] {
+  const selected: Role[] =
+    roles ?? Array.from({ length: n }, (_value, index) => (index === 0 ? 'admin' : 'member') as Role);
+  for (const role of selected) {
+    if (role !== 'admin' && role !== 'member') throw new Error('tenant seed creates only admin or member users.');
+  }
+  return selected as InviteRole[];
+}
 
 type BrowserTypes = { chromium: BrowserType; firefox: BrowserType; webkit: BrowserType };
 
@@ -54,7 +63,7 @@ export async function provideRoomUsers(args: {
     const api = new MeetropolisApi(context.request, args.stack.apiUrl, user.tenantSlug);
     const page = await context.newPage();
     if (user.role === 'guest') {
-      if (!user.guestUrl) throw new Error(`Gast ${user.email} hat keinen Magic-Link.`);
+      if (!user.guestUrl) throw new Error(`Guest ${user.email} has no magic link.`);
       if (join) {
         await page.goto(user.guestUrl);
         await page.waitForURL(/#\/app(?:$|\?)/);
@@ -72,7 +81,7 @@ export async function provideRoomUsers(args: {
     await args.provide(async (n, options = {}) => {
       const join = options.join !== false;
       if (!options.tenant && args.stack.edition === 'oss') {
-        args.testInfo.skip(true, 'freshTenant braucht Enterprise (Mandanten)');
+        args.testInfo.skip(true, 'freshTenant requires the enterprise edition (tenants)');
       }
       const tenant =
         options.tenant === 'seed'
@@ -83,10 +92,19 @@ export async function provideRoomUsers(args: {
               args.stack,
               args.testInfo.testId,
             ))));
-      const users = pickUsers(tenant, n, options.roles);
+      const users =
+        options.tenant === 'seed'
+          ? await createSeedTenantUsers(
+              args.playwrightRequest,
+              args.stack,
+              args.seed,
+              args.testInfo.testId,
+              seedTenantRoles(n, options.roles),
+            )
+          : pickUsers(tenant, n, options.roles);
       const permissions = users.map((_user, index) => options.permissions?.[index] ?? 'granted');
       if (options.permissions && options.permissions.length !== n) {
-        throw new Error('roomUsers benötigt genau einen Permission-Status je Nutzer.');
+        throw new Error('roomUsers needs exactly one permission state per user.');
       }
 
       const roomUsers =

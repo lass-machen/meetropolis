@@ -8,6 +8,7 @@ import { assetPackScopeWhere, refreshPackScope, type PackScope } from '../../ser
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { computeFootprintTiles } from '../utils/collisionHelpers.js';
+import { checkBulkFootprints, checkSingleFootprint } from '../utils/mapObjectInputLimits.js';
 import { reconcileObjectCollision } from '../utils/objectCollision.js';
 import { runSerializable, type ChunkUpdateResult, type MapDb } from '../utils/mapChunkMutations.js';
 import { acquireMapAdvisoryLock, acquirePackAdvisoryLock, acquirePackAdvisoryLocks } from '../utils/advisoryLocks.js';
@@ -269,6 +270,12 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
     }
 
     const dims = getMapDimensions(map);
+    // Maß-/Skaliereingaben vorab begrenzen (stabile 400er, kein 500).
+    const footprint = checkSingleFootprint(data, dims);
+    if (!footprint.ok) {
+      res.status(400).json({ error: footprint.error });
+      return;
+    }
     const result = await runSerializable(prisma, async (tx) => {
       await acquireMapAdvisoryLock(tx, map.id);
       await acquirePackAdvisoryLock(tx, data.assetPackUuid);
@@ -531,7 +538,12 @@ async function handleBulkCreateObjects(
     }
 
     const dims = getMapDimensions(map);
-
+    // Ganze Bulk-Liste vorab prüfen, keine Teilwrites (stabile 400er).
+    const bulkFootprint = checkBulkFootprints(parse.data.objects, dims);
+    if (!bulkFootprint.ok) {
+      res.status(400).json({ error: bulkFootprint.error });
+      return;
+    }
     // Same scope as the single-object path above — a bulk import must not be a
     // way around the ownership veto.
     const uuids = [...new Set(parse.data.objects.map((o) => o.assetPackUuid))];

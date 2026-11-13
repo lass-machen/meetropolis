@@ -1,11 +1,11 @@
 import { test, expect } from '../fixtures';
 
 test('password reset mail includes its reset link @smoke', async ({ request, stack, seed, mailpit }) => {
-  test.skip(stack.edition === 'ee', 'Q-TEST-5: Das EE-Mailmodul leitet derzeit nicht an Mailpit weiter.');
+  test.skip(stack.edition === 'ee', 'The enterprise mail module does not forward mail to Mailpit yet.');
   const tenant = seed.tenants.default;
   const member = tenant?.users.member;
   if (!member || member.email !== 'member@default.test') {
-    throw new Error('OSS-Seed enthält nicht member@default.test.');
+    throw new Error('OSS seed does not contain member@default.test.');
   }
 
   // POST /auth/forgot is registered at apps/server/src/api/routes/auth.ts:33-36;

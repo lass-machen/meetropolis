@@ -3,6 +3,8 @@
    Komplett eigenstaendig vom In-Game UI (sys-*)
    ============================================ */
 
+@import './fonts.css';
+
 /* Brand wordmark face — Press Start 2P (SIL Open Font License).
    Self-hosted under /fonts (see /fonts/PressStart2P-OFL.txt). Used only for the
    "MEETROPOLIS" wordmark, never for body copy. */
@@ -19,94 +21,94 @@
 /* --- Design Tokens --- */
 :root {
   /* Fonts */
-  --pub-font-display: 'Plus Jakarta Sans', sans-serif;
-  --pub-font-body: 'Inter', sans-serif;
-  --pub-font-wordmark: 'Press Start 2P', monospace;
+  --pub-font-display: var(--font-display);
+  --pub-font-body: var(--font-ui);
+  --pub-font-wordmark: var(--font-wordmark);
 
   /* Brand gradient — shared by the app icon and the wordmark (blue → violet → green) */
-  --pub-brand-gradient: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%);
+  --pub-brand-gradient: var(--gradient-brand);
 
   /* Backgrounds */
-  --pub-bg-primary: #ffffff;
-  --pub-bg-dark: #18181b;
-  --pub-bg-dark-card: #27272a;
-  --pub-bg-surface: #f4f4f5;
-  --pub-bg-surface-hover: #e4e4e7;
+  --pub-bg-primary: var(--color-public-bg-primary);
+  --pub-bg-dark: var(--color-public-bg-dark);
+  --pub-bg-dark-card: var(--color-public-bg-dark-card);
+  --pub-bg-surface: var(--color-public-bg-surface);
+  --pub-bg-surface-hover: var(--color-public-bg-surface-hover);
 
   /* Text */
-  --pub-text-primary: #18181b;
-  --pub-text-secondary: #71717a;
-  --pub-text-tertiary: #a1a1aa;
-  --pub-text-on-dark: #ffffff;
-  --pub-text-on-dark-secondary: #a1a1aa;
+  --pub-text-primary: var(--color-public-text-primary);
+  --pub-text-secondary: var(--color-public-text-secondary);
+  --pub-text-tertiary: var(--color-public-text-tertiary);
+  --pub-text-on-dark: var(--color-public-text-on-dark);
+  --pub-text-on-dark-secondary: var(--color-public-text-on-dark-secondary);
 
   /* Accents */
-  --pub-accent-purple: #8b5cf6;
-  --pub-accent-purple-dark: #7c3aed;
-  --pub-accent-purple-soft: rgba(139, 92, 246, 0.125);
-  --pub-accent-teal: #14b8a6;
-  --pub-accent-pink: #f472b6;
-  --pub-accent-amber: #f59e0b;
+  --pub-accent-purple: var(--color-public-accent-purple);
+  --pub-accent-purple-dark: var(--color-public-accent-purple-dark);
+  --pub-accent-purple-soft: var(--color-public-accent-purple-soft);
+  --pub-accent-teal: var(--color-public-accent-teal);
+  --pub-accent-pink: var(--color-public-accent-pink);
+  --pub-accent-amber: var(--color-public-accent-amber);
 
   /* Borders */
-  --pub-border-light: #e4e4e7;
-  --pub-border-dark: #3f3f46;
+  --pub-border-light: var(--color-public-border-light);
+  --pub-border-dark: var(--color-public-border-dark);
 
   /* Icon Backgrounds */
-  --pub-icon-bg-purple: #ede9fe;
-  --pub-icon-bg-teal: #ccfbf1;
-  --pub-icon-bg-pink: #fce7f3;
-  --pub-icon-bg-amber: #fef3c7;
-  --pub-icon-bg-red: #fee2e2;
-  --pub-icon-bg-indigo: #e0e7ff;
+  --pub-icon-bg-purple: var(--color-public-icon-bg-purple);
+  --pub-icon-bg-teal: var(--color-public-icon-bg-teal);
+  --pub-icon-bg-pink: var(--color-public-icon-bg-pink);
+  --pub-icon-bg-amber: var(--color-public-icon-bg-amber);
+  --pub-icon-bg-red: var(--color-public-icon-bg-red);
+  --pub-icon-bg-indigo: var(--color-public-icon-bg-indigo);
 
   /* Radii */
-  --pub-radius-pill: 100px;
-  --pub-radius-card: 20px;
-  --pub-radius-card-lg: 24px;
-  --pub-radius-image: 16px;
-  --pub-radius-input: 12px;
-  --pub-radius-icon: 12px;
-  --pub-radius-logo: 10px;
+  --pub-radius-pill: var(--radius-public-pill);
+  --pub-radius-card: var(--radius-public-card);
+  --pub-radius-card-lg: var(--radius-public-card-lg);
+  --pub-radius-image: var(--radius-public-image);
+  --pub-radius-input: var(--radius-public-input);
+  --pub-radius-icon: var(--radius-public-icon);
+  --pub-radius-logo: var(--radius-public-logo);
 
   /* Gradients */
-  --pub-gradient-hero: linear-gradient(180deg, #0f0a1a 0%, #1a1035 50%, #2d1b69 100%);
-  --pub-gradient-cta: linear-gradient(180deg, #2d1b69 0%, #1a1035 50%, #0f0a1a 100%);
-  --pub-gradient-purple: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
-  --pub-gradient-auth-panel: linear-gradient(160deg, #7c3aed 0%, #4c1d95 100%);
+  --pub-gradient-hero: var(--gradient-public-hero);
+  --pub-gradient-cta: var(--gradient-public-cta);
+  --pub-gradient-purple: var(--gradient-public-purple);
+  --pub-gradient-auth-panel: var(--gradient-public-auth-panel);
 
   /* Layout */
-  --pub-max-width: 1440px;
-  --pub-content-width: 1200px;
-  --pub-section-padding: 100px 120px;
-  --pub-header-padding: 16px 80px;
-  --pub-footer-padding: 64px 120px 40px 120px;
+  --pub-max-width: var(--layout-public-max-width);
+  --pub-content-width: var(--layout-public-content-width);
+  --pub-section-padding: var(--layout-public-section-padding);
+  --pub-header-padding: var(--layout-public-header-padding);
+  --pub-footer-padding: var(--layout-public-footer-padding);
 }
 
 /* --- Responsive overrides --- */
 @media (max-width: 1280px) {
   :root {
-    --pub-section-padding: 80px 80px;
-    --pub-header-padding: 16px 40px;
-    --pub-footer-padding: 64px 80px 40px 80px;
+    --pub-section-padding: var(--layout-public-section-padding);
+    --pub-header-padding: var(--layout-public-header-padding);
+    --pub-footer-padding: var(--layout-public-footer-padding);
   }
 }
 @media (max-width: 1024px) {
   :root {
-    --pub-section-padding: 64px 40px;
+    --pub-section-padding: var(--layout-public-section-padding);
   }
 }
 @media (max-width: 768px) {
   :root {
-    --pub-section-padding: 48px 24px;
-    --pub-header-padding: 12px 20px;
-    --pub-footer-padding: 48px 24px 32px 24px;
+    --pub-section-padding: var(--layout-public-section-padding);
+    --pub-header-padding: var(--layout-public-header-padding);
+    --pub-footer-padding: var(--layout-public-footer-padding);
   }
 }
 @media (max-width: 480px) {
   :root {
-    --pub-section-padding: 48px 16px;
-    --pub-header-padding: 12px 16px;
+    --pub-section-padding: var(--layout-public-section-padding);
+    --pub-header-padding: var(--layout-public-header-padding);
   }
 }
 
@@ -145,12 +147,12 @@
 
 .pub-btn:hover {
   transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px var(--palette-legacy-rgba-0-0-0-0-1);
 }
 
 .pub-btn--primary {
   background: var(--pub-accent-purple);
-  color: #ffffff;
+  color: var(--palette-legacy-hex-ffffff);
   padding: 12px 24px;
 }
 
@@ -160,12 +162,12 @@
 
 .pub-btn--secondary {
   background: transparent;
-  border: 1.5px solid rgba(255, 255, 255, 0.19);
-  color: #ffffff;
+  border: 1.5px solid var(--palette-legacy-rgba-255-255-255-0-19);
+  color: var(--palette-legacy-hex-ffffff);
 }
 
 .pub-btn--secondary:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--palette-legacy-rgba-255-255-255-0-06);
 }
 
 .pub-btn--ghost {
@@ -180,12 +182,12 @@
 }
 
 .pub-btn--cta-white {
-  background: #ffffff;
+  background: var(--palette-legacy-hex-ffffff);
   color: var(--pub-accent-purple);
 }
 
 .pub-btn--cta-white:hover {
-  background: #f4f4f5;
+  background: var(--palette-legacy-hex-f4f4f5);
 }
 
 .pub-btn--lg {
@@ -274,7 +276,7 @@
 .pub-input-error {
   font-family: var(--pub-font-body);
   font-size: 13px;
-  color: #ef4444;
+  color: var(--palette-legacy-hex-ef4444);
 }
 
 /* --- Card (pub-card) --- */
@@ -298,12 +300,12 @@
 
 .pub-card--purple {
   background: var(--pub-accent-purple);
-  color: #ffffff;
+  color: var(--palette-legacy-hex-ffffff);
 }
 
 .pub-card--hover:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 32px var(--palette-legacy-rgba-0-0-0-0-1);
 }
 
 /* --- Badge (pub-badge) --- */
@@ -325,24 +327,24 @@
 }
 
 .pub-badge--teal {
-  background: rgba(20, 184, 166, 0.125);
-  color: #14b8a6;
+  background: var(--palette-legacy-rgba-20-184-166-0-125);
+  color: var(--palette-legacy-hex-14b8a6);
 }
 
 .pub-badge--pink {
-  background: rgba(244, 114, 182, 0.125);
-  color: #f472b6;
+  background: var(--palette-legacy-rgba-244-114-182-0-125);
+  color: var(--palette-legacy-hex-f472b6);
 }
 
 .pub-badge--amber {
-  background: rgba(245, 158, 11, 0.125);
-  color: #f59e0b;
+  background: var(--palette-legacy-rgba-245-158-11-0-125);
+  color: var(--palette-legacy-hex-f59e0b);
 }
 
 .pub-badge--dark {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  background: var(--palette-legacy-rgba-255-255-255-0-06);
+  border: 1px solid var(--palette-legacy-rgba-255-255-255-0-1);
+  color: var(--palette-legacy-hex-ffffff);
 }
 
 .pub-badge__dot {
@@ -374,12 +376,12 @@
 
 .pub-step__circle--active {
   background: var(--pub-accent-purple);
-  color: #ffffff;
+  color: var(--palette-legacy-hex-ffffff);
 }
 
 .pub-step__circle--completed {
   background: var(--pub-accent-purple);
-  color: #ffffff;
+  color: var(--palette-legacy-hex-ffffff);
 }
 
 .pub-step__circle--inactive {
@@ -675,6 +677,6 @@
    unreadable — render the wordmark solid white instead. */
 .pub-wordmark--white {
   background: none;
-  color: #ffffff;
-  -webkit-text-fill-color: #ffffff;
+  color: var(--palette-legacy-hex-ffffff);
+  -webkit-text-fill-color: var(--palette-legacy-hex-ffffff);
 }

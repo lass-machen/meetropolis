@@ -61,7 +61,12 @@ export function createRosterRefresher(args: UseWorldRoomArgs) {
       // display name is a label, not a key.
       setRoster((prev) => {
         const map = new Map<string, RosterItem>();
-        for (const r of prev) map.set(r.identity, { ...r, online: false });
+        for (const r of prev) {
+          const mappedIdentity = colyseusToLivekitMap.current[r.identity];
+          // A session placeholder is superseded once its stable identity is online.
+          if (mappedIdentity && mappedIdentity !== r.identity && online[mappedIdentity]) continue;
+          map.set(r.identity, { ...r, online: false });
+        }
         for (const [ident, v] of Object.entries(online)) {
           const cur = map.get(ident);
           if (cur) {

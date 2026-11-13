@@ -1,10 +1,11 @@
-import { PrismaClient } from '../../generated/prisma/index.js';
+import type { PrismaClient } from '../../generated/prisma/index.js';
 import {
   decodeRlePairsFromBuffer,
   rleDecodeToBooleans,
   rleEncodeBooleans,
   encodeRlePairsToBuffer,
 } from '../../mapEncoding.js';
+import { computeFootprintTileDimensions } from './objectFootprintLimits.js';
 
 export interface CollisionTile {
   cx: number;
@@ -38,8 +39,7 @@ export function computeFootprintTiles(
   chunkSize: number,
   collisionBaseTiles = 0,
 ): CollisionTile[] {
-  const tilesW = Math.ceil(widthPx / tileWidth);
-  const tilesH = Math.ceil(heightPx / tileHeight);
+  const { tilesW, tilesH } = computeFootprintTileDimensions(widthPx, heightPx, tileWidth, tileHeight);
   const baseRows = collisionBaseTiles > 0 ? Math.min(collisionBaseTiles, tilesH) : tilesH;
   const startDy = tilesH - baseRows;
   const tiles: CollisionTile[] = [];

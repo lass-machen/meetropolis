@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tenant_deletion_contract_required`. Without a valid internal plan the
   deletion is rejected with `retention_journal_unavailable` (HTTP 409) until P4.
 - **Breaking (self-hosting):** NPC media now resolve from one directory. Without `NPC_MEDIA_DIR` the server uses `/data/npc-media`, the same default as the npc service; before, uploads defaulted to `<server working directory>/../../npc-media` and static serving to a directory next to the build output. If you did not set `NPC_MEDIA_DIR`, set it to your existing media directory or move its contents to `/data/npc-media`. When the directory cannot be created, the server logs `npc_media.dir_unavailable` at startup.
+- **Breaking (self-hosting):** Node.js 24.15 or newer below 25 is now required (`engines.node`). `npm ci --engine-strict` refuses older Node versions; `.nvmrc` stays `24` and resolves to the latest 24.x.
+- **Breaking (self-hosting):** invitation, guest, email-verification, password-reset and welcome links are built only from `PUBLIC_BASE_URL`. The fallbacks to relative links, `BILLING_PUBLIC_URL` and the request origin or host are gone, and loopback bases need `PUBLIC_BASE_URL_ALLOW_LOOPBACK=true`. A missing or unusable value is logged at startup, and link requests fail with `public_base_url_missing`. The web client copies invitation links from the server instead of building them from the window origin.
+- **Breaking (API):** invitation routes no longer carry the invitation code in the URL path, so request, rate-limit and error logs never contain a still-valid code. Revoking and resending address the invitation by its id (`DELETE /invites/:id`, `POST /invites/:id/resend`), the public preview and the acceptance by an existing account take the code in the JSON body (`POST /public/invites/preview`, `POST /invites/accept`), and `GET /invites` returns `id` and `url` instead of `code`. Listing, revoking and resending are limited to tenant admins and owners. Clients that still call `DELETE /invites/<code>`, such as older desktop builds that bundle the previous web client, receive `404 not found`, and the invitation link those builds copy ends in `?invite=undefined`; they need the updated client. Invitations now expire after 7 days; open invitations created before the upgrade get 7 days from the migration. `POST /auth/register` with an invitation code is bound to the invited address and answers `400 invite_unavailable`, `400 invite_expired` or `403 invite_email_mismatch` instead of the previous messages. Invitations without an email address can no longer be redeemed (403 `invite_email_mismatch`) and have to be issued again.
 - Web client: a terminal connection error (guest expiry, session
   takeover, rejected authentication, outdated client, billing and limit
   errors, and with the transcription module a missing consent) now leaves
@@ -82,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of concrete request paths. Early `http.request` logs no longer
   include a `path` field; unmatched requests use `<unmatched>`. This
   changes values consumed by dashboards and log parsers.
+- Verification requests: when the verification email cannot be delivered through a configured mail provider, `POST /auth/verify/request` answers `{ ok: true, sent: false }` without the verification token and link. Installations without a mail provider (console fallback) keep receiving the token as documented.
 
 ### Fixed
 
