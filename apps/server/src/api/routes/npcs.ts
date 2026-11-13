@@ -330,15 +330,22 @@ async function handleNpcCommand(req: express.Request, res: express.Response, pri
     (cmd.payload as Record<string, unknown>).mimeType = mediaFile.mimeType;
   }
 
-  // Broadcast command to all active Colyseus rooms. Read the registry through
-  // its declared type (`types/global.d.ts`, typed against the real
-  // `rooms/WorldRoom.ts` class) rather than through a cast: a rename on
-  // `broadcast` or on the registry then breaks the build instead of leaving
-  // this route reporting deliveries it never made.
+  // Broadcast the command to the rooms of the NPC's own tenant only. Every
+  // world room carries its tenant slug in its metadata (rooms/WorldRoom.ts
+  // onCreate) and the NPC service joins its bot under that slug. A room of
+  // another tenant must not receive the command: its clients would read the
+  // payload, and a bot there with the same identity would act on it. A room
+  // without a tenant gets nothing. Read the registry through its declared
+  // type (`types/global.d.ts`, typed against the real `rooms/WorldRoom.ts`
+  // class) rather than through a cast: a rename on `broadcast` or on the
+  // registry then breaks the build instead of leaving this route reporting
+  // deliveries it never made.
   const activeWorldRooms = global.activeWorldRooms;
   let delivered = 0;
   if (activeWorldRooms) {
     for (const room of activeWorldRooms) {
+      const roomTenant = (room.metadata as { tenant?: unknown } | undefined)?.tenant;
+      if (roomTenant !== tenant.slug) continue;
       try {
         room.broadcast('npc_command', { npcIdentity: npc.identity, ...cmd });
         delivered++;
