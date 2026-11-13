@@ -1,12 +1,12 @@
 /**
- * Routenmetadaten in Request-Logs und Metriklabels (Q-DISC-12).
+ * Route metadata in request logs and metric labels (Q-DISC-12).
  *
- * Führt test/fixtures/requestTelemetry.ts genau einmal als echten
- * Node-Unterprozess aus und prüft nur dessen echte Ausgabe: Pino-Logzeilen
- * plus eine JSON-Ergebniszeile. Erwartet: http.request ohne path-Feld,
- * Response-/Labelpfad als baseUrl plus Routentemplate ("/api/invites/:code"
- * bei Mounts, "<unmatched>" ohne Treffer), keine konkreten Parameter,
- * Kennungen oder Querystrings in Logs oder Labels.
+ * Runs test/fixtures/requestTelemetry.ts exactly once as a real Node
+ * subprocess and asserts only on its real output: pino log lines plus one
+ * JSON result line. Expects: http.request without a path field,
+ * response/label path as baseUrl plus route template ("/api/invites/:code"
+ * for mounts, "<unmatched>" without a match), no concrete parameters,
+ * identifiers or query strings in logs or labels.
  */
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -119,10 +119,7 @@ describe('request route metadata', () => {
   });
 
   it('leaks no concrete identifiers or query strings into logs or labels', () => {
-    const haystacks = [
-      JSON.stringify(output.logs),
-      JSON.stringify(output.metricValues.map((v) => v.labels)),
-    ];
+    const haystacks = [JSON.stringify(output.logs), JSON.stringify(output.metricValues.map((v) => v.labels))];
     for (const haystack of haystacks) {
       for (const leak of LEAKS) {
         expect(haystack).not.toContain(leak);

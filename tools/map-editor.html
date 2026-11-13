@@ -220,9 +220,17 @@ body::after{
   border-radius:var(--radius);margin-bottom:4px;
   background:var(--bg-raised);display:flex;
   align-items:center;justify-content:space-between;
+  cursor:pointer;
 }
+.zone-item.selected{border-color:var(--accent);background:var(--accent-glow)}
 .zone-item .zone-name{font-family:var(--font-mono);font-size:11px;color:var(--fg)}
 .zone-item .zone-meta{font-family:var(--font-mono);font-size:9px;color:var(--fg-muted)}
+.zone-item-main{display:flex;align-items:center;gap:6px}
+.zone-dot{
+  display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:var(--accent);flex-shrink:0;
+}
+.zone-dot.portal{background:#a855f7}
 
 .spawn-display{
   padding:8px;border:1px solid var(--border);
@@ -267,6 +275,46 @@ body::after{
   outline:none;margin-bottom:6px;
 }
 .pack-select:focus{border-color:var(--accent)}
+
+/* Utility classes replacing former inline style attributes */
+.is-hidden{display:none!important}
+.mt-8{margin-top:8px}
+.mt-4{margin-top:4px}
+.mb-6{margin-bottom:6px}
+.ml-2{margin-left:2px}
+.save-badge{
+  background:var(--accent);color:#fff;border-radius:8px;
+  padding:0 5px;font-size:9px;margin-left:4px;
+}
+.conn-label{font-family:var(--font-mono);font-size:11px;color:var(--fg-dim)}
+.tile-picker-wrap{margin-top:8px}
+.tile-picker-info{font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-top:4px}
+.zoom-label{font-family:var(--font-mono);font-size:11px;color:var(--fg-dim)}
+.prop-row.align-center{align-items:center}
+.inline-edit{display:flex;gap:4px;flex:1;min-width:0}
+.inline-edit.align-center{align-items:center}
+.inline-text-input{
+  flex:1;padding:3px 6px;background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--fg);font-family:var(--font-mono);font-size:12px;
+  outline:none;min-width:0;
+}
+.inline-size-input{
+  width:60px;padding:3px 6px;background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--fg);font-family:var(--font-mono);font-size:12px;
+  outline:none;
+}
+.btn-inline{white-space:nowrap;font-size:11px}
+.size-sep{color:var(--fg-dim);font-size:11px}
+.prop-value.portal-color{color:#a855f7}
+.prop-value.zone-color{color:var(--accent)}
+.hint-text{font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-top:8px}
+.flip-label{
+  font-family:var(--font-mono);font-size:10px;color:var(--fg-dim);
+  display:flex;align-items:center;gap:4px;cursor:pointer;
+}
+.flip-check{accent-color:var(--accent)}
+.asset-thumb{max-width:64px;max-height:64px;image-rendering:pixelated}
+.btn-ready{background:var(--accent);color:#fff}
 </style>
 </head>
 <body>
@@ -276,12 +324,12 @@ body::after{
   <span class="tag">Meetropolis</span>
   <div class="tool-info">
     <span class="coord-display" id="coordDisplay">--</span>
-    <button id="saveBtn" class="btn btn-sm" disabled onclick="saveAllChanges()" style="margin-left:2px">
-      Save <span id="saveBadge" style="background:var(--accent);color:#fff;border-radius:8px;padding:0 5px;font-size:9px;margin-left:4px"></span>
+    <button id="saveBtn" class="btn btn-sm ml-2" disabled data-action="save-all-changes">
+      Save <span id="saveBadge" class="save-badge"></span>
     </button>
     <span id="toolLabel">Select</span>
     <div class="conn-dot" id="connDot"></div>
-    <span id="connLabel" style="font-family:var(--font-mono);font-size:11px;color:var(--fg-dim)">Disconnected</span>
+    <span id="connLabel" class="conn-label">Disconnected</span>
   </div>
 </header>
 
@@ -300,7 +348,7 @@ body::after{
         <input type="text" id="authToken" placeholder="Bearer token or leave empty">
       </div>
       <div class="btn-row">
-        <button class="btn btn-accent btn-block" onclick="connect()">Connect</button>
+        <button class="btn btn-accent btn-block" data-action="connect">Connect</button>
       </div>
       <div class="msg" id="connMsg"></div>
     </div>
@@ -310,12 +358,12 @@ body::after{
       <div class="section-label">Map</div>
       <div class="field">
         <label>Select Map</label>
-        <select id="mapSelect" onchange="onMapSelect()">
+        <select id="mapSelect" data-action="map-select">
           <option value="">-- connect first --</option>
         </select>
       </div>
       <div class="btn-row">
-        <button class="btn btn-sm btn-block" onclick="reloadMap()">Reload Map</button>
+        <button class="btn btn-sm btn-block" data-action="reload-map">Reload Map</button>
       </div>
     </div>
 
@@ -323,28 +371,28 @@ body::after{
     <div class="panel-section">
       <div class="section-label">Tools</div>
       <div class="tool-grid">
-        <button class="tool-btn active" data-tool="select" onclick="setTool('select')">
+        <button class="tool-btn active" data-tool="select" data-action="set-tool">
           <span class="icon">&#9995;</span>Select
         </button>
-        <button class="tool-btn" data-tool="terrain" onclick="setTool('terrain')">
+        <button class="tool-btn" data-tool="terrain" data-action="set-tool">
           <span class="icon">&#9641;</span>Terrain
         </button>
-        <button class="tool-btn" data-tool="objects" onclick="setTool('objects')">
+        <button class="tool-btn" data-tool="objects" data-action="set-tool">
           <span class="icon">&#9733;</span>Objects
         </button>
-        <button class="tool-btn" data-tool="collision" onclick="setTool('collision')">
+        <button class="tool-btn" data-tool="collision" data-action="set-tool">
           <span class="icon">&#9632;</span>Collide
         </button>
-        <button class="tool-btn" data-tool="zones" onclick="setTool('zones')">
+        <button class="tool-btn" data-tool="zones" data-action="set-tool">
           <span class="icon">&#9634;</span>Zones
         </button>
-        <button class="tool-btn" data-tool="spawn" onclick="setTool('spawn')">
+        <button class="tool-btn" data-tool="spawn" data-action="set-tool">
           <span class="icon">&#9673;</span>Spawn
         </button>
-        <button class="tool-btn" data-tool="erase" onclick="setTool('erase')">
+        <button class="tool-btn" data-tool="erase" data-action="set-tool">
           <span class="icon">&#10005;</span>Erase
         </button>
-        <button class="tool-btn" data-tool="wall" onclick="setTool('wall')">
+        <button class="tool-btn" data-tool="wall" data-action="set-tool">
           <span class="icon">&#9639;</span>Wall
         </button>
       </div>
@@ -353,25 +401,25 @@ body::after{
     <!-- Asset Browser -->
     <div class="panel-section" id="assetSection">
       <div class="section-label">Assets</div>
-      <select class="pack-select" id="packSelect" onchange="onPackSelect()">
+      <select class="pack-select" id="packSelect" data-action="pack-select">
         <option value="">-- no packs --</option>
       </select>
       <div class="cat-tabs">
-        <div class="cat-tab active" data-cat="terrain" onclick="setCat('terrain')">Terrain</div>
-        <div class="cat-tab" data-cat="structures" onclick="setCat('structures')">Structures</div>
-        <div class="cat-tab" data-cat="objects" onclick="setCat('objects')">Objects</div>
-        <div class="cat-tab" data-cat="autotiles" onclick="setCat('autotiles')">Autotiles</div>
+        <div class="cat-tab active" data-cat="terrain" data-action="set-cat">Terrain</div>
+        <div class="cat-tab" data-cat="structures" data-action="set-cat">Structures</div>
+        <div class="cat-tab" data-cat="objects" data-action="set-cat">Objects</div>
+        <div class="cat-tab" data-cat="autotiles" data-action="set-cat">Autotiles</div>
       </div>
       <div id="assetBrowser">
         <div class="empty-state">Connect and select a pack.</div>
       </div>
       <!-- Tileset tile picker (shown when terrain item selected) -->
-      <div id="tilePickerWrap" style="display:none;margin-top:8px">
-        <div class="section-label" style="margin-bottom:6px">Pick Tile</div>
+      <div id="tilePickerWrap" class="tile-picker-wrap is-hidden">
+        <div class="section-label mb-6">Pick Tile</div>
         <div class="tileset-picker" id="tilesetPicker">
           <canvas id="tilePickerCanvas"></canvas>
         </div>
-        <div style="font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-top:4px" id="tilePickerInfo">--</div>
+        <div class="tile-picker-info" id="tilePickerInfo">--</div>
       </div>
     </div>
 
@@ -380,27 +428,27 @@ body::after{
       <div class="section-label">View</div>
       <div class="toggle-row">
         <label>Show Grid</label>
-        <input type="checkbox" id="showGrid" checked onchange="markDirty()">
+        <input type="checkbox" id="showGrid" checked data-action="mark-dirty">
       </div>
       <div class="toggle-row">
         <label>Show Collision</label>
-        <input type="checkbox" id="showCollision" checked onchange="markDirty()">
+        <input type="checkbox" id="showCollision" checked data-action="mark-dirty">
       </div>
       <div class="toggle-row">
         <label>Show Zones</label>
-        <input type="checkbox" id="showZones" checked onchange="markDirty()">
+        <input type="checkbox" id="showZones" checked data-action="mark-dirty">
       </div>
       <div class="toggle-row">
         <label>Show Objects</label>
-        <input type="checkbox" id="showObjects" checked onchange="markDirty()">
+        <input type="checkbox" id="showObjects" checked data-action="mark-dirty">
       </div>
       <div class="toggle-row">
         <label>Show Walls</label>
-        <input type="checkbox" id="showWalls" checked onchange="markDirty()">
+        <input type="checkbox" id="showWalls" checked data-action="mark-dirty">
       </div>
       <div class="zoom-row">
-        <label style="font-family:var(--font-mono);font-size:11px;color:var(--fg-dim)">Zoom</label>
-        <input type="range" id="zoomSlider" min="0.25" max="6" step="0.25" value="2" oninput="onZoomSlider()">
+        <label class="zoom-label">Zoom</label>
+        <input type="range" id="zoomSlider" min="0.25" max="6" step="0.25" value="2" data-action="zoom-slider">
         <span class="zoom-val" id="zoomVal">2x</span>
       </div>
     </div>
@@ -596,6 +644,58 @@ function escAttr(s) {
   return String(s).replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+const ORIGIN_BLOCKED = 'The API origin is not in the allowed configuration.';
+
+function requestErrorMessage(e, prefix) {
+  if (e instanceof TypeError) return ORIGIN_BLOCKED;
+  const msg = e && e.message ? e.message : 'Request failed';
+  return prefix ? prefix + msg : msg;
+}
+
+function h(tag, props, children) {
+  const n = document.createElement(tag);
+  if (props) {
+    Object.keys(props).forEach((k) => {
+      const v = props[k];
+      if (v == null || v === false) return;
+      if (k === 'className') n.className = v;
+      else if (k === 'dataset') {
+        Object.keys(v).forEach((dk) => {
+          if (v[dk] != null) n.dataset[dk] = String(v[dk]);
+        });
+      } else if (k === 'text') n.textContent = v;
+      else if (k === 'checked' || k === 'disabled' || k === 'selected') n[k] = true;
+      else if (k === 'value') n.value = v;
+      else if (k === 'colSpan') n.colSpan = v;
+      else if (k === 'id' || k === 'title') n[k] = v;
+      else n.setAttribute(k, String(v));
+    });
+  }
+  const list = children == null ? [] : Array.isArray(children) ? children : [children];
+  list.forEach((c) => {
+    if (c == null || c === false) return;
+    n.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+  });
+  return n;
+}
+
+function emptyState(text) {
+  return h('div', { className: 'empty-state', text: text });
+}
+
+function propRow(label, value, valueClass) {
+  return h('div', { className: 'prop-row' }, [
+    h('span', { className: 'prop-label', text: label }),
+    h('span', { className: 'prop-value' + (valueClass ? ' ' + valueClass : ''), text: String(value) }),
+  ]);
+}
+
+function restoreSaveButtonLabel(btn) {
+  btn.replaceChildren();
+  btn.appendChild(document.createTextNode('Save '));
+  btn.appendChild(h('span', { id: 'saveBadge', className: 'save-badge' }));
+}
+
 // ============================================================================
 // API
 // ============================================================================
@@ -637,12 +737,9 @@ async function connect() {
 
     // Populate map dropdown
     const sel = document.getElementById('mapSelect');
-    sel.innerHTML = '<option value="">-- select map --</option>';
+    sel.replaceChildren(h('option', { value: '', text: '-- select map --' }));
     for (const m of maps) {
-      const opt = document.createElement('option');
-      opt.value = m.id;
-      opt.textContent = m.name;
-      sel.appendChild(opt);
+      sel.appendChild(h('option', { value: m.id, text: m.name }));
     }
 
     // Load asset packs
@@ -658,20 +755,17 @@ async function connect() {
   } catch (e) {
     dot.className = 'conn-dot err';
     label.textContent = 'Error';
-    showMsg(msg, 'err', e.message);
+    showMsg(msg, 'err', requestErrorMessage(e));
     CFG.connected = false;
   }
 }
 
 function populatePackSelect() {
   const sel = document.getElementById('packSelect');
-  sel.innerHTML = '<option value="">-- select pack --</option>';
+  sel.replaceChildren(h('option', { value: '', text: '-- select pack --' }));
   for (let i = 0; i < assetPacks.length; i++) {
     const p = assetPacks[i];
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = p.name || p.uuid;
-    sel.appendChild(opt);
+    sel.appendChild(h('option', { value: String(i), text: p.name || p.uuid }));
   }
 }
 
@@ -754,7 +848,7 @@ async function loadMap(mapId) {
     markDirty();
     toast('ok', `Loaded map: ${name}`);
   } catch (e) {
-    toast('err', `Failed to load map: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Failed to load map: '));
     console.error(e);
   }
 }
@@ -1606,7 +1700,7 @@ function onPackSelect() {
 function renderAssetBrowser() {
   const container = document.getElementById('assetBrowser');
   if (selectedPackIdx < 0 || !assetPacks[selectedPackIdx]) {
-    container.innerHTML = '<div class="empty-state">Select an asset pack.</div>';
+    container.replaceChildren(emptyState('Select an asset pack.'));
     return;
   }
 
@@ -1616,20 +1710,19 @@ function renderAssetBrowser() {
   if (currentCat === 'autotiles') {
     const autotiles = pack.autotiles || [];
     if (autotiles.length === 0) {
-      container.innerHTML = '<div class="empty-state">No autotile items in this pack.</div>';
+      container.replaceChildren(emptyState('No autotile items in this pack.'));
       return;
     }
-    container.innerHTML = '';
-    const grid = document.createElement('div');
-    grid.className = 'asset-grid';
+    container.replaceChildren();
+    const grid = h('div', { className: 'asset-grid' });
     autotiles.forEach((item, idx) => {
       const isSelected = selectedAutotile && selectedAutotile.packUuid === pack.uuid && selectedAutotile.autotileId === item.id;
-      const el = document.createElement('div');
-      el.className = 'asset-item' + (isSelected ? ' selected' : '');
-      el.onclick = () => selectAutotile(selectedPackIdx, idx);
+      const el = h('div', {
+        className: 'asset-item' + (isSelected ? ' selected' : ''),
+        dataset: { action: 'select-autotile', packIdx: String(selectedPackIdx), itemIdx: String(idx) },
+      });
 
-      const img = document.createElement('img');
-      img.style.cssText = 'max-width:64px;max-height:64px;image-rendering:pixelated';
+      const img = h('img', { className: 'asset-thumb' });
       const url = item.dataURL || item.dataUrl;
       if (url && url.startsWith('/')) {
         img.src = CFG.server + url;
@@ -1639,11 +1732,7 @@ function renderAssetBrowser() {
       img.onerror = () => { img.style.display = 'none'; };
       el.appendChild(img);
 
-      const label = document.createElement('div');
-      label.className = 'asset-label';
-      label.textContent = item.key || item.id;
-      el.appendChild(label);
-
+      el.appendChild(h('div', { className: 'asset-label', text: item.key || item.id }));
       grid.appendChild(el);
     });
     container.appendChild(grid);
@@ -1653,21 +1742,19 @@ function renderAssetBrowser() {
   const items = pack[currentCat] || [];
 
   if (items.length === 0) {
-    container.innerHTML = `<div class="empty-state">No ${currentCat} items in this pack.</div>`;
+    container.replaceChildren(emptyState('No ' + currentCat + ' items in this pack.'));
     return;
   }
 
-  container.innerHTML = '';
-  const grid = document.createElement('div');
-  grid.className = 'asset-grid';
+  container.replaceChildren();
+  const grid = h('div', { className: 'asset-grid' });
 
   for (const item of items) {
-    const el = document.createElement('div');
-    el.className = 'asset-item';
-    if (selectedAssetItem && selectedAssetItem.item.id === item.id) {
-      el.classList.add('selected');
-    }
-    el.title = item.key || item.id;
+    const el = h('div', {
+      className: 'asset-item' + (selectedAssetItem && selectedAssetItem.item.id === item.id ? ' selected' : ''),
+      title: item.key || item.id,
+      dataset: { action: 'select-asset-item', itemId: item.id, cat: currentCat },
+    });
 
     const img = document.createElement('img');
     img.crossOrigin = 'anonymous';
@@ -1680,12 +1767,7 @@ function renderAssetBrowser() {
     img.onerror = () => { img.style.display = 'none'; };
     el.appendChild(img);
 
-    const label = document.createElement('div');
-    label.className = 'asset-label';
-    label.textContent = item.key || item.id;
-    el.appendChild(label);
-
-    el.addEventListener('click', () => selectAssetItem(pack, item, currentCat));
+    el.appendChild(h('div', { className: 'asset-label', text: item.key || item.id }));
     grid.appendChild(el);
   }
   container.appendChild(grid);
@@ -1765,7 +1847,7 @@ async function showTilePicker(pack, item) {
       }
       toast('ok', `Tileset registered: ${tsKey}`);
     } catch (e) {
-      toast('err', `Failed to register tileset: ${e.message}`);
+      toast('err', requestErrorMessage(e, 'Failed to register tileset: '));
       return;
     }
   }
@@ -1776,7 +1858,7 @@ async function showTilePicker(pack, item) {
   if (!img) return;
 
   const wrap = document.getElementById('tilePickerWrap');
-  wrap.style.display = 'block';
+  wrap.classList.remove('is-hidden');
 
   const pickerCanvas = document.getElementById('tilePickerCanvas');
   const scale = 2;
@@ -1829,7 +1911,7 @@ async function showTilePicker(pack, item) {
 }
 
 function hideTilePicker() {
-  document.getElementById('tilePickerWrap').style.display = 'none';
+  document.getElementById('tilePickerWrap').classList.add('is-hidden');
 }
 
 // Tile picker click handler
@@ -2700,39 +2782,67 @@ function setSpawn(tx, ty) {
 function updateMapInfo() {
   const el = document.getElementById('mapInfo');
   if (!mapMeta) {
-    el.innerHTML = '<div class="empty-state">No map loaded.</div>';
+    el.replaceChildren(emptyState('No map loaded.'));
     return;
   }
-  el.innerHTML = `
-    <div class="prop-row" style="align-items:center">
-      <span class="prop-label">Name</span>
-      <div style="display:flex;gap:4px;flex:1;min-width:0">
-        <input type="text" id="mapNameInput" value="${escAttr(currentMapName)}"
-          style="flex:1;padding:3px 6px;background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--radius);color:var(--fg);font-family:var(--font-mono);font-size:12px;outline:none;min-width:0"
-          oninput="onMapNameInputChange()">
-        <button id="renameBtn" class="btn btn-sm" disabled onclick="renameMap()"
-          style="white-space:nowrap;font-size:11px">Rename</button>
-      </div>
-    </div>
-    <div class="prop-row" style="align-items:center">
-      <span class="prop-label">Size</span>
-      <div style="display:flex;gap:4px;align-items:center;flex:1;min-width:0">
-        <input type="number" id="mapWidthInput" value="${mapMeta.width || 32}" min="8" max="512" step="1"
-          style="width:60px;padding:3px 6px;background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--radius);color:var(--fg);font-family:var(--font-mono);font-size:12px;outline:none"
-          oninput="onMapSizeInputChange()">
-        <span style="color:var(--fg-dim);font-size:11px">x</span>
-        <input type="number" id="mapHeightInput" value="${mapMeta.height || 32}" min="8" max="512" step="1"
-          style="width:60px;padding:3px 6px;background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--radius);color:var(--fg);font-family:var(--font-mono);font-size:12px;outline:none"
-          oninput="onMapSizeInputChange()">
-        <button id="resizeBtn" class="btn btn-sm" disabled onclick="resizeMap()"
-          style="white-space:nowrap;font-size:11px">Resize</button>
-      </div>
-    </div>
-    <div class="prop-row"><span class="prop-label">Tile Size</span><span class="prop-value">${mapMeta.tileWidth || '?'} x ${mapMeta.tileHeight || '?'} px</span></div>
-    <div class="prop-row"><span class="prop-label">Chunk Size</span><span class="prop-value">${mapMeta.chunkSize || 32}</span></div>
-    <div class="prop-row"><span class="prop-label">Tilesets</span><span class="prop-value">${tilesetRegistry.length}</span></div>
-    <div class="prop-row"><span class="prop-label">Objects</span><span class="prop-value">${mapObjects.length}</span></div>
-  `;
+  el.replaceChildren(
+    h('div', { className: 'prop-row align-center' }, [
+      h('span', { className: 'prop-label', text: 'Name' }),
+      h('div', { className: 'inline-edit' }, [
+        h('input', {
+          type: 'text',
+          id: 'mapNameInput',
+          className: 'inline-text-input',
+          value: currentMapName,
+          dataset: { action: 'map-name-input' },
+        }),
+        h('button', {
+          id: 'renameBtn',
+          className: 'btn btn-sm btn-inline',
+          disabled: true,
+          dataset: { action: 'rename-map' },
+          text: 'Rename',
+        }),
+      ]),
+    ]),
+    h('div', { className: 'prop-row align-center' }, [
+      h('span', { className: 'prop-label', text: 'Size' }),
+      h('div', { className: 'inline-edit align-center' }, [
+        h('input', {
+          type: 'number',
+          id: 'mapWidthInput',
+          className: 'inline-size-input',
+          value: String(mapMeta.width || 32),
+          min: '8',
+          max: '512',
+          step: '1',
+          dataset: { action: 'map-size-input' },
+        }),
+        h('span', { className: 'size-sep', text: 'x' }),
+        h('input', {
+          type: 'number',
+          id: 'mapHeightInput',
+          className: 'inline-size-input',
+          value: String(mapMeta.height || 32),
+          min: '8',
+          max: '512',
+          step: '1',
+          dataset: { action: 'map-size-input' },
+        }),
+        h('button', {
+          id: 'resizeBtn',
+          className: 'btn btn-sm btn-inline',
+          disabled: true,
+          dataset: { action: 'resize-map' },
+          text: 'Resize',
+        }),
+      ]),
+    ]),
+    propRow('Tile Size', (mapMeta.tileWidth || '?') + ' x ' + (mapMeta.tileHeight || '?') + ' px'),
+    propRow('Chunk Size', mapMeta.chunkSize || 32),
+    propRow('Tilesets', tilesetRegistry.length),
+    propRow('Objects', mapObjects.length),
+  );
 }
 
 function onMapNameInputChange() {
@@ -2741,8 +2851,7 @@ function onMapNameInputChange() {
   const newName = (input.value || '').trim();
   const changed = newName.length > 0 && newName !== currentMapName;
   btn.disabled = !changed;
-  btn.style.background = changed ? 'var(--accent)' : '';
-  btn.style.color = changed ? 'white' : '';
+  btn.classList.toggle('btn-ready', changed);
 }
 
 function onMapSizeInputChange() {
@@ -2755,35 +2864,40 @@ function onMapSizeInputChange() {
   const validH = Number.isInteger(h) && h >= 8 && h <= 512;
   const changed = validW && validH && (w !== (mapMeta.width || 32) || h !== (mapMeta.height || 32));
   btn.disabled = !changed;
-  btn.style.background = changed ? 'var(--accent)' : '';
-  btn.style.color = changed ? 'white' : '';
+  btn.classList.toggle('btn-ready', changed);
 }
 
 function updateZoneList() {
   const el = document.getElementById('zoneList');
   const zones = editorState ? (editorState.zones || []) : [];
   if (zones.length === 0) {
-    el.innerHTML = '<div class="empty-state">No zones defined.</div>';
+    el.replaceChildren(emptyState('No zones defined.'));
     return;
   }
-  el.innerHTML = zones.map(z => {
+  el.replaceChildren();
+  zones.forEach((z) => {
     const isPortal = z.type === 'portal';
-    const dotColor = isPortal ? '#a855f7' : 'var(--accent)';
     const metaText = isPortal
-      ? 'Portal \u2192 ' + esc(z.portalTarget || '?')
+      ? 'Portal \u2192 ' + (z.portalTarget || '?')
       : ('Cap: ' + (z.capacity || 'unlimited'));
-    return `
-    <div class="zone-item${selectedZoneId === z.id ? ' selected' : ''}" onclick="selectZone('${escAttr(z.id)}')" style="cursor:pointer${selectedZoneId === z.id ? ';border-color:var(--accent);background:var(--accent-glow)' : ''}">
-      <div style="display:flex;align-items:center;gap:6px">
-        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
-        <div>
-          <div class="zone-name">${esc(z.name || 'Zone')}</div>
-          <div class="zone-meta">${metaText}</div>
-        </div>
-      </div>
-      <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteZone('${escAttr(z.id)}')">Del</button>
-    </div>`;
-  }).join('');
+    el.appendChild(h('div', {
+      className: 'zone-item' + (selectedZoneId === z.id ? ' selected' : ''),
+      dataset: { action: 'select-zone', zoneId: z.id },
+    }, [
+      h('div', { className: 'zone-item-main' }, [
+        h('span', { className: 'zone-dot' + (isPortal ? ' portal' : '') }),
+        h('div', null, [
+          h('div', { className: 'zone-name', text: z.name || 'Zone' }),
+          h('div', { className: 'zone-meta', text: metaText }),
+        ]),
+      ]),
+      h('button', {
+        className: 'btn btn-sm btn-danger',
+        dataset: { action: 'delete-zone', zoneId: z.id },
+        text: 'Del',
+      }),
+    ]));
+  });
 }
 
 function updateSpawnDisplay() {
@@ -2814,125 +2928,152 @@ function updatePropsPanel() {
       const th = mapMeta ? (mapMeta.tileHeight || 16) : 16;
       const zoneType = zone.type || 'default';
       const isPortal = zoneType === 'portal';
-      const typeColor = isPortal ? '#a855f7' : 'var(--accent)';
       const typeLabel = isPortal ? 'Portal' : 'Zone';
-      const mapOptions = availableMaps
-        .filter(m => m.name !== currentMapName)
-        .map(m => `<option value="${escAttr(m.name)}"${zone.portalTarget === m.name ? ' selected' : ''}>${esc(m.name)}</option>`)
-        .join('');
-      const portalFieldsHtml = `
-        <div id="portalFields" style="display:${isPortal ? 'block' : 'none'};margin-top:8px">
-          <div class="field">
-            <label>Portal Target</label>
-            <select id="propPortalTarget"
-              onchange="updateZonePortalProp('${escAttr(zone.id)}', 'portalTarget', this.value || null)">
-              <option value="">-- Ziel wählen --</option>
-              ${mapOptions}
-            </select>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label>Spawn X</label>
-              <input type="number" id="propPortalSpawnX" value="${zone.portalSpawnX != null ? zone.portalSpawnX : ''}" placeholder="opt"
-                onchange="updateZonePortalProp('${escAttr(zone.id)}', 'portalSpawnX', this.value !== '' ? parseInt(this.value,10) : null)">
-            </div>
-            <div class="field">
-              <label>Spawn Y</label>
-              <input type="number" id="propPortalSpawnY" value="${zone.portalSpawnY != null ? zone.portalSpawnY : ''}" placeholder="opt"
-                onchange="updateZonePortalProp('${escAttr(zone.id)}', 'portalSpawnY', this.value !== '' ? parseInt(this.value,10) : null)">
-            </div>
-          </div>
-        </div>`;
-      el.innerHTML = `
-        <div class="prop-row"><span class="prop-label">Type</span><span class="prop-value" style="color:${typeColor}">${typeLabel}</span></div>
-        <div class="prop-row"><span class="prop-label">ID</span><span class="prop-value">${esc(zone.id)}</span></div>
-        <div class="prop-row"><span class="prop-label">Name</span><span class="prop-value">${esc(zone.name || 'Zone')}</span></div>
-        <div class="prop-row"><span class="prop-label">Capacity</span><span class="prop-value">${zone.capacity || 'unlimited'}</span></div>
-        <div class="prop-row"><span class="prop-label">Bounds (px)</span><span class="prop-value">${Math.round(minX)}, ${Math.round(minY)} \u2192 ${Math.round(maxX)}, ${Math.round(maxY)}</span></div>
-        <div class="prop-row"><span class="prop-label">Size (tiles)</span><span class="prop-value">${Math.round((maxX - minX) / tw)} x ${Math.round((maxY - minY) / th)}</span></div>
-        <div style="margin-top:8px">
-          <div class="section-label" style="margin-bottom:6px">Zone Settings</div>
-          <div class="field">
-            <label>Zone Type</label>
-            <select id="propZoneType" onchange="updateZonePortalProp('${escAttr(zone.id)}', 'type', this.value); var pf=document.getElementById('portalFields'); if(pf) pf.style.display=this.value==='portal'?'block':'none';">
-              <option value="default"${zoneType === 'default' ? ' selected' : ''}>default</option>
-              <option value="portal"${zoneType === 'portal' ? ' selected' : ''}>portal</option>
-            </select>
-          </div>
-          ${portalFieldsHtml}
-        </div>
-        <div style="margin-top:8px">
-          <div class="section-label" style="margin-bottom:6px">Actions</div>
-          <div class="btn-row">
-            <button class="btn btn-sm btn-danger" onclick="deleteZone('${escAttr(zone.id)}')">Delete Zone</button>
-          </div>
-          <div style="font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-top:8px">
-            Switch to Zones tool and drag to extend this zone.
-          </div>
-        </div>
-      `;
+      const portalTarget = h('select', {
+        id: 'propPortalTarget',
+        dataset: { action: 'update-zone-portal', zoneId: zone.id, prop: 'portalTarget' },
+      }, [
+        h('option', { value: '', text: '-- Ziel wählen --' }),
+      ]);
+      availableMaps.filter((m) => m.name !== currentMapName).forEach((m) => {
+        portalTarget.appendChild(h('option', {
+          value: m.name,
+          text: m.name,
+          selected: zone.portalTarget === m.name,
+        }));
+      });
+      const portalFields = h('div', {
+        id: 'portalFields',
+        className: 'mt-8' + (isPortal ? '' : ' is-hidden'),
+      }, [
+        h('div', { className: 'field' }, [
+          h('label', { text: 'Portal Target' }),
+          portalTarget,
+        ]),
+        h('div', { className: 'field-row' }, [
+          h('div', { className: 'field' }, [
+            h('label', { text: 'Spawn X' }),
+            h('input', {
+              type: 'number',
+              id: 'propPortalSpawnX',
+              value: zone.portalSpawnX != null ? String(zone.portalSpawnX) : '',
+              placeholder: 'opt',
+              dataset: { action: 'update-zone-portal', zoneId: zone.id, prop: 'portalSpawnX' },
+            }),
+          ]),
+          h('div', { className: 'field' }, [
+            h('label', { text: 'Spawn Y' }),
+            h('input', {
+              type: 'number',
+              id: 'propPortalSpawnY',
+              value: zone.portalSpawnY != null ? String(zone.portalSpawnY) : '',
+              placeholder: 'opt',
+              dataset: { action: 'update-zone-portal', zoneId: zone.id, prop: 'portalSpawnY' },
+            }),
+          ]),
+        ]),
+      ]);
+      el.replaceChildren(
+        propRow('Type', typeLabel, isPortal ? 'portal-color' : 'zone-color'),
+        propRow('ID', zone.id),
+        propRow('Name', zone.name || 'Zone'),
+        propRow('Capacity', zone.capacity || 'unlimited'),
+        propRow('Bounds (px)', Math.round(minX) + ', ' + Math.round(minY) + ' \u2192 ' + Math.round(maxX) + ', ' + Math.round(maxY)),
+        propRow('Size (tiles)', Math.round((maxX - minX) / tw) + ' x ' + Math.round((maxY - minY) / th)),
+        h('div', { className: 'mt-8' }, [
+          h('div', { className: 'section-label mb-6', text: 'Zone Settings' }),
+          h('div', { className: 'field' }, [
+            h('label', { text: 'Zone Type' }),
+            h('select', {
+              id: 'propZoneType',
+              dataset: { action: 'update-zone-portal', zoneId: zone.id, prop: 'type' },
+            }, [
+              h('option', { value: 'default', text: 'default', selected: zoneType === 'default' }),
+              h('option', { value: 'portal', text: 'portal', selected: zoneType === 'portal' }),
+            ]),
+          ]),
+          portalFields,
+        ]),
+        h('div', { className: 'mt-8' }, [
+          h('div', { className: 'section-label mb-6', text: 'Actions' }),
+          h('div', { className: 'btn-row' }, [
+            h('button', {
+              className: 'btn btn-sm btn-danger',
+              dataset: { action: 'delete-zone', zoneId: zone.id },
+              text: 'Delete Zone',
+            }),
+          ]),
+          h('div', { className: 'hint-text', text: 'Switch to Zones tool and drag to extend this zone.' }),
+        ]),
+      );
       return;
     }
   }
 
   if (!selectedObjectId) {
-    el.innerHTML = '<div class="empty-state">Select an object or zone to view properties.</div>';
+    el.replaceChildren(emptyState('Select an object or zone to view properties.'));
     return;
   }
 
   const obj = mapObjects.find(o => o.id === selectedObjectId);
   if (!obj) {
-    el.innerHTML = '<div class="empty-state">Object not found.</div>';
+    el.replaceChildren(emptyState('Object not found.'));
     return;
   }
 
-  el.innerHTML = `
-    <div class="prop-row"><span class="prop-label">ID</span><span class="prop-value">#${obj.id}</span></div>
-    <div class="prop-row"><span class="prop-label">Item</span><span class="prop-value">${esc(obj.itemId || '')}</span></div>
-    <div class="prop-row"><span class="prop-label">Category</span><span class="prop-value">${esc(obj.category || '')}</span></div>
-    <div class="prop-row"><span class="prop-label">Pack</span><span class="prop-value">${esc(obj.assetPackUuid || '')}</span></div>
-    <div class="prop-row"><span class="prop-label">Position</span><span class="prop-value">${obj.tileX}, ${obj.tileY}</span></div>
-    <div class="prop-row"><span class="prop-label">Size</span><span class="prop-value">${obj.width} x ${obj.height}</span></div>
-    <div class="prop-row"><span class="prop-label">Collide</span><span class="prop-value">${obj.collide ? 'Yes' : 'No'}</span></div>
-    <div class="prop-row"><span class="prop-label">Z-Index</span><span class="prop-value">${obj.zIndex || 0}</span></div>
-    <div class="prop-row"><span class="prop-label">Rotation</span><span class="prop-value">${obj.rotation || 0}</span></div>
-    <div class="prop-row"><span class="prop-label">Flip X/Y</span><span class="prop-value">${obj.flipX ? 'Y' : 'N'} / ${obj.flipY ? 'Y' : 'N'}</span></div>
-    <div style="margin-top:8px">
-      <div class="section-label" style="margin-bottom:6px">Edit</div>
-      <div class="field-row">
-        <div class="field">
-          <label>Tile X</label>
-          <input type="number" id="propTileX" value="${obj.tileX}" style="width:100%">
-        </div>
-        <div class="field">
-          <label>Tile Y</label>
-          <input type="number" id="propTileY" value="${obj.tileY}" style="width:100%">
-        </div>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label>Z-Index</label>
-          <input type="number" id="propZIndex" value="${obj.zIndex || 0}" style="width:100%">
-        </div>
-        <div class="field">
-          <label>Rotation</label>
-          <input type="number" id="propRotation" value="${obj.rotation || 0}" step="90" style="width:100%">
-        </div>
-      </div>
-      <div class="field-row" style="margin-top:4px">
-        <label style="font-family:var(--font-mono);font-size:10px;color:var(--fg-dim);display:flex;align-items:center;gap:4px;cursor:pointer">
-          <input type="checkbox" id="propFlipX" ${obj.flipX ? 'checked' : ''} style="accent-color:var(--accent)"> Flip X
-        </label>
-        <label style="font-family:var(--font-mono);font-size:10px;color:var(--fg-dim);display:flex;align-items:center;gap:4px;cursor:pointer">
-          <input type="checkbox" id="propFlipY" ${obj.flipY ? 'checked' : ''} style="accent-color:var(--accent)"> Flip Y
-        </label>
-      </div>
-      <div class="btn-row" style="margin-top:6px">
-        <button class="btn btn-accent btn-sm" onclick="applyPropChanges()">Apply</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteObject(mapObjects.find(o=>o.id===${obj.id}))">Delete</button>
-      </div>
-    </div>
-  `;
+  el.replaceChildren(
+    propRow('ID', '#' + obj.id),
+    propRow('Item', obj.itemId || ''),
+    propRow('Category', obj.category || ''),
+    propRow('Pack', obj.assetPackUuid || ''),
+    propRow('Position', obj.tileX + ', ' + obj.tileY),
+    propRow('Size', obj.width + ' x ' + obj.height),
+    propRow('Collide', obj.collide ? 'Yes' : 'No'),
+    propRow('Z-Index', obj.zIndex || 0),
+    propRow('Rotation', obj.rotation || 0),
+    propRow('Flip X/Y', (obj.flipX ? 'Y' : 'N') + ' / ' + (obj.flipY ? 'Y' : 'N')),
+    h('div', { className: 'mt-8' }, [
+      h('div', { className: 'section-label mb-6', text: 'Edit' }),
+      h('div', { className: 'field-row' }, [
+        h('div', { className: 'field' }, [
+          h('label', { text: 'Tile X' }),
+          h('input', { type: 'number', id: 'propTileX', value: String(obj.tileX) }),
+        ]),
+        h('div', { className: 'field' }, [
+          h('label', { text: 'Tile Y' }),
+          h('input', { type: 'number', id: 'propTileY', value: String(obj.tileY) }),
+        ]),
+      ]),
+      h('div', { className: 'field-row' }, [
+        h('div', { className: 'field' }, [
+          h('label', { text: 'Z-Index' }),
+          h('input', { type: 'number', id: 'propZIndex', value: String(obj.zIndex || 0) }),
+        ]),
+        h('div', { className: 'field' }, [
+          h('label', { text: 'Rotation' }),
+          h('input', { type: 'number', id: 'propRotation', value: String(obj.rotation || 0), step: '90' }),
+        ]),
+      ]),
+      h('div', { className: 'field-row mt-4' }, [
+        h('label', { className: 'flip-label' }, [
+          h('input', { type: 'checkbox', id: 'propFlipX', className: 'flip-check', checked: !!obj.flipX }),
+          ' Flip X',
+        ]),
+        h('label', { className: 'flip-label' }, [
+          h('input', { type: 'checkbox', id: 'propFlipY', className: 'flip-check', checked: !!obj.flipY }),
+          ' Flip Y',
+        ]),
+      ]),
+      h('div', { className: 'btn-row' }, [
+        h('button', { className: 'btn btn-accent btn-sm', dataset: { action: 'apply-prop-changes' }, text: 'Apply' }),
+        h('button', {
+          className: 'btn btn-danger btn-sm',
+          dataset: { action: 'delete-object', objectId: obj.id },
+          text: 'Delete',
+        }),
+      ]),
+    ]),
+  );
 }
 
 function applyPropChanges() {
@@ -2990,7 +3131,7 @@ async function saveAllChanges() {
           }
         }
       } catch (e) {
-        errors.push(`Paint ${paint.layer}: ${e.message}`);
+        errors.push(`Paint ${paint.layer}: ${requestErrorMessage(e)}`);
       }
     }
 
@@ -2999,7 +3140,7 @@ async function saveAllChanges() {
       try {
         await apiFetch(`/maps/${mapId}/objects/${objId}`, { method: 'DELETE' });
       } catch (e) {
-        errors.push(`Delete object #${objId}: ${e.message}`);
+        errors.push(`Delete object #${objId}: ${requestErrorMessage(e)}`);
       }
     }
 
@@ -3026,7 +3167,7 @@ async function saveAllChanges() {
         const idx = mapObjects.findIndex(o => o.id === obj.id);
         if (idx >= 0) mapObjects[idx] = created;
       } catch (e) {
-        errors.push(`Add object: ${e.message}`);
+        errors.push(`Add object: ${requestErrorMessage(e)}`);
       }
     }
 
@@ -3040,7 +3181,7 @@ async function saveAllChanges() {
         const idx = mapObjects.findIndex(o => o.id === id);
         if (idx >= 0) mapObjects[idx] = updated;
       } catch (e) {
-        errors.push(`Update object #${id}: ${e.message}`);
+        errors.push(`Update object #${id}: ${requestErrorMessage(e)}`);
       }
     }
 
@@ -3068,7 +3209,7 @@ async function saveAllChanges() {
         selectedZoneId = null;
         updateZoneList();
       } catch (e) {
-        errors.push(`Zones: ${e.message}`);
+        errors.push(`Zones: ${requestErrorMessage(e)}`);
       }
     }
 
@@ -3080,7 +3221,7 @@ async function saveAllChanges() {
           body: { spawn: pendingChanges.spawnUpdate },
         });
       } catch (e) {
-        errors.push(`Spawn: ${e.message}`);
+        errors.push(`Spawn: ${requestErrorMessage(e)}`);
       }
     }
 
@@ -3104,7 +3245,7 @@ async function saveAllChanges() {
     }
   } finally {
     btn.disabled = !hasPendingChanges();
-    btn.innerHTML = 'Save <span id="saveBadge" style="background:var(--accent);color:#fff;border-radius:8px;padding:0 5px;font-size:9px;margin-left:4px"></span>';
+    restoreSaveButtonLabel(btn);
     updateSaveButton();
   }
 }
@@ -3138,7 +3279,7 @@ async function resizeMap() {
         if (!confirm(msg)) return;
       }
     } catch (e) {
-      toast('err', 'Resize dry-run failed: ' + (e.message || e));
+      toast('err', requestErrorMessage(e, 'Resize dry-run failed: '));
       return;
     }
   }
@@ -3157,7 +3298,7 @@ async function resizeMap() {
     markDirty();
     toast('ok', `Map resized to ${newWidth} x ${newHeight}`);
   } catch (e) {
-    toast('err', 'Resize failed: ' + (e.message || e));
+    toast('err', requestErrorMessage(e, 'Resize failed: '));
   }
   btn.textContent = 'Resize';
 }
@@ -3194,7 +3335,7 @@ async function renameMap() {
     updateMapInfo();
     toast('ok', `Map renamed to "${newName}"`);
   } catch (e) {
-    toast('err', 'Rename failed: ' + (e.message || e));
+    toast('err', requestErrorMessage(e, 'Rename failed: '));
   }
   btn.textContent = 'Rename';
 }
@@ -3239,6 +3380,80 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 renderLoop();
+
+const actions = {
+  'save-all-changes': () => { saveAllChanges(); },
+  'connect': () => { connect(); },
+  'reload-map': () => { reloadMap(); },
+  'set-tool': (el) => { setTool(el.dataset.tool); },
+  'set-cat': (el) => { setCat(el.dataset.cat); },
+  'select-zone': (el) => { selectZone(el.dataset.zoneId); },
+  'delete-zone': (el, event) => { event.stopPropagation(); deleteZone(el.dataset.zoneId); },
+  'apply-prop-changes': () => { applyPropChanges(); },
+  'delete-object': (el) => {
+    const obj = mapObjects.find((o) => String(o.id) === String(el.dataset.objectId));
+    if (obj) deleteObject(obj);
+  },
+  'rename-map': () => { renameMap(); },
+  'resize-map': () => { resizeMap(); },
+  'select-autotile': (el) => {
+    selectAutotile(parseInt(el.dataset.packIdx, 10), parseInt(el.dataset.itemIdx, 10));
+  },
+  'select-asset-item': (el) => {
+    const pack = assetPacks[selectedPackIdx];
+    if (!pack) return;
+    const cat = el.dataset.cat;
+    const items = pack[cat] || [];
+    const item = items.find((it) => String(it.id) === String(el.dataset.itemId));
+    if (item) selectAssetItem(pack, item, cat);
+  },
+  'map-select': () => { onMapSelect(); },
+  'pack-select': () => { onPackSelect(); },
+  'mark-dirty': () => { markDirty(); },
+  'update-zone-portal': (el) => {
+    const field = el.dataset.prop;
+    let value;
+    if (field === 'portalTarget') value = el.value || null;
+    else if (field === 'portalSpawnX' || field === 'portalSpawnY') {
+      value = el.value !== '' ? parseInt(el.value, 10) : null;
+    } else {
+      value = el.value;
+    }
+    updateZonePortalProp(el.dataset.zoneId, field, value);
+    if (field === 'type') {
+      const pf = document.getElementById('portalFields');
+      if (pf) pf.classList.toggle('is-hidden', el.value !== 'portal');
+    }
+  },
+  'zoom-slider': () => { onZoomSlider(); },
+  'map-name-input': () => { onMapNameInputChange(); },
+  'map-size-input': () => { onMapSizeInputChange(); },
+};
+
+const clickActionNames = new Set([
+  'save-all-changes', 'connect', 'reload-map', 'set-tool', 'set-cat',
+  'select-zone', 'delete-zone', 'apply-prop-changes', 'delete-object',
+  'rename-map', 'resize-map', 'select-autotile', 'select-asset-item',
+]);
+const changeActionNames = new Set([
+  'map-select', 'pack-select', 'mark-dirty', 'update-zone-portal',
+]);
+const inputActionNames = new Set([
+  'zoom-slider', 'map-name-input', 'map-size-input',
+]);
+
+function dispatchAction(event, allowed) {
+  const el = event.target.closest('[data-action]');
+  if (!el) return;
+  const name = el.dataset.action;
+  if (!allowed.has(name)) return;
+  const fn = actions[name];
+  if (fn) fn(el, event);
+}
+
+document.addEventListener('click', (event) => dispatchAction(event, clickActionNames));
+document.addEventListener('change', (event) => dispatchAction(event, changeActionNames));
+document.addEventListener('input', (event) => dispatchAction(event, inputActionNames));
 </script>
 </body>
 </html>

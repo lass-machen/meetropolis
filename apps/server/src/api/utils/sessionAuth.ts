@@ -13,6 +13,7 @@ import {
   setCachedSession,
   invalidateSessionToken,
   invalidateSessionsForUser,
+  clearSessionCache,
 } from './sessionCache.js';
 
 /**
@@ -291,6 +292,19 @@ export async function revokeSessionsForUser(
 export async function revokeSessionsForUserInTx(tx: Prisma.TransactionClient, userId: string): Promise<number> {
   const result = await tx.session.deleteMany({ where: { userId } });
   invalidateSessionsForUser(userId);
+  return result.count;
+}
+
+/**
+ * Delete every session row of every user. Used by the operator restore replay
+ * (services/tenantDeletionReplayRun.ts), which runs while the server is stopped.
+ *
+ * The auth cache of this process is cleared as well. A server running in another
+ * process keeps its own cache until those entries expire (sessionCache.ts).
+ */
+export async function revokeAllSessions(prisma: PrismaClient): Promise<number> {
+  const result = await prisma.session.deleteMany({});
+  clearSessionCache();
   return result.count;
 }
 

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking (enterprise integration):** The tenant deletion callback in
+  `adminLoader` now requires `deletionProtocol: 'tenant-delete-v2'` with a
+  managed prepare/cleanup pair and an explicit internal retention plan and
+  deadline. Upgrade the host and enterprise module together; mismatched
+  versions reject deletion before any database DELETE statement with
+  `tenant_deletion_contract_required`. Without a valid internal plan the
+  deletion is rejected with `retention_journal_unavailable` (HTTP 409) until P4.
+- **Breaking (self-hosting):** NPC media now resolve from one directory. Without `NPC_MEDIA_DIR` the server uses `/data/npc-media`, the same default as the npc service; before, uploads defaulted to `<server working directory>/../../npc-media` and static serving to a directory next to the build output. If you did not set `NPC_MEDIA_DIR`, set it to your existing media directory or move its contents to `/data/npc-media`. When the directory cannot be created, the server logs `npc_media.dir_unavailable` at startup.
 - Web client: a terminal connection error (guest expiry, session
   takeover, rejected authentication, outdated client, billing and limit
   errors, and with the transcription module a missing consent) now leaves
@@ -66,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tenant, which signs the user out everywhere), with 4401
   `session_revoked`: at once on a revocation, otherwise at the next
   access check.
+- Server: HTTP log fields and metric labels now use route templates
+  instead of concrete request paths. Early `http.request` logs no longer
+  include a `path` field; unmatched requests use `<unmatched>`. This
+  changes values consumed by dashboards and log parsers.
 
 ### Fixed
 

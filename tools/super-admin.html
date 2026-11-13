@@ -489,6 +489,74 @@ td select{min-width:80px}
 .info-item .info-value{
   font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--fg);
 }
+/* Utility classes replacing former inline style attributes */
+.pad-0{padding:0}
+.border-none{border:none}
+.is-hidden{display:none!important}
+.card-header-flush{padding:20px 20px 4px}
+.file-input{padding:5px}
+.self-end{align-self:flex-end}
+.mt-16{margin-top:16px}
+.card-header-tight{padding:0;margin-bottom:8px}
+.health-toolbar{margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.health-autolabel{font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);display:flex;align-items:center;gap:6px;cursor:pointer}
+.check-accent{accent-color:var(--accent)}
+.last-refresh{font-family:var(--font-mono);font-size:10px;color:var(--fg-muted)}
+.mt-8{margin-top:8px}
+.mb-0{margin-bottom:0}
+.mt-20{margin-top:20px}
+.settings-card{max-width:600px}
+.settings-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.settings-check{width:18px;height:18px;accent-color:var(--accent)}
+.settings-label{cursor:pointer;font-weight:500}
+.settings-hint{color:var(--fg-dim);font-size:12px;margin-bottom:20px}
+.settings-label-plain{font-weight:500}
+.num-80{width:80px}
+.err-text{color:var(--red)}
+.muted{color:var(--fg-muted)}
+.td-name{min-width:120px}
+.td-center{text-align:center}
+.input-w70{width:70px}
+.input-w80{width:80px}
+.select-min-80{min-width:80px}
+.select-min-90{min-width:90px}
+.select-min-100{min-width:100px}
+.code-xs{font-size:9px;color:var(--fg-muted)}
+.cell-date{white-space:nowrap;font-size:10px;color:var(--fg-dim)}
+.cell-nowrap-xs{white-space:nowrap;font-size:10px}
+.row-actions{display:flex;gap:4px}
+.price-row{display:flex;align-items:center;gap:6px;margin:2px 0;font-size:10px}
+.badge-xs{padding:1px 6px}
+.cell-desc{font-size:11px;color:var(--fg-dim)}
+.prices-cell{min-width:250px}
+.muted-xs{color:var(--fg-muted);font-size:10px}
+.mt-6{margin-top:6px}
+.add-price-form{margin-top:8px;padding:8px;background:var(--bg-deep);border-radius:var(--radius);border:1px solid var(--border)}
+.add-price-row{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end}
+.field-tight{margin:0;min-width:80px}
+.field-tight-sm{margin:0;min-width:60px}
+.hint-muted{font-size:11px;color:var(--fg-muted)}
+.code-sm{font-size:10px}
+.cell-xs{font-size:10px}
+.code-accent{color:var(--accent);font-size:10px}
+.code-accent-plain{color:var(--accent)}
+.card-header-inline{padding:0;margin-top:8px}
+.card-header-section{padding:0;margin-top:16px}
+.table-mt-8{margin-top:8px}
+.table-mt-8-mb-16{margin-top:8px;margin-bottom:16px}
+.card-header-pad0{padding:0}
+.cell-url{font-size:9px;color:var(--fg-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.svc-card{padding:12px 16px}
+.svc-head{display:flex;align-items:center;justify-content:space-between}
+.svc-name{font-family:var(--font-mono);font-size:12px;font-weight:600;text-transform:capitalize}
+.svc-details{font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-top:4px}
+.growth-pos{color:var(--green)}
+.growth-neg{color:var(--red)}
+.growth-zero{color:var(--fg-muted)}
+.cell-accent-xs{font-size:10px;color:var(--accent)}
+.text-10-dim{font-size:10px;color:var(--fg-dim)}
+#hHeapBar{width:0%}
+
 </style>
 </head>
 <body>
@@ -503,7 +571,7 @@ td select{min-width:80px}
   <div class="conn-bar">
     <input type="text" id="apiUrl" value="" placeholder="API URL">
     <input type="text" id="authToken" placeholder="Auth Token (optional)">
-    <button class="test-btn" onclick="testConnection()">
+    <button class="test-btn" data-action="test-connection">
       <div class="conn-dot" id="connDot"></div>
       Test
     </button>
@@ -514,32 +582,32 @@ td select{min-width:80px}
   <!-- ── Sidebar ── -->
   <nav class="sidebar">
     <div class="nav-section">Management</div>
-    <div class="nav-item active" data-section="tenants" onclick="switchSection('tenants')">
+    <div class="nav-item active" data-section="tenants" data-action="switch-section">
       <div class="nav-icon">&#9959;</div>
       <span>Mandanten</span>
     </div>
-    <div class="nav-item" data-section="billing" onclick="switchSection('billing')">
+    <div class="nav-item" data-section="billing" data-action="switch-section">
       <div class="nav-icon">&#128176;</div>
       <span>Billing</span>
     </div>
-    <div class="nav-item" data-section="auditlog" onclick="switchSection('auditlog')">
+    <div class="nav-item" data-section="auditlog" data-action="switch-section">
       <div class="nav-icon">&#128220;</div>
       <span>Audit Log</span>
     </div>
-    <div class="nav-item" data-section="packs" onclick="switchSection('packs')">
+    <div class="nav-item" data-section="packs" data-action="switch-section">
       <div class="nav-icon">&#128230;</div>
       <span>Packs</span>
     </div>
-    <div class="nav-item" data-section="maps" onclick="switchSection('maps')">
+    <div class="nav-item" data-section="maps" data-action="switch-section">
       <div class="nav-icon">&#128506;</div>
       <span>Maps</span>
     </div>
     <div class="nav-section">System</div>
-    <div class="nav-item" data-section="health" onclick="switchSection('health')">
+    <div class="nav-item" data-section="health" data-action="switch-section">
       <div class="nav-icon">&#9829;</div>
       <span>Health</span>
     </div>
-    <div class="nav-item" data-section="settings" onclick="switchSection('settings')">
+    <div class="nav-item" data-section="settings" data-action="switch-section">
       <div class="nav-icon">&#9881;</div>
       <span>Einstellungen</span>
     </div>
@@ -565,11 +633,11 @@ td select{min-width:80px}
           <label>Name</label>
           <input type="text" id="newTenantName" placeholder="Mein Mandant GmbH">
         </div>
-        <button class="btn btn-accent" onclick="createTenant()">+ Neu anlegen</button>
+        <button class="btn btn-accent" data-action="create-tenant">+ Neu anlegen</button>
       </div>
 
-      <div class="card" style="padding:0">
-        <div class="table-wrap" style="border:none">
+      <div class="card pad-0">
+        <div class="table-wrap border-none">
           <table>
             <thead>
               <tr>
@@ -600,21 +668,21 @@ td select{min-width:80px}
       <div class="tenant-detail" id="tenantDetailPanel">
         <div class="tenant-detail-header">
           <h3 id="tenantDetailTitle">Tenant Detail</h3>
-          <button class="btn btn-sm" onclick="closeTenantDetail()">Schließen</button>
+          <button class="btn btn-sm" data-action="close-tenant-detail">Schlie&szlig;en</button>
         </div>
         <div class="tenant-detail-body">
           <div class="sub-tabs" id="detailTabs">
-            <button class="sub-tab active" data-detail-tab="users" onclick="switchDetailTab('users')">Users</button>
-            <button class="sub-tab" data-detail-tab="billing" onclick="switchDetailTab('billing')">Billing</button>
-            <button class="sub-tab" data-detail-tab="packs" onclick="switchDetailTab('packs')">Packs</button>
+            <button class="sub-tab active" data-detail-tab="users" data-action="switch-detail-tab">Users</button>
+            <button class="sub-tab" data-detail-tab="billing" data-action="switch-detail-tab">Billing</button>
+            <button class="sub-tab" data-detail-tab="packs" data-action="switch-detail-tab">Packs</button>
           </div>
           <div class="detail-tab-content active" id="detailTabUsers">
             <div class="loading-row">Tenant auswählen...</div>
           </div>
-          <div class="detail-tab-content" id="detailTabBilling" style="display:none">
+          <div class="detail-tab-content is-hidden" id="detailTabBilling">
             <div class="loading-row">Daten laden...</div>
           </div>
-          <div class="detail-tab-content" id="detailTabPacks" style="display:none">
+          <div class="detail-tab-content is-hidden" id="detailTabPacks">
             <div class="loading-row">Daten laden...</div>
           </div>
         </div>
@@ -657,12 +725,12 @@ td select{min-width:80px}
           </div>
           <div class="field"><label>Concurrent-Limit</label><input type="number" id="newProdLimit" value="10" min="1"></div>
         </div>
-        <div class="btn-row"><button class="btn btn-accent" onclick="createProduct()">+ Produkt anlegen</button></div>
+        <div class="btn-row"><button class="btn btn-accent" data-action="create-product">+ Produkt anlegen</button></div>
       </div>
 
-      <div class="card" style="padding:0">
-        <div class="card-header" style="padding:20px 20px 4px">Produkte</div>
-        <div class="table-wrap" style="border:none">
+      <div class="card pad-0">
+        <div class="card-header card-header-flush">Produkte</div>
+        <div class="table-wrap border-none">
           <table>
             <thead>
               <tr>
@@ -687,13 +755,13 @@ td select{min-width:80px}
       <p class="subtitle">Asset- und Avatar-Packs verwalten, Zugriffsrechte vergeben</p>
 
       <div class="sub-tabs">
-        <button class="sub-tab active" data-pack-tab="asset" onclick="switchPackTab('asset')">Asset Packs</button>
-        <button class="sub-tab" data-pack-tab="avatar" onclick="switchPackTab('avatar')">Avatar Packs</button>
+        <button class="sub-tab active" data-pack-tab="asset" data-action="switch-pack-tab">Asset Packs</button>
+        <button class="sub-tab" data-pack-tab="avatar" data-action="switch-pack-tab">Avatar Packs</button>
       </div>
 
       <div id="packTabAsset">
-        <div class="card" style="padding:0">
-          <div class="table-wrap" style="border:none">
+        <div class="card pad-0">
+          <div class="table-wrap border-none">
             <table>
               <thead>
                 <tr>
@@ -720,16 +788,16 @@ td select{min-width:80px}
           <div class="field-row">
             <div class="field grow">
               <label>.mepack Datei</label>
-              <input type="file" id="assetPackFile" accept=".mepack,.zip" style="padding:5px">
+              <input type="file" id="assetPackFile" accept=".mepack,.zip" class="file-input">
             </div>
-            <button class="btn btn-accent" onclick="uploadAssetPack()" style="align-self:flex-end">Upload</button>
+            <button class="btn btn-accent self-end" data-action="upload-asset-pack">Upload</button>
           </div>
         </div>
       </div>
 
-      <div id="packTabAvatar" style="display:none">
-        <div class="card" style="padding:0">
-          <div class="table-wrap" style="border:none">
+      <div id="packTabAvatar" class="is-hidden">
+        <div class="card pad-0">
+          <div class="table-wrap border-none">
             <table>
               <thead>
                 <tr>
@@ -762,10 +830,10 @@ td select{min-width:80px}
             <label>Pack</label>
             <select id="grantPack"><option value="">— Pack wählen —</option></select>
           </div>
-          <button class="btn btn-success" onclick="grantAccess()" style="align-self:flex-end">Grant</button>
+          <button class="btn btn-success self-end" data-action="grant-access">Grant</button>
         </div>
-        <div style="margin-top:16px">
-          <div class="card-header" style="padding:0;margin-bottom:8px">Aktuelle Berechtigungen</div>
+        <div class="mt-16">
+          <div class="card-header card-header-tight">Aktuelle Berechtigungen</div>
           <div id="grantsList" class="empty-state"><p>Packs laden...</p></div>
         </div>
       </div>
@@ -801,11 +869,11 @@ td select{min-width:80px}
             <option value="tenant_paused">tenant_paused</option>
           </select>
         </div>
-        <button class="btn btn-accent" onclick="loadAuditLog()">Suchen</button>
+        <button class="btn btn-accent" data-action="load-audit-log">Suchen</button>
       </div>
 
-      <div class="card" style="padding:0">
-        <div class="table-wrap" style="border:none">
+      <div class="card pad-0">
+        <div class="table-wrap border-none">
           <table>
             <thead>
               <tr>
@@ -822,10 +890,10 @@ td select{min-width:80px}
           </table>
         </div>
       </div>
-      <div class="pagination" id="auditPagination" style="display:none">
-        <button class="btn btn-sm" id="auditPrev" onclick="auditPrevPage()" disabled>Vorherige</button>
+      <div class="pagination is-hidden" id="auditPagination">
+        <button class="btn btn-sm" id="auditPrev" data-action="audit-prev" disabled>Vorherige</button>
         <span id="auditPageInfo">—</span>
-        <button class="btn btn-sm" id="auditNext" onclick="auditNextPage()">Nächste</button>
+        <button class="btn btn-sm" id="auditNext" data-action="audit-next">N&auml;chste</button>
       </div>
     </div>
 
@@ -837,15 +905,15 @@ td select{min-width:80px}
       <div class="filter-bar">
         <div class="field">
           <label>Tenant</label>
-          <select id="mapsFilterTenant" onchange="renderMaps()">
+          <select id="mapsFilterTenant" data-action="render-maps">
             <option value="">— Alle —</option>
           </select>
         </div>
-        <button class="btn btn-accent" onclick="toggleNewMapForm()">+ Neue Map</button>
-        <button class="btn btn-accent" onclick="toggleImportMapForm()">Import Map</button>
+        <button class="btn btn-accent" data-action="toggle-new-map-form">+ Neue Map</button>
+        <button class="btn btn-accent" data-action="toggle-import-map-form">Import Map</button>
       </div>
 
-      <div class="card" id="newMapFormCard" style="display:none">
+      <div class="card is-hidden" id="newMapFormCard">
         <div class="card-header">Neue Map erstellen</div>
         <div class="field-row">
           <div class="field">
@@ -864,12 +932,12 @@ td select{min-width:80px}
           <div class="field"><label>TileHeight</label><input type="number" id="newMapTileH" value="32" min="1"></div>
         </div>
         <div class="btn-row">
-          <button class="btn btn-accent" onclick="createMap()">Erstellen</button>
-          <button class="btn" onclick="toggleNewMapForm()">Abbrechen</button>
+          <button class="btn btn-accent" data-action="create-map">Erstellen</button>
+          <button class="btn" data-action="toggle-new-map-form">Abbrechen</button>
         </div>
       </div>
 
-      <div class="card" id="importMapFormCard" style="display:none">
+      <div class="card is-hidden" id="importMapFormCard">
         <div class="card-header">Map importieren</div>
         <div class="field-row">
           <div class="field">
@@ -882,17 +950,17 @@ td select{min-width:80px}
           </div>
           <div class="field">
             <label>.json Datei</label>
-            <input type="file" id="importMapFile" accept=".json" style="padding:5px">
+            <input type="file" id="importMapFile" accept=".json" class="file-input">
           </div>
         </div>
         <div class="btn-row">
-          <button class="btn btn-accent" onclick="importMap()">Importieren</button>
-          <button class="btn" onclick="toggleImportMapForm()">Abbrechen</button>
+          <button class="btn btn-accent" data-action="import-map">Importieren</button>
+          <button class="btn" data-action="toggle-import-map-form">Abbrechen</button>
         </div>
       </div>
 
-      <div class="card" style="padding:0">
-        <div class="table-wrap" style="border:none">
+      <div class="card pad-0">
+        <div class="table-wrap border-none">
           <table>
             <thead>
               <tr>
@@ -913,7 +981,7 @@ td select{min-width:80px}
         </div>
       </div>
 
-      <div class="card" id="mapDetailCard" style="display:none">
+      <div class="card is-hidden" id="mapDetailCard">
         <div class="card-header">Map Detail</div>
         <div id="mapDetailContent"></div>
       </div>
@@ -924,13 +992,13 @@ td select{min-width:80px}
       <h2>System Health</h2>
       <p class="subtitle">Server-Status, Ressourcen und Wachstums-Statistiken</p>
 
-      <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">
-        <label style="font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);display:flex;align-items:center;gap:6px;cursor:pointer">
-          <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()" style="accent-color:var(--accent)">
+      <div class="health-toolbar">
+        <label class="health-autolabel">
+          <input type="checkbox" id="autoRefresh" class="check-accent" data-action="toggle-auto-refresh">
           Auto-Refresh (10s)
         </label>
-        <button class="btn btn-sm" onclick="loadHealth()">Jetzt laden</button>
-        <span id="lastRefresh" style="font-family:var(--font-mono);font-size:10px;color:var(--fg-muted)"></span>
+        <button class="btn btn-sm" data-action="load-health">Jetzt laden</button>
+        <span id="lastRefresh" class="last-refresh"></span>
       </div>
 
       <div class="health-grid" id="healthServerInfo">
@@ -945,23 +1013,23 @@ td select{min-width:80px}
           <div class="health-card-title">Memory</div>
           <div class="health-row"><span class="label">Heap Used</span><span class="value" id="hHeapUsed">—</span></div>
           <div class="health-row"><span class="label">Heap Total</span><span class="value" id="hHeapTotal">—</span></div>
-          <div class="progress-bar"><div class="progress-fill blue" id="hHeapBar" style="width:0%"></div></div>
-          <div class="health-row" style="margin-top:8px"><span class="label">RSS</span><span class="value" id="hRss">—</span></div>
+          <div class="progress-bar"><div class="progress-fill blue" id="hHeapBar"></div></div>
+          <div class="health-row mt-8"><span class="label">RSS</span><span class="value" id="hRss">—</span></div>
           <div class="health-row"><span class="label">External</span><span class="value" id="hExternal">—</span></div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-header">Services</div>
-        <div class="health-grid" style="margin-bottom:0" id="healthServices">
+        <div class="health-grid mb-0" id="healthServices">
           <div class="empty-state"><p>Daten laden...</p></div>
         </div>
       </div>
 
-      <div class="health-grid" style="margin-top:20px">
-        <div class="card" style="margin-bottom:0">
+      <div class="health-grid mt-20">
+        <div class="card mb-0">
           <div class="card-header">DB Counts</div>
-          <div class="metrics-row" id="dbCounts" style="margin-bottom:0">
+          <div class="metrics-row mb-0" id="dbCounts">
             <div class="metric-card blue"><div class="metric-label">Users</div><div class="metric-value" id="hUsers">—</div></div>
             <div class="metric-card green"><div class="metric-label">Tenants</div><div class="metric-value" id="hTenants">—</div></div>
             <div class="metric-card orange"><div class="metric-label">Sessions</div><div class="metric-value" id="hSessions">—</div></div>
@@ -969,15 +1037,15 @@ td select{min-width:80px}
           </div>
         </div>
 
-        <div class="card" style="margin-bottom:0">
+        <div class="card mb-0">
           <div class="card-header">Online by Tenant</div>
           <div id="onlineByTenant" class="empty-state"><p>Daten laden...</p></div>
         </div>
       </div>
 
-      <div class="card" style="margin-top:20px">
+      <div class="card mt-20">
         <div class="card-header">Growth Stats</div>
-        <div class="table-wrap" style="border:none">
+        <div class="table-wrap border-none">
           <table>
             <thead>
               <tr><th>Metrik</th><th>24h</th><th>7d</th><th>30d</th></tr>
@@ -995,23 +1063,23 @@ td select{min-width:80px}
       <h2>Einstellungen</h2>
       <p class="subtitle">Globale Systemeinstellungen</p>
 
-      <div class="card" style="max-width:600px">
+      <div class="card settings-card">
         <div class="card-title">Registrierung</div>
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-          <input type="checkbox" id="settingPublicReg" style="width:18px;height:18px;accent-color:var(--accent)">
-          <label for="settingPublicReg" style="cursor:pointer;font-weight:500">Öffentliche Registrierung erlauben</label>
+        <div class="settings-row">
+          <input type="checkbox" id="settingPublicReg" class="settings-check">
+          <label for="settingPublicReg" class="settings-label">&Ouml;ffentliche Registrierung erlauben</label>
         </div>
-        <p style="color:var(--fg-dim);font-size:12px;margin-bottom:20px">
+        <p class="settings-hint">
           Wenn aktiviert, können sich neue Mandanten über die öffentliche Registrierungsseite selbst registrieren.
         </p>
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-          <label for="settingFreeSeats" style="font-weight:500">Standard Free Seats</label>
-          <input type="number" id="settingFreeSeats" min="0" style="width:80px" value="3">
+        <div class="settings-row">
+          <label for="settingFreeSeats" class="settings-label-plain">Standard Free Seats</label>
+          <input type="number" id="settingFreeSeats" min="0" class="num-80" value="3">
         </div>
-        <p style="color:var(--fg-dim);font-size:12px;margin-bottom:20px">
+        <p class="settings-hint">
           Anzahl der kostenlosen Plätze, die neue Mandanten standardmäßig erhalten.
         </p>
-        <button class="btn btn-accent" onclick="saveSettings()">Speichern</button>
+        <button class="btn btn-accent" data-action="save-settings">Speichern</button>
       </div>
     </div>
 
@@ -1024,8 +1092,8 @@ td select{min-width:80px}
     <h3 id="confirmTitle">Bestätigung</h3>
     <p id="confirmText">Sind Sie sicher?</p>
     <div class="btn-row">
-      <button class="btn" onclick="closeConfirm()">Abbrechen</button>
-      <button class="btn btn-danger" id="confirmBtn" onclick="confirmAction()">Löschen</button>
+      <button class="btn" data-action="close-confirm">Abbrechen</button>
+      <button class="btn btn-danger" id="confirmBtn" data-action="confirm-action">L&ouml;schen</button>
     </div>
   </div>
 </div>
@@ -1033,9 +1101,7 @@ td select{min-width:80px}
 <div id="toasts"></div>
 
 <script>
-// ═══════════════════════════════════════════
 // State
-// ═══════════════════════════════════════════
 let tenants = [];
 let products = [];
 let assetPacks = [];
@@ -1051,9 +1117,8 @@ let currentDetailTab = 'users';
 let autoRefreshInterval = null;
 let confirmCallback = null;
 
-// ═══════════════════════════════════════════
-// Init: localStorage
-// ═══════════════════════════════════════════
+const ORIGIN_BLOCKED = 'The API origin is not in the allowed configuration.';
+
 (function init() {
   const savedUrl = localStorage.getItem('sa_apiUrl');
   const savedToken = localStorage.getItem('sa_authToken');
@@ -1066,9 +1131,126 @@ function persistConnection() {
   localStorage.setItem('sa_authToken', document.getElementById('authToken').value);
 }
 
-// ═══════════════════════════════════════════
-// API Helper
-// ═══════════════════════════════════════════
+function requestErrorMessage(e, prefix) {
+  if (e instanceof TypeError) return ORIGIN_BLOCKED;
+  const msg = e && e.message ? e.message : 'Request failed';
+  return prefix ? prefix + msg : msg;
+}
+
+function h(tag, props, children) {
+  const n = document.createElement(tag);
+  if (props) {
+    Object.keys(props).forEach((k) => {
+      const v = props[k];
+      if (v == null || v === false) return;
+      if (k === 'className') n.className = v;
+      else if (k === 'dataset') {
+        Object.keys(v).forEach((dk) => {
+          if (v[dk] != null) n.dataset[dk] = String(v[dk]);
+        });
+      } else if (k === 'text') n.textContent = v;
+      else if (k === 'checked' || k === 'disabled' || k === 'selected') n[k] = true;
+      else if (k === 'value') n.value = v;
+      else if (k === 'colSpan') n.colSpan = v;
+      else if (k === 'id' || k === 'title') n[k] = v;
+      else n.setAttribute(k, String(v));
+    });
+  }
+  const list = children == null ? [] : Array.isArray(children) ? children : [children];
+  list.forEach((c) => {
+    if (c == null || c === false) return;
+    n.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+  });
+  return n;
+}
+
+function makeBadge(kind, label, extraClass) {
+  const span = document.createElement('span');
+  span.className = 'badge ' + kind + (extraClass ? ' ' + extraClass : '');
+  const dot = document.createElement('span');
+  dot.className = 'badge-dot';
+  span.appendChild(dot);
+  span.appendChild(document.createTextNode(label));
+  return span;
+}
+
+function setTableMessage(tbody, colspan, text, isError) {
+  tbody.replaceChildren();
+  const tr = document.createElement('tr');
+  const td = document.createElement('td');
+  td.colSpan = colspan;
+  td.className = isError ? 'loading-row err-text' : 'loading-row';
+  td.textContent = text;
+  tr.appendChild(td);
+  tbody.appendChild(tr);
+}
+
+function setTableLoading(tbody, colspan, text) {
+  tbody.replaceChildren();
+  const tr = document.createElement('tr');
+  const td = document.createElement('td');
+  td.colSpan = colspan;
+  td.className = 'loading-row';
+  td.appendChild(h('span', { className: 'spinner' }));
+  td.appendChild(document.createTextNode(' ' + text));
+  tr.appendChild(td);
+  tbody.appendChild(tr);
+}
+
+function setPanelLoading(el, text) {
+  el.replaceChildren();
+  const wrap = h('div', { className: 'loading-row' });
+  wrap.appendChild(h('span', { className: 'spinner' }));
+  wrap.appendChild(document.createTextNode(' ' + text));
+  el.appendChild(wrap);
+}
+
+function setPanelError(el, e) {
+  el.replaceChildren();
+  el.appendChild(h('div', { className: 'loading-row err-text', text: requestErrorMessage(e, 'Fehler: ') }));
+}
+
+function fillSelect(sel, placeholder, items, getValue, getLabel) {
+  const currentVal = sel.value;
+  sel.replaceChildren();
+  sel.appendChild(h('option', { value: '', text: placeholder }));
+  items.forEach((item) => {
+    const opt = document.createElement('option');
+    opt.value = getValue(item);
+    opt.textContent = getLabel(item);
+    sel.appendChild(opt);
+  });
+  sel.value = currentVal;
+}
+
+function infoItem(label, valueNode) {
+  const item = h('div', { className: 'info-item' });
+  item.appendChild(h('div', { className: 'info-label', text: label }));
+  const val = h('div', { className: 'info-value' });
+  if (typeof valueNode === 'string' || typeof valueNode === 'number') {
+    val.textContent = String(valueNode);
+  } else if (valueNode) {
+    while (valueNode.firstChild) val.appendChild(valueNode.firstChild);
+  }
+  item.appendChild(val);
+  return item;
+}
+
+function wrapTable(className, headLabels, buildBody) {
+  const wrap = h('div', { className: className || 'table-wrap' });
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const hr = document.createElement('tr');
+  headLabels.forEach((lab) => hr.appendChild(h('th', { text: lab })));
+  thead.appendChild(hr);
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  buildBody(tbody);
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
 async function apiFetch(path, opts = {}) {
   const base = document.getElementById('apiUrl').value.replace(/\/+$/, '');
   const token = document.getElementById('authToken').value.trim();
@@ -1087,9 +1269,6 @@ async function apiFetch(path, opts = {}) {
   return res;
 }
 
-// ═══════════════════════════════════════════
-// Connection Test
-// ═══════════════════════════════════════════
 async function testConnection() {
   const dot = document.getElementById('connDot');
   persistConnection();
@@ -1105,7 +1284,7 @@ async function testConnection() {
     }
   } catch (e) {
     dot.className = 'conn-dot err';
-    toast('err', `Verbindung fehlgeschlagen: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Verbindung fehlgeschlagen: '));
   }
 }
 
@@ -1123,9 +1302,6 @@ async function loadAllData() {
   ]);
 }
 
-// ═══════════════════════════════════════════
-// Navigation
-// ═══════════════════════════════════════════
 function switchSection(name) {
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.section === name);
@@ -1140,13 +1316,10 @@ function switchPackTab(tab) {
   document.querySelectorAll('.sub-tab').forEach(el => {
     el.classList.toggle('active', el.dataset.packTab === tab);
   });
-  document.getElementById('packTabAsset').style.display = tab === 'asset' ? '' : 'none';
-  document.getElementById('packTabAvatar').style.display = tab === 'avatar' ? '' : 'none';
+  document.getElementById('packTabAsset').classList.toggle('is-hidden', tab !== 'asset');
+  document.getElementById('packTabAvatar').classList.toggle('is-hidden', tab !== 'avatar');
 }
 
-// ═══════════════════════════════════════════
-// Confirm Dialog
-// ═══════════════════════════════════════════
 function showConfirm(title, text, btnLabel, cb) {
   document.getElementById('confirmTitle').textContent = title;
   document.getElementById('confirmText').textContent = text;
@@ -1165,9 +1338,6 @@ function confirmAction() {
   closeConfirm();
 }
 
-// ═══════════════════════════════════════════
-// TENANTS
-// ═══════════════════════════════════════════
 async function loadTenants() {
   try {
     const res = await apiFetch('/admin/tenants');
@@ -1176,81 +1346,103 @@ async function loadTenants() {
     renderTenants();
     populateGrantTenants();
   } catch (e) {
-    document.getElementById('tenantsBody').innerHTML =
-      `<tr><td colspan="15" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
+    setTableMessage(document.getElementById('tenantsBody'), 15, requestErrorMessage(e, 'Fehler: '), true);
   }
 }
 
 function renderTenants() {
   const tbody = document.getElementById('tenantsBody');
   if (!tenants.length) {
-    tbody.innerHTML = '<tr><td colspan="15" class="loading-row">Keine Mandanten vorhanden.</td></tr>';
+    setTableMessage(tbody, 15, 'Keine Mandanten vorhanden.');
     return;
   }
-  tbody.innerHTML = tenants.map((t, i) => {
+  tbody.replaceChildren();
+  const now = new Date();
+  tenants.forEach((t, i) => {
     const isInternal = t.slug === 'internal' || t.slug === '_internal';
-    const now = new Date();
-    // Trial badge
     let trialBadge;
-    if (t.trialConvertedAt) {
-      trialBadge = '<span class="badge blue"><span class="badge-dot"></span>converted</span>';
-    } else if (t.trialEndsAt && new Date(t.trialEndsAt) > now) {
-      trialBadge = '<span class="badge green"><span class="badge-dot"></span>active</span>';
-    } else if (t.trialEndsAt && new Date(t.trialEndsAt) <= now) {
-      trialBadge = '<span class="badge red"><span class="badge-dot"></span>expired</span>';
-    } else {
-      trialBadge = '<span class="badge gray"><span class="badge-dot"></span>none</span>';
-    }
-    // Dunning badge
-    let dunningBadge;
-    if (t.status === 'suspended') {
-      dunningBadge = '<span class="badge red"><span class="badge-dot"></span>suspended</span>';
-    } else if (t.gracePeriodEndsAt && new Date(t.gracePeriodEndsAt) > now) {
-      dunningBadge = '<span class="badge orange"><span class="badge-dot"></span>grace</span>';
-    } else if (t.paymentFailedAt) {
-      dunningBadge = '<span class="badge red"><span class="badge-dot"></span>failing</span>';
-    } else {
-      dunningBadge = '<span class="badge green"><span class="badge-dot"></span>ok</span>';
-    }
-    // Pause badge
-    const pauseBadge = t.pausedAt
-      ? '<span class="badge orange"><span class="badge-dot"></span>paused</span>'
-      : '<span style="color:var(--fg-muted)">—</span>';
-    // Default map options for this tenant
-    const tenantMaps = maps.filter(m => m.tenantId === t.id);
-    const mapOptions = '<option value=""' + (!t.defaultMapName ? ' selected' : '') + '>— Keine —</option>'
-      + tenantMaps.map(m => '<option value="' + esc(m.name) + '"' + (t.defaultMapName === m.name ? ' selected' : '') + '>' + esc(m.name) + '</option>').join('');
+    if (t.trialConvertedAt) trialBadge = makeBadge('blue', 'converted');
+    else if (t.trialEndsAt && new Date(t.trialEndsAt) > now) trialBadge = makeBadge('green', 'active');
+    else if (t.trialEndsAt && new Date(t.trialEndsAt) <= now) trialBadge = makeBadge('red', 'expired');
+    else trialBadge = makeBadge('gray', 'none');
 
-    return `<tr data-tenant-idx="${i}">
-      <td><a class="slug-link" onclick="openTenantDetail('${esc(t.id)}')" title="Detail anzeigen">${esc(t.slug)}</a></td>
-      <td><input type="text" value="${esc(t.name || '')}" data-field="name" style="min-width:120px"></td>
-      <td style="text-align:center">${t.online != null ? t.online : '—'}</td>
-      <td><input type="number" value="${t.concurrentLimit != null ? t.concurrentLimit : ''}" data-field="concurrentLimit" style="width:70px" min="0"></td>
-      <td><input type="number" value="${t.freeSeats != null ? t.freeSeats : ''}" data-field="freeSeats" style="width:70px" min="0"></td>
-      <td style="text-align:center"><input type="checkbox" ${t.bypassLimits ? 'checked' : ''} data-field="bypassLimits"></td>
-      <td>
-        <select data-field="status" style="min-width:80px">
-          <option value="active" ${t.status === 'active' ? 'selected' : ''}>active</option>
-          <option value="suspended" ${t.status === 'suspended' ? 'selected' : ''}>suspended</option>
-          <option value="trial" ${t.status === 'trial' ? 'selected' : ''}>trial</option>
-        </select>
-      </td>
-      <td><code style="font-size:9px;color:var(--fg-muted)">${esc(t.stripeCustomerId || '—')}</code></td>
-      <td><code style="font-size:9px;color:var(--fg-muted)">${esc(t.stripeSubscriptionId || '—')}</code></td>
-      <td style="white-space:nowrap;font-size:10px;color:var(--fg-dim)">${t.createdAt ? formatDate(t.createdAt) : '—'}</td>
-      <td>${trialBadge}</td>
-      <td>${dunningBadge}</td>
-      <td>${pauseBadge}</td>
-      <td><select data-field="defaultMapName" style="min-width:100px">${mapOptions}</select></td>
-      <td>
-        <div style="display:flex;gap:4px">
-          <button class="btn btn-xs btn-accent" onclick="saveTenant(${i})">Save</button>
-          <button class="btn btn-xs btn-danger" onclick="deleteTenant(${i})" ${isInternal ? 'disabled title="Internal tenant"' : ''}>Del</button>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
-  // Populate filter dropdowns
+    let dunningBadge;
+    if (t.status === 'suspended') dunningBadge = makeBadge('red', 'suspended');
+    else if (t.gracePeriodEndsAt && new Date(t.gracePeriodEndsAt) > now) dunningBadge = makeBadge('orange', 'grace');
+    else if (t.paymentFailedAt) dunningBadge = makeBadge('red', 'failing');
+    else dunningBadge = makeBadge('green', 'ok');
+
+    const pauseBadge = t.pausedAt
+      ? makeBadge('orange', 'paused')
+      : h('span', { className: 'muted', text: '\u2014' });
+
+    const tenantMaps = maps.filter(m => m.tenantId === t.id);
+    const mapSelect = h('select', { className: 'select-min-100', dataset: { field: 'defaultMapName' } });
+    mapSelect.appendChild(h('option', { value: '', text: '\u2014 Keine \u2014' }));
+    tenantMaps.forEach((m) => {
+      const opt = document.createElement('option');
+      opt.value = m.name || '';
+      opt.textContent = m.name || '';
+      mapSelect.appendChild(opt);
+    });
+    mapSelect.value = t.defaultMapName || '';
+
+    const nameInput = h('input', { type: 'text', className: 'td-name', dataset: { field: 'name' } });
+    nameInput.value = t.name || '';
+    const limitInput = h('input', { type: 'number', className: 'input-w70', min: '0', dataset: { field: 'concurrentLimit' } });
+    limitInput.value = t.concurrentLimit != null ? String(t.concurrentLimit) : '';
+    const freeInput = h('input', { type: 'number', className: 'input-w70', min: '0', dataset: { field: 'freeSeats' } });
+    freeInput.value = t.freeSeats != null ? String(t.freeSeats) : '';
+    const statusSelect = h('select', { className: 'select-min-80', dataset: { field: 'status' } }, [
+      h('option', { value: 'active', text: 'active' }),
+      h('option', { value: 'suspended', text: 'suspended' }),
+      h('option', { value: 'trial', text: 'trial' }),
+    ]);
+    statusSelect.value = t.status || 'active';
+
+    const slugLink = h('a', {
+      className: 'slug-link',
+      title: 'Detail anzeigen',
+      dataset: { action: 'open-tenant-detail', tenantId: t.id },
+    });
+    slugLink.textContent = t.slug || '';
+
+    const saveBtn = h('button', {
+      className: 'btn btn-xs btn-accent',
+      dataset: { action: 'save-tenant', tenantIdx: String(i) },
+      text: 'Save',
+    });
+    const delBtn = h('button', {
+      className: 'btn btn-xs btn-danger',
+      dataset: { action: 'delete-tenant', tenantIdx: String(i) },
+      text: 'Del',
+    });
+    if (isInternal) {
+      delBtn.disabled = true;
+      delBtn.title = 'Internal tenant';
+    }
+
+    const bypass = h('input', { type: 'checkbox', dataset: { field: 'bypassLimits' } });
+    bypass.checked = !!t.bypassLimits;
+
+    tbody.appendChild(h('tr', { dataset: { tenantIdx: String(i) } }, [
+      h('td', null, slugLink),
+      h('td', null, nameInput),
+      h('td', { className: 'td-center', text: t.online != null ? String(t.online) : '\u2014' }),
+      h('td', null, limitInput),
+      h('td', null, freeInput),
+      h('td', { className: 'td-center' }, bypass),
+      h('td', null, statusSelect),
+      h('td', null, h('code', { className: 'code-xs', text: t.stripeCustomerId || '\u2014' })),
+      h('td', null, h('code', { className: 'code-xs', text: t.stripeSubscriptionId || '\u2014' })),
+      h('td', { className: 'cell-date', text: t.createdAt ? formatDate(t.createdAt) : '\u2014' }),
+      h('td', null, trialBadge),
+      h('td', null, dunningBadge),
+      h('td', null, pauseBadge),
+      h('td', null, mapSelect),
+      h('td', null, h('div', { className: 'row-actions' }, [saveBtn, delBtn])),
+    ]));
+  });
   populateAuditTenants();
   populateMapsTenants();
 }
@@ -1275,7 +1467,7 @@ async function createTenant() {
       toast('err', `Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
@@ -1313,7 +1505,7 @@ async function saveTenant(idx) {
       toast('err', `Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
@@ -1321,37 +1513,34 @@ function deleteTenant(idx) {
   const t = tenants[idx];
   if (!t) return;
   showConfirm(
-    'Mandant löschen',
-    `Mandant "${t.name || t.slug}" (ID: ${t.id}) wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.`,
-    'Löschen',
+    'Mandant l\u00f6schen',
+    `Mandant "${t.name || t.slug}" (ID: ${t.id}) wirklich l\u00f6schen? Dieser Vorgang kann nicht r\u00fcckg\u00e4ngig gemacht werden.`,
+    'L\u00f6schen',
     async () => {
       try {
         const res = await apiFetch(`/admin/tenants/${t.id}`, { method: 'DELETE' });
         if (res.ok) {
-          toast('ok', `Mandant "${t.slug}" gelöscht`);
+          toast('ok', `Mandant "${t.slug}" gel\u00f6scht`);
           await loadTenants();
         } else {
           const err = await res.json().catch(() => ({}));
           toast('err', `Fehler: ${err.error || res.statusText}`);
         }
       } catch (e) {
-        toast('err', `Fehler: ${e.message}`);
+        toast('err', requestErrorMessage(e, 'Fehler: '));
       }
     }
   );
 }
 
-// ═══════════════════════════════════════════
-// BILLING
-// ═══════════════════════════════════════════
 async function loadBillingMetrics() {
   try {
     const res = await apiFetch('/admin/billing/metrics');
     if (!res.ok) return;
     const m = await res.json();
-    document.getElementById('metricActiveSubs').textContent = m.activeSubscriptions ?? '—';
-    document.getElementById('metricMRR').textContent = m.mrr != null ? formatEur(m.mrr) : '—';
-    document.getElementById('metricRevenue30').textContent = m.revenue30d != null ? formatEur(m.revenue30d) : '—';
+    document.getElementById('metricActiveSubs').textContent = m.activeSubscriptions ?? '\u2014';
+    document.getElementById('metricMRR').textContent = m.mrr != null ? formatEur(m.mrr) : '\u2014';
+    document.getElementById('metricRevenue30').textContent = m.revenue30d != null ? formatEur(m.revenue30d) : '\u2014';
   } catch (e) { /* silent */ }
 }
 
@@ -1362,66 +1551,91 @@ async function loadProducts() {
     products = await res.json();
     renderProducts();
   } catch (e) {
-    document.getElementById('productsBody').innerHTML =
-      `<tr><td colspan="5" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
+    setTableMessage(document.getElementById('productsBody'), 5, requestErrorMessage(e, 'Fehler: '), true);
   }
 }
 
 function renderProducts() {
   const tbody = document.getElementById('productsBody');
   if (!products.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="loading-row">Keine Produkte vorhanden.</td></tr>';
+    setTableMessage(tbody, 5, 'Keine Produkte vorhanden.');
     return;
   }
-  tbody.innerHTML = products.map((p, i) => {
+  tbody.replaceChildren();
+  products.forEach((p, i) => {
     const prices = Array.isArray(p.prices) ? p.prices : [];
-    const pricesHtml = prices.map(pr => {
+    const pricesCell = h('td', { className: 'prices-cell' });
+    if (!prices.length) {
+      pricesCell.appendChild(h('span', { className: 'muted-xs', text: 'Keine Preise' }));
+    }
+    prices.forEach((pr) => {
       const amount = pr.unitAmount != null ? formatEur(pr.unitAmount) : '?';
-      const interval = pr.interval || '—';
-      const limit = pr.concurrentLimit != null ? pr.concurrentLimit : '—';
-      const activeClass = pr.active !== false ? 'green' : 'red';
-      return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;font-size:10px">
-        <span class="badge ${activeClass}" style="padding:1px 6px"><span class="badge-dot"></span>${pr.active !== false ? 'ON' : 'OFF'}</span>
-        <span>${amount} / ${interval}</span>
-        <span style="color:var(--fg-muted)">Limit: ${limit}</span>
-        <button class="btn btn-xs" onclick="togglePrice('${esc(pr.id)}', ${pr.active === false})">${pr.active !== false ? 'Deaktivieren' : 'Aktivieren'}</button>
-      </div>`;
-    }).join('');
+      const interval = pr.interval || '\u2014';
+      const limit = pr.concurrentLimit != null ? pr.concurrentLimit : '\u2014';
+      const active = pr.active !== false;
+      pricesCell.appendChild(h('div', { className: 'price-row' }, [
+        makeBadge(active ? 'green' : 'red', active ? 'ON' : 'OFF', 'badge-xs'),
+        h('span', { text: amount + ' / ' + interval }),
+        h('span', { className: 'muted', text: 'Limit: ' + limit }),
+        h('button', {
+          className: 'btn btn-xs',
+          dataset: { action: 'toggle-price', priceId: pr.id, activate: String(!active) },
+          text: active ? 'Deaktivieren' : 'Aktivieren',
+        }),
+      ]));
+    });
+    const addWrap = h('div', { className: 'mt-6' });
+    addWrap.appendChild(h('button', {
+      className: 'btn btn-xs',
+      dataset: { action: 'toggle-add-price', productIdx: String(i) },
+      text: '+ Preis hinzuf\u00fcgen',
+    }));
+    const amt = h('input', { type: 'number', min: '0', dataset: { field: 'amount' } });
+    amt.value = '999';
+    const cur = h('select', { dataset: { field: 'currency' } }, [
+      h('option', { value: 'eur', text: 'EUR' }),
+      h('option', { value: 'usd', text: 'USD' }),
+    ]);
+    const iv = h('select', { dataset: { field: 'interval' } }, [
+      h('option', { value: 'month', text: 'month' }),
+      h('option', { value: 'year', text: 'year' }),
+    ]);
+    const lim = h('input', { type: 'number', min: '1', dataset: { field: 'limit' } });
+    lim.value = '10';
+    const form = h('div', { className: 'add-price-form is-hidden', dataset: { priceFormIdx: String(i) } }, [
+      h('div', { className: 'add-price-row' }, [
+        h('div', { className: 'field field-tight' }, [h('label', { text: 'Betrag (Cent)' }), amt]),
+        h('div', { className: 'field field-tight-sm' }, [h('label', { text: 'W\u00e4hrung' }), cur]),
+        h('div', { className: 'field field-tight' }, [h('label', { text: 'Interval' }), iv]),
+        h('div', { className: 'field field-tight-sm' }, [h('label', { text: 'Limit' }), lim]),
+        h('button', {
+          className: 'btn btn-xs btn-accent',
+          dataset: { action: 'add-price', productIdx: String(i) },
+          text: 'Hinzuf\u00fcgen',
+        }),
+      ]),
+    ]);
+    addWrap.appendChild(form);
+    pricesCell.appendChild(addWrap);
 
-    return `<tr>
-      <td><strong>${esc(p.name)}</strong></td>
-      <td style="font-size:11px;color:var(--fg-dim)">${esc(p.description || '—')}</td>
-      <td><span class="badge ${p.active !== false ? 'green' : 'red'}"><span class="badge-dot"></span>${p.active !== false ? 'Active' : 'Inactive'}</span></td>
-      <td style="min-width:250px">${pricesHtml || '<span style="color:var(--fg-muted);font-size:10px">Keine Preise</span>'}
-        <div style="margin-top:6px">
-          <button class="btn btn-xs" onclick="toggleAddPrice(${i})">+ Preis hinzufügen</button>
-          <div id="addPriceForm-${i}" style="display:none;margin-top:8px;padding:8px;background:var(--bg-deep);border-radius:var(--radius);border:1px solid var(--border)">
-            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">
-              <div class="field" style="margin:0;min-width:80px"><label>Betrag (Cent)</label><input type="number" id="priceAmt-${i}" value="999" min="0"></div>
-              <div class="field" style="margin:0;min-width:60px"><label>Währung</label>
-                <select id="priceCur-${i}"><option value="eur">EUR</option><option value="usd">USD</option></select>
-              </div>
-              <div class="field" style="margin:0;min-width:80px"><label>Interval</label>
-                <select id="priceInt-${i}"><option value="month">month</option><option value="year">year</option></select>
-              </div>
-              <div class="field" style="margin:0;min-width:60px"><label>Limit</label><input type="number" id="priceLim-${i}" value="10" min="1"></div>
-              <button class="btn btn-xs btn-accent" onclick="addPrice(${i})">Hinzufügen</button>
-            </div>
-          </div>
-        </div>
-      </td>
-      <td>
-        <button class="btn btn-xs ${p.active !== false ? 'btn-danger' : 'btn-success'}" onclick="toggleProduct('${esc(p.id)}', ${p.active === false})">
-          ${p.active !== false ? 'Deaktivieren' : 'Aktivieren'}
-        </button>
-      </td>
-    </tr>`;
-  }).join('');
+    const activeProd = p.active !== false;
+    tbody.appendChild(h('tr', null, [
+      h('td', null, h('strong', { text: p.name || '' })),
+      h('td', { className: 'cell-desc', text: p.description || '\u2014' }),
+      h('td', null, makeBadge(activeProd ? 'green' : 'red', activeProd ? 'Active' : 'Inactive')),
+      pricesCell,
+      h('td', null, h('button', {
+        className: 'btn btn-xs ' + (activeProd ? 'btn-danger' : 'btn-success'),
+        dataset: { action: 'toggle-product', productId: p.id, activate: String(!activeProd) },
+        text: activeProd ? 'Deaktivieren' : 'Aktivieren',
+      })),
+    ]));
+  });
 }
 
 function toggleAddPrice(idx) {
-  const form = document.getElementById(`addPriceForm-${idx}`);
-  if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  const form = document.querySelector('[data-price-form-idx="' + idx + '"]');
+  if (form) form.classList.toggle('is-hidden');
 }
 
 async function createProduct() {
@@ -1448,7 +1662,7 @@ async function createProduct() {
       toast('err', `Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
@@ -1465,31 +1679,33 @@ async function toggleProduct(id, activate) {
       toast('err', `Fehler: HTTP ${res.status}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
 async function addPrice(prodIdx) {
   const p = products[prodIdx];
   if (!p) return;
-  const amount = parseInt(document.getElementById(`priceAmt-${prodIdx}`).value) || 0;
-  const currency = document.getElementById(`priceCur-${prodIdx}`).value;
-  const interval = document.getElementById(`priceInt-${prodIdx}`).value;
-  const concurrentLimit = parseInt(document.getElementById(`priceLim-${prodIdx}`).value) || 10;
+  const form = document.querySelector('[data-price-form-idx="' + prodIdx + '"]');
+  if (!form) return;
+  const amount = parseInt(form.querySelector('[data-field="amount"]').value) || 0;
+  const currency = form.querySelector('[data-field="currency"]').value;
+  const interval = form.querySelector('[data-field="interval"]').value;
+  const concurrentLimit = parseInt(form.querySelector('[data-field="limit"]').value) || 10;
   try {
     const res = await apiFetch(`/admin/billing/products/${p.id}/prices`, {
       method: 'POST',
       body: JSON.stringify({ amount, currency, interval, concurrentLimit }),
     });
     if (res.ok) {
-      toast('ok', 'Preis hinzugefügt');
+      toast('ok', 'Preis hinzugef\u00fcgt');
       await loadProducts();
     } else {
       const err = await res.json().catch(() => ({}));
       toast('err', `Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
@@ -1506,13 +1722,10 @@ async function togglePrice(id, activate) {
       toast('err', `Fehler: HTTP ${res.status}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
-// ═══════════════════════════════════════════
-// PACK CATALOG
-// ═══════════════════════════════════════════
 async function loadAssetPacks() {
   try {
     const res = await apiFetch('/admin/pack-catalog/asset-packs');
@@ -1524,8 +1737,7 @@ async function loadAssetPacks() {
     }
     populateGrantPacks();
   } catch (e) {
-    document.getElementById('assetPacksBody').innerHTML =
-      `<tr><td colspan="9" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
+    setTableMessage(document.getElementById('assetPacksBody'), 9, requestErrorMessage(e, 'Fehler: '), true);
   }
 }
 
@@ -1545,42 +1757,60 @@ async function loadAvatarPacks() {
     if (Array.isArray(avatarPacks)) renderPackTable('avatar', avatarPacks);
     populateGrantPacks();
   } catch (e) {
-    document.getElementById('avatarPacksBody').innerHTML =
-      `<tr><td colspan="8" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
+    setTableMessage(document.getElementById('avatarPacksBody'), 8, requestErrorMessage(e, 'Fehler: '), true);
   }
 }
 
 function renderPackTable(type, packs) {
   const tbody = document.getElementById(type === 'asset' ? 'assetPacksBody' : 'avatarPacksBody');
+  const columns = type === 'asset' ? 9 : 8;
   if (!packs.length) {
-    const columns = type === 'asset' ? 9 : 8;
-    tbody.innerHTML = `<tr><td colspan="${columns}" class="loading-row">Keine ${type === 'asset' ? 'Asset' : 'Avatar'} Packs.</td></tr>`;
+    setTableMessage(tbody, columns, 'Keine ' + (type === 'asset' ? 'Asset' : 'Avatar') + ' Packs.');
     return;
   }
-  tbody.innerHTML = packs.map((p, i) => {
-    const archiveCell = type === 'asset'
-      ? `<td><button class="btn btn-xs" onclick="toggleAssetPackArchive(${i}, ${!p.archived})">${p.archived ? 'Wiederherstellen' : 'Archivieren'}</button></td>`
-      : '';
-    return `<tr data-pack-type="${type}" data-pack-idx="${i}">
-    <td><strong>${esc(p.name || p.uuid || '—')}</strong><br><code style="font-size:9px;color:var(--fg-muted)">${esc(p.uuid || '')}</code></td>
-    <td>${esc(p.author || '—')}</td>
-    <td>${esc(p.version || '—')}</td>
-    <td>
-      <select data-field="pricingModel" style="min-width:90px">
-        <option value="free" ${p.pricingModel === 'free' ? 'selected' : ''}>free</option>
-        <option value="one_time" ${p.pricingModel === 'one_time' ? 'selected' : ''}>one_time</option>
-        <option value="subscription" ${p.pricingModel === 'subscription' ? 'selected' : ''}>subscription</option>
-      </select>
-    </td>
-    <td><input type="number" data-field="price" value="${p.price != null ? p.price : 0}" min="0" step="0.01" style="width:80px"></td>
-    <td style="text-align:center"><input type="checkbox" data-field="published" ${p.published ? 'checked' : ''}></td>
-    <td style="text-align:center"><input type="checkbox" data-field="featured" ${p.featured ? 'checked' : ''}></td>
-    ${archiveCell}
-    <td>
-      <button class="btn btn-xs btn-accent" onclick="savePack('${type}', ${i})">Save</button>
-    </td>
-  </tr>`;
-  }).join('');
+  tbody.replaceChildren();
+  packs.forEach((p, i) => {
+    const nameCell = h('td');
+    nameCell.appendChild(h('strong', { text: p.name || p.uuid || '\u2014' }));
+    nameCell.appendChild(document.createElement('br'));
+    nameCell.appendChild(h('code', { className: 'code-xs', text: p.uuid || '' }));
+
+    const pricing = h('select', { className: 'select-min-90', dataset: { field: 'pricingModel' } }, [
+      h('option', { value: 'free', text: 'free' }),
+      h('option', { value: 'one_time', text: 'one_time' }),
+      h('option', { value: 'subscription', text: 'subscription' }),
+    ]);
+    pricing.value = p.pricingModel || 'free';
+    const priceInput = h('input', { type: 'number', min: '0', step: '0.01', className: 'input-w80', dataset: { field: 'price' } });
+    priceInput.value = p.price != null ? String(p.price) : '0';
+    const published = h('input', { type: 'checkbox', dataset: { field: 'published' } });
+    published.checked = !!p.published;
+    const featured = h('input', { type: 'checkbox', dataset: { field: 'featured' } });
+    featured.checked = !!p.featured;
+
+    const kids = [
+      nameCell,
+      h('td', { text: p.author || '\u2014' }),
+      h('td', { text: p.version || '\u2014' }),
+      h('td', null, pricing),
+      h('td', null, priceInput),
+      h('td', { className: 'td-center' }, published),
+      h('td', { className: 'td-center' }, featured),
+    ];
+    if (type === 'asset') {
+      kids.push(h('td', null, h('button', {
+        className: 'btn btn-xs',
+        dataset: { action: 'toggle-asset-pack-archive', packIdx: String(i), archived: String(!p.archived) },
+        text: p.archived ? 'Wiederherstellen' : 'Archivieren',
+      })));
+    }
+    kids.push(h('td', null, h('button', {
+      className: 'btn btn-xs btn-accent',
+      dataset: { action: 'save-pack', packType: type, packIdx: String(i) },
+      text: 'Save',
+    })));
+    tbody.appendChild(h('tr', { dataset: { packType: type, packIdx: String(i) } }, kids));
+  });
 }
 
 async function toggleAssetPackArchive(idx, archived) {
@@ -1598,7 +1828,7 @@ async function toggleAssetPackArchive(idx, archived) {
     toast('ok', `Pack "${pack.name || pack.uuid}" ${archived ? 'archiviert' : 'wiederhergestellt'}`);
     await loadAssetPacks();
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
@@ -1634,14 +1864,14 @@ async function savePack(type, idx) {
       toast('err', `Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
 async function uploadAssetPack() {
   const fileInput = document.getElementById('assetPackFile');
   const file = fileInput.files[0];
-  if (!file) { toast('err', 'Bitte .mepack Datei auswählen'); return; }
+  if (!file) { toast('err', 'Bitte .mepack Datei ausw\u00e4hlen'); return; }
 
   const formData = new FormData();
   formData.append('file', file);
@@ -1656,62 +1886,51 @@ async function uploadAssetPack() {
       const err = await res.json().catch(() => ({}));
       let msg = err.error || res.statusText;
       if (err.reason) {
-        msg += ' — ' + err.reason;
+        msg += ' \u2014 ' + err.reason;
         if (err.itemId) msg += ` (Item: ${err.itemId})`;
       } else if (Array.isArray(err.details)) {
         const detail = err.details.map(d => `${d.path?.join('.') || '?'}: ${d.message}`).join('; ');
-        msg += ' — ' + detail;
+        msg += ' \u2014 ' + detail;
       }
       toast('err', `Upload-Fehler: ${msg}`);
     }
   } catch (e) {
-    toast('err', `Upload-Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Upload-Fehler: '));
   }
 }
 
-// Grant / Revoke
 function populateGrantTenants() {
   const sel = document.getElementById('grantTenant');
-  const currentVal = sel.value;
-  sel.innerHTML = '<option value="">— Tenant wählen —</option>';
-  tenants.forEach(t => {
-    sel.innerHTML += `<option value="${esc(t.id)}">${esc(t.slug)} — ${esc(t.name || '')}</option>`;
-  });
-  sel.value = currentVal;
+  fillSelect(sel, '\u2014 Tenant w\u00e4hlen \u2014', tenants, t => t.id, t => `${t.slug} \u2014 ${t.name || ''}`);
 }
 
 function populateGrantPacks() {
   const sel = document.getElementById('grantPack');
-  const currentVal = sel.value;
-  sel.innerHTML = '<option value="">— Pack wählen —</option>';
   const allPacks = [
     ...assetPacks.map(p => ({ ...p, _type: 'asset' })),
     ...avatarPacks.map(p => ({ ...p, _type: 'avatar' })),
   ];
-  allPacks.forEach(p => {
-    sel.innerHTML += `<option value="${esc(p.uuid)}">[${p._type}] ${esc(p.name || p.uuid)}</option>`;
-  });
-  sel.value = currentVal;
+  fillSelect(sel, '\u2014 Pack w\u00e4hlen \u2014', allPacks, p => p.uuid, p => `[${p._type}] ${p.name || p.uuid}`);
 }
 
 async function grantAccess() {
   const tenantId = document.getElementById('grantTenant').value;
   const packUuid = document.getElementById('grantPack').value;
-  if (!tenantId || !packUuid) { toast('err', 'Tenant und Pack auswählen'); return; }
+  if (!tenantId || !packUuid) { toast('err', 'Tenant und Pack ausw\u00e4hlen'); return; }
   try {
     const res = await apiFetch('/admin/pack-catalog/grant', {
       method: 'POST',
       body: JSON.stringify({ tenantId, packUuid }),
     });
     if (res.ok) {
-      toast('ok', 'Zugriff gewährt');
+      toast('ok', 'Zugriff gew\u00e4hrt');
       await loadGrantsList();
     } else {
       const err = await res.json().catch(() => ({}));
       toast('err', `Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
@@ -1729,14 +1948,12 @@ async function revokeAccess(tenantId, packUuid) {
       toast('err', `Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
 async function loadGrantsList() {
   const el = document.getElementById('grantsList');
-  // We can display known grants from pack data if the API includes them
-  // For now, show a summary from pack metadata if available
   const allPacks = [...assetPacks, ...avatarPacks];
   const grants = [];
   allPacks.forEach(p => {
@@ -1752,28 +1969,31 @@ async function loadGrantsList() {
       });
     }
   });
+  el.replaceChildren();
   if (!grants.length) {
-    el.innerHTML = '<p style="font-size:11px;color:var(--fg-muted)">Keine Berechtigungen gefunden oder nicht in API-Antwort enthalten.</p>';
+    el.appendChild(h('p', { className: 'hint-muted', text: 'Keine Berechtigungen gefunden oder nicht in API-Antwort enthalten.' }));
     return;
   }
-  el.innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th>Tenant</th><th>Pack</th><th>Aktion</th></tr></thead>
-    <tbody>${grants.map(g => `<tr>
-      <td>${esc(g.tenantSlug)}</td>
-      <td>${esc(g.packName)}</td>
-      <td><button class="btn btn-xs btn-danger" onclick="revokeAccess('${esc(g.tenantId)}','${esc(g.packUuid)}')">Revoke</button></td>
-    </tr>`).join('')}</tbody>
-  </table></div>`;
+  el.appendChild(wrapTable('table-wrap', ['Tenant', 'Pack', 'Aktion'], (tbody) => {
+    grants.forEach((g) => {
+      tbody.appendChild(h('tr', null, [
+        h('td', { text: g.tenantSlug }),
+        h('td', { text: g.packName }),
+        h('td', null, h('button', {
+          className: 'btn btn-xs btn-danger',
+          dataset: { action: 'revoke-access', tenantId: g.tenantId, packUuid: g.packUuid },
+          text: 'Revoke',
+        })),
+      ]));
+    });
+  }));
 }
 
-// ═══════════════════════════════════════════
-// TENANT DETAIL
-// ═══════════════════════════════════════════
 function openTenantDetail(tenantId) {
   selectedTenantId = tenantId;
   const tenant = tenants.find(t => t.id === tenantId);
   if (!tenant) return;
-  document.getElementById('tenantDetailTitle').textContent = `${tenant.slug} — ${tenant.name || ''}`;
+  document.getElementById('tenantDetailTitle').textContent = `${tenant.slug} \u2014 ${tenant.name || ''}`;
   document.getElementById('tenantDetailPanel').classList.add('open');
   currentDetailTab = 'users';
   switchDetailTab('users');
@@ -1789,76 +2009,78 @@ function switchDetailTab(tab) {
   document.querySelectorAll('#detailTabs .sub-tab').forEach(el => {
     el.classList.toggle('active', el.dataset.detailTab === tab);
   });
-  document.getElementById('detailTabUsers').style.display = tab === 'users' ? '' : 'none';
-  document.getElementById('detailTabBilling').style.display = tab === 'billing' ? '' : 'none';
-  document.getElementById('detailTabPacks').style.display = tab === 'packs' ? '' : 'none';
+  document.getElementById('detailTabUsers').classList.toggle('is-hidden', tab !== 'users');
+  document.getElementById('detailTabBilling').classList.toggle('is-hidden', tab !== 'billing');
+  document.getElementById('detailTabPacks').classList.toggle('is-hidden', tab !== 'packs');
   if (tab === 'users') loadTenantUsers(selectedTenantId);
   if (tab === 'billing') loadTenantBilling(selectedTenantId);
   if (tab === 'packs') loadTenantPacks(selectedTenantId);
 }
 
-// ═══════════════════════════════════════════
-// TENANT USERS
-// ═══════════════════════════════════════════
 async function loadTenantUsers(tenantId) {
   if (!tenantId) return;
   const el = document.getElementById('detailTabUsers');
-  el.innerHTML = '<div class="loading-row"><span class="spinner"></span> Lade Users...</div>';
+  setPanelLoading(el, 'Lade Users...');
   try {
     const res = await apiFetch(`/admin/tenants/${tenantId}/users`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const users = await res.json();
     renderTenantUsers(users, tenantId);
   } catch (e) {
-    el.innerHTML = `<div class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+    setPanelError(el, e);
   }
 }
 
 function renderTenantUsers(users, tenantId) {
   const el = document.getElementById('detailTabUsers');
-  let html = '<div class="table-wrap"><table><thead><tr>';
-  html += '<th>Name</th><th>Email</th><th>Rolle</th><th>Erstellt</th><th>Verifiziert</th><th>Aktionen</th>';
-  html += '</tr></thead><tbody>';
-  if (!users.length) {
-    html += '<tr><td colspan="6" class="loading-row">Keine User vorhanden.</td></tr>';
-  } else {
-    users.forEach(u => {
-      html += `<tr>
-        <td>${esc(u.name || '—')}</td>
-        <td><code style="font-size:10px">${esc(u.email || '—')}</code></td>
-        <td>
-          <select onchange="changeUserRole('${esc(tenantId)}','${esc(u.userId)}',this.value)" style="min-width:80px">
-            <option value="member" ${u.role === 'member' ? 'selected' : ''}>member</option>
-            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
-            <option value="owner" ${u.role === 'owner' ? 'selected' : ''}>owner</option>
-          </select>
-        </td>
-        <td style="white-space:nowrap;font-size:10px;color:var(--fg-dim)">${u.createdAt ? formatDate(u.createdAt) : '—'}</td>
-        <td style="white-space:nowrap;font-size:10px">${u.emailVerifiedAt
-          ? '<span class="badge green" style="padding:1px 6px">verified</span>'
-          : '<span class="badge orange" style="padding:1px 6px">pending</span>'}</td>
-        <td><button class="btn btn-xs btn-danger" onclick="removeUser('${esc(tenantId)}','${esc(u.userId)}','${esc(u.email || '')}')">Entfernen</button></td>
-      </tr>`;
+  el.replaceChildren();
+  el.appendChild(wrapTable('table-wrap', ['Name', 'Email', 'Rolle', 'Erstellt', 'Verifiziert', 'Aktionen'], (tbody) => {
+    if (!users.length) {
+      tbody.appendChild(h('tr', null, [h('td', { colSpan: 6, className: 'loading-row', text: 'Keine User vorhanden.' })]));
+      return;
+    }
+    users.forEach((u) => {
+      const roleSel = h('select', {
+        className: 'select-min-80',
+        dataset: { action: 'change-user-role', tenantId, userId: u.userId },
+      }, [
+        h('option', { value: 'member', text: 'member' }),
+        h('option', { value: 'admin', text: 'admin' }),
+        h('option', { value: 'owner', text: 'owner' }),
+      ]);
+      roleSel.value = u.role || 'member';
+      const verified = u.emailVerifiedAt
+        ? makeBadge('green', 'verified', 'badge-xs')
+        : makeBadge('orange', 'pending', 'badge-xs');
+      tbody.appendChild(h('tr', null, [
+        h('td', { text: u.name || '\u2014' }),
+        h('td', null, h('code', { className: 'code-sm', text: u.email || '\u2014' })),
+        h('td', null, roleSel),
+        h('td', { className: 'cell-date', text: u.createdAt ? formatDate(u.createdAt) : '\u2014' }),
+        h('td', { className: 'cell-nowrap-xs' }, verified),
+        h('td', null, h('button', {
+          className: 'btn btn-xs btn-danger',
+          dataset: { action: 'remove-user', tenantId, userId: u.userId, email: u.email || '' },
+          text: 'Entfernen',
+        })),
+      ]));
     });
-  }
-  html += '</tbody></table></div>';
-  // Add user form
-  html += `<div class="inline-form" style="margin-top:16px">
-    <div class="field grow">
-      <label>Email</label>
-      <input type="email" id="addUserEmail" placeholder="user@example.com">
-    </div>
-    <div class="field">
-      <label>Rolle</label>
-      <select id="addUserRole">
-        <option value="member">member</option>
-        <option value="admin">admin</option>
-        <option value="owner">owner</option>
-      </select>
-    </div>
-    <button class="btn btn-accent" onclick="addUser('${esc(tenantId)}')">+ User hinzufügen</button>
-  </div>`;
-  el.innerHTML = html;
+  }));
+  const emailInput = h('input', { type: 'email', id: 'addUserEmail', placeholder: 'user@example.com' });
+  const roleAdd = h('select', { id: 'addUserRole' }, [
+    h('option', { value: 'member', text: 'member' }),
+    h('option', { value: 'admin', text: 'admin' }),
+    h('option', { value: 'owner', text: 'owner' }),
+  ]);
+  el.appendChild(h('div', { className: 'inline-form mt-16' }, [
+    h('div', { className: 'field grow' }, [h('label', { text: 'Email' }), emailInput]),
+    h('div', { className: 'field' }, [h('label', { text: 'Rolle' }), roleAdd]),
+    h('button', {
+      className: 'btn btn-accent',
+      dataset: { action: 'add-user', tenantId },
+      text: '+ User hinzuf\u00fcgen',
+    }),
+  ]));
 }
 
 async function changeUserRole(tenantId, userId, newRole) {
@@ -1868,14 +2090,14 @@ async function changeUserRole(tenantId, userId, newRole) {
       body: JSON.stringify({ role: newRole }),
     });
     if (res.ok) {
-      toast('ok', `Rolle auf "${newRole}" geändert`);
+      toast('ok', `Rolle auf "${newRole}" ge\u00e4ndert`);
     } else {
       const err = await res.json().catch(() => ({}));
       toast('err', `Fehler: ${err.error || res.statusText}`);
       await loadTenantUsers(tenantId);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
@@ -1895,7 +2117,7 @@ function removeUser(tenantId, userId, email) {
           toast('err', `Fehler: ${err.error || res.statusText}`);
         }
       } catch (e) {
-        toast('err', `Fehler: ${e.message}`);
+        toast('err', requestErrorMessage(e, 'Fehler: '));
       }
     }
   );
@@ -1911,7 +2133,7 @@ async function addUser(tenantId) {
       body: JSON.stringify({ email, role }),
     });
     if (res.ok) {
-      toast('ok', `User "${email}" hinzugefügt`);
+      toast('ok', `User "${email}" hinzugef\u00fcgt`);
       document.getElementById('addUserEmail').value = '';
       await loadTenantUsers(tenantId);
     } else {
@@ -1919,24 +2141,21 @@ async function addUser(tenantId) {
       toast('err', `Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
-// ═══════════════════════════════════════════
-// TENANT BILLING DETAIL
-// ═══════════════════════════════════════════
 async function loadTenantBilling(tenantId) {
   if (!tenantId) return;
   const el = document.getElementById('detailTabBilling');
-  el.innerHTML = '<div class="loading-row"><span class="spinner"></span> Lade Billing-Details...</div>';
+  setPanelLoading(el, 'Lade Billing-Details...');
   try {
     const res = await apiFetch(`/admin/tenants/${tenantId}/billing`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     renderTenantBilling(data);
   } catch (e) {
-    el.innerHTML = `<div class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+    setPanelError(el, e);
   }
 }
 
@@ -1945,113 +2164,100 @@ function renderTenantBilling(data) {
   const t = data.tenant || {};
   const stripe = data.stripe || {};
   const sub = stripe.subscription || {};
-  const customer = stripe.customer || {};
   const invoices = Array.isArray(stripe.invoices) ? stripe.invoices.slice(0, 10) : [];
-
-  let html = '<div class="info-grid">';
-  // Subscription info
-  html += `<div class="info-item">
-    <div class="info-label">Plan / Status</div>
-    <div class="info-value">${esc(sub.plan || sub.productName || '—')} — ${esc(sub.status || '—')}</div>
-  </div>`;
+  el.replaceChildren();
+  const grid = h('div', { className: 'info-grid' });
+  grid.appendChild(infoItem('Plan / Status', `${sub.plan || sub.productName || '\u2014'} \u2014 ${sub.status || '\u2014'}`));
   if (sub.currentPeriodEnd) {
-    html += `<div class="info-item">
-      <div class="info-label">Nächste Rechnung</div>
-      <div class="info-value">${formatDate(sub.currentPeriodEnd)}</div>
-    </div>`;
+    grid.appendChild(infoItem('N\u00e4chste Rechnung', formatDate(sub.currentPeriodEnd)));
   }
   if (sub.amount != null) {
-    html += `<div class="info-item">
-      <div class="info-label">Preis</div>
-      <div class="info-value">${formatEur(sub.amount)} / ${esc(sub.interval || 'month')}</div>
-    </div>`;
+    grid.appendChild(infoItem('Preis', `${formatEur(sub.amount)} / ${sub.interval || 'month'}`));
   }
-  // Trial info
   if (t.trialStartedAt || t.trialEndsAt) {
     const trialEnd = t.trialEndsAt ? new Date(t.trialEndsAt) : null;
     const remaining = trialEnd ? Math.max(0, Math.ceil((trialEnd - new Date()) / 86400000)) : 0;
-    html += `<div class="info-item">
-      <div class="info-label">Trial</div>
-      <div class="info-value">${t.trialStartedAt ? formatDate(t.trialStartedAt) : '—'} → ${t.trialEndsAt ? formatDate(t.trialEndsAt) : '—'}
-        ${trialEnd && trialEnd > new Date() ? ' (' + remaining + ' Tage übrig)' : ''}</div>
-    </div>`;
+    let trialText = `${t.trialStartedAt ? formatDate(t.trialStartedAt) : '\u2014'} \u2192 ${t.trialEndsAt ? formatDate(t.trialEndsAt) : '\u2014'}`;
+    if (trialEnd && trialEnd > new Date()) trialText += ' (' + remaining + ' Tage \u00fcbrig)';
+    grid.appendChild(infoItem('Trial', trialText));
   }
-  // Dunning info
   if (t.paymentFailedAt || t.dunningStep) {
-    html += `<div class="info-item">
-      <div class="info-label">Dunning</div>
-      <div class="info-value">Schritt ${t.dunningStep || 0} — Fehlgeschlagen: ${t.paymentFailedAt ? formatDate(t.paymentFailedAt) : '—'}
-        ${t.lastDunningEmailAt ? '<br>Letzte Email: ' + formatDate(t.lastDunningEmailAt) : ''}</div>
-    </div>`;
+    const dunVal = document.createElement('div');
+    dunVal.appendChild(document.createTextNode(
+      'Schritt ' + (t.dunningStep || 0) + ' \u2014 Fehlgeschlagen: ' + (t.paymentFailedAt ? formatDate(t.paymentFailedAt) : '\u2014')
+    ));
+    if (t.lastDunningEmailAt) {
+      dunVal.appendChild(document.createElement('br'));
+      dunVal.appendChild(document.createTextNode('Letzte Email: ' + formatDate(t.lastDunningEmailAt)));
+    }
+    grid.appendChild(infoItem('Dunning', dunVal));
     if (t.gracePeriodEndsAt) {
-      html += `<div class="info-item">
-        <div class="info-label">Grace Period</div>
-        <div class="info-value">Endet: ${formatDate(t.gracePeriodEndsAt)}</div>
-      </div>`;
+      grid.appendChild(infoItem('Grace Period', 'Endet: ' + formatDate(t.gracePeriodEndsAt)));
     }
   }
-  // Pause info
   if (t.pausedAt) {
-    html += `<div class="info-item">
-      <div class="info-label">Pause</div>
-      <div class="info-value">Seit: ${formatDate(t.pausedAt)}${t.pauseEndsAt ? ' — Bis: ' + formatDate(t.pauseEndsAt) : ''}
-        ${t.pauseReason ? '<br>Grund: ' + esc(t.pauseReason) : ''}</div>
-    </div>`;
+    const pauseVal = document.createElement('div');
+    pauseVal.appendChild(document.createTextNode(
+      'Seit: ' + formatDate(t.pausedAt) + (t.pauseEndsAt ? ' \u2014 Bis: ' + formatDate(t.pauseEndsAt) : '')
+    ));
+    if (t.pauseReason) {
+      pauseVal.appendChild(document.createElement('br'));
+      pauseVal.appendChild(document.createTextNode('Grund: ' + t.pauseReason));
+    }
+    grid.appendChild(infoItem('Pause', pauseVal));
   }
-  html += '</div>';
+  el.appendChild(grid);
 
-  // Invoices
   if (invoices.length) {
-    html += '<div class="card-header" style="padding:0;margin-top:16px">Rechnungen (letzte 10)</div>';
-    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
-    html += '<th>Datum</th><th>Betrag</th><th>Status</th><th>Nummer</th>';
-    html += '</tr></thead><tbody>';
-    invoices.forEach(inv => {
-      const statusClass = inv.status === 'paid' ? 'green' : inv.status === 'open' ? 'orange' : 'red';
-      html += `<tr>
-        <td style="font-size:10px">${inv.created ? formatDate(inv.created) : inv.date ? formatDate(inv.date) : '—'}</td>
-        <td>${inv.amountDue != null ? formatEur(inv.amountDue) : inv.amount != null ? formatEur(inv.amount) : '—'}</td>
-        <td><span class="badge ${statusClass}" style="padding:1px 6px">${esc(inv.status || '—')}</span></td>
-        <td style="font-size:9px;color:var(--fg-muted)">${esc(inv.number || inv.id || '—')}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div>';
+    el.appendChild(h('div', { className: 'card-header card-header-section', text: 'Rechnungen (letzte 10)' }));
+    el.appendChild(wrapTable('table-wrap table-mt-8', ['Datum', 'Betrag', 'Status', 'Nummer'], (tbody) => {
+      invoices.forEach((inv) => {
+        const statusClass = inv.status === 'paid' ? 'green' : inv.status === 'open' ? 'orange' : 'red';
+        tbody.appendChild(h('tr', null, [
+          h('td', { className: 'cell-xs', text: inv.created ? formatDate(inv.created) : inv.date ? formatDate(inv.date) : '\u2014' }),
+          h('td', { text: inv.amountDue != null ? formatEur(inv.amountDue) : inv.amount != null ? formatEur(inv.amount) : '\u2014' }),
+          h('td', null, makeBadge(statusClass, inv.status || '\u2014', 'badge-xs')),
+          h('td', { className: 'code-xs', text: inv.number || inv.id || '\u2014' }),
+        ]));
+      });
+    }));
   }
 
-  // Pack assignments
   const packs = data.packs || {};
-  const allPacks = [...(packs.assetPacks || []), ...(packs.avatarPacks || [])];
-  if (allPacks.length) {
-    html += '<div class="card-header" style="padding:0;margin-top:16px">Pack-Zuordnungen</div>';
-    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
-    html += '<th>Pack</th><th>Typ</th><th>Source</th>';
-    html += '</tr></thead><tbody>';
-    (packs.assetPacks || []).forEach(p => {
-      html += `<tr><td>${esc(p.name || p.uuid || '—')}</td><td>Asset</td><td>${esc(p.grantSource || p.source || '—')}</td></tr>`;
-    });
-    (packs.avatarPacks || []).forEach(p => {
-      html += `<tr><td>${esc(p.name || p.uuid || '—')}</td><td>Avatar</td><td>${esc(p.grantSource || p.source || '—')}</td></tr>`;
-    });
-    html += '</tbody></table></div>';
+  const assetList = packs.assetPacks || [];
+  const avatarList = packs.avatarPacks || [];
+  if (assetList.length || avatarList.length) {
+    el.appendChild(h('div', { className: 'card-header card-header-section', text: 'Pack-Zuordnungen' }));
+    el.appendChild(wrapTable('table-wrap table-mt-8', ['Pack', 'Typ', 'Source'], (tbody) => {
+      assetList.forEach((p) => {
+        tbody.appendChild(h('tr', null, [
+          h('td', { text: p.name || p.uuid || '\u2014' }),
+          h('td', { text: 'Asset' }),
+          h('td', { text: p.grantSource || p.source || '\u2014' }),
+        ]));
+      });
+      avatarList.forEach((p) => {
+        tbody.appendChild(h('tr', null, [
+          h('td', { text: p.name || p.uuid || '\u2014' }),
+          h('td', { text: 'Avatar' }),
+          h('td', { text: p.grantSource || p.source || '\u2014' }),
+        ]));
+      });
+    }));
   }
-
-  el.innerHTML = html;
 }
 
-// ═══════════════════════════════════════════
-// TENANT PACKS DETAIL
-// ═══════════════════════════════════════════
 async function loadTenantPacks(tenantId) {
   if (!tenantId) return;
   const el = document.getElementById('detailTabPacks');
-  el.innerHTML = '<div class="loading-row"><span class="spinner"></span> Lade Packs...</div>';
+  setPanelLoading(el, 'Lade Packs...');
   try {
     const res = await apiFetch(`/admin/tenants/${tenantId}/packs`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     renderTenantPacks(data);
   } catch (e) {
-    el.innerHTML = `<div class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+    setPanelError(el, e);
   }
 }
 
@@ -2059,63 +2265,51 @@ function renderTenantPacks(data) {
   const el = document.getElementById('detailTabPacks');
   const assetPks = Array.isArray(data.assetPacks) ? data.assetPacks : [];
   const avatarPks = Array.isArray(data.avatarPacks) ? data.avatarPacks : [];
-
+  el.replaceChildren();
   if (!assetPks.length && !avatarPks.length) {
-    el.innerHTML = '<div class="empty-state"><div class="icon">&#128230;</div><p>Keine Packs zugeordnet.</p></div>';
+    const empty = h('div', { className: 'empty-state' });
+    empty.appendChild(h('div', { className: 'icon', text: '\uD83D\uDCE6' }));
+    empty.appendChild(h('p', { text: 'Keine Packs zugeordnet.' }));
+    el.appendChild(empty);
     return;
   }
-
-  let html = '';
   if (assetPks.length) {
-    html += '<div class="card-header" style="padding:0">Asset Packs</div>';
-    html += '<div class="table-wrap" style="margin-top:8px;margin-bottom:16px"><table><thead><tr>';
-    html += '<th>Name</th><th>UUID</th><th>Source</th>';
-    html += '</tr></thead><tbody>';
-    assetPks.forEach(p => {
-      html += `<tr>
-        <td><strong>${esc(p.name || '—')}</strong></td>
-        <td><code style="font-size:9px;color:var(--fg-muted)">${esc(p.uuid || p.packUuid || '—')}</code></td>
-        <td>${esc(p.grantSource || p.source || '—')}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div>';
+    el.appendChild(h('div', { className: 'card-header card-header-pad0', text: 'Asset Packs' }));
+    el.appendChild(wrapTable('table-wrap table-mt-8-mb-16', ['Name', 'UUID', 'Source'], (tbody) => {
+      assetPks.forEach((p) => {
+        tbody.appendChild(h('tr', null, [
+          h('td', null, h('strong', { text: p.name || '\u2014' })),
+          h('td', null, h('code', { className: 'code-xs', text: p.uuid || p.packUuid || '\u2014' })),
+          h('td', { text: p.grantSource || p.source || '\u2014' }),
+        ]));
+      });
+    }));
   }
   if (avatarPks.length) {
-    html += '<div class="card-header" style="padding:0">Avatar Packs</div>';
-    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
-    html += '<th>Name</th><th>UUID</th><th>Source</th>';
-    html += '</tr></thead><tbody>';
-    avatarPks.forEach(p => {
-      html += `<tr>
-        <td><strong>${esc(p.name || '—')}</strong></td>
-        <td><code style="font-size:9px;color:var(--fg-muted)">${esc(p.uuid || p.packUuid || '—')}</code></td>
-        <td>${esc(p.grantSource || p.source || '—')}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div>';
+    el.appendChild(h('div', { className: 'card-header card-header-pad0', text: 'Avatar Packs' }));
+    el.appendChild(wrapTable('table-wrap table-mt-8', ['Name', 'UUID', 'Source'], (tbody) => {
+      avatarPks.forEach((p) => {
+        tbody.appendChild(h('tr', null, [
+          h('td', null, h('strong', { text: p.name || '\u2014' })),
+          h('td', null, h('code', { className: 'code-xs', text: p.uuid || p.packUuid || '\u2014' })),
+          h('td', { text: p.grantSource || p.source || '\u2014' }),
+        ]));
+      });
+    }));
   }
-  el.innerHTML = html;
 }
 
-// ═══════════════════════════════════════════
-// AUDIT LOG
-// ═══════════════════════════════════════════
 function populateAuditTenants() {
   const sel = document.getElementById('auditTenantFilter');
   if (!sel) return;
-  const currentVal = sel.value;
-  sel.innerHTML = '<option value="">— Alle —</option>';
-  tenants.forEach(t => {
-    sel.innerHTML += `<option value="${esc(t.id)}">${esc(t.slug)}</option>`;
-  });
-  sel.value = currentVal;
+  fillSelect(sel, '\u2014 Alle \u2014', tenants, t => t.id, t => t.slug);
 }
 
 async function loadAuditLog() {
   const tenantId = document.getElementById('auditTenantFilter').value;
   const eventType = document.getElementById('auditEventFilter').value;
   const tbody = document.getElementById('auditLogBody');
-  tbody.innerHTML = '<tr><td colspan="5" class="loading-row"><span class="spinner"></span> Lade...</td></tr>';
+  setTableLoading(tbody, 5, 'Lade...');
 
   let query = `?limit=${auditLimit}&offset=${auditOffset}`;
   if (tenantId) query += `&tenantId=${encodeURIComponent(tenantId)}`;
@@ -2129,41 +2323,49 @@ async function loadAuditLog() {
     auditTotal = data.total || 0;
     renderAuditLog();
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="5" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
-    document.getElementById('auditPagination').style.display = 'none';
+    setTableMessage(tbody, 5, requestErrorMessage(e, 'Fehler: '), true);
+    document.getElementById('auditPagination').classList.add('is-hidden');
   }
 }
 
 function renderAuditLog() {
   const tbody = document.getElementById('auditLogBody');
   if (!auditLogs.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="loading-row">Keine Einträge gefunden.</td></tr>';
-    document.getElementById('auditPagination').style.display = 'none';
+    setTableMessage(tbody, 5, 'Keine Eintr\u00e4ge gefunden.');
+    document.getElementById('auditPagination').classList.add('is-hidden');
     return;
   }
-  tbody.innerHTML = auditLogs.map((log, i) => {
+  tbody.replaceChildren();
+  auditLogs.forEach((log) => {
     const tenant = tenants.find(t => t.id === log.tenantId);
     const detailStr = log.details || log.data || log.metadata;
     const detailJson = typeof detailStr === 'object' ? JSON.stringify(detailStr, null, 2) : (detailStr || '');
-    return `<tr>
-      <td style="white-space:nowrap;font-size:10px">${log.createdAt ? formatDateTime(log.createdAt) : log.timestamp ? formatDateTime(log.timestamp) : '—'}</td>
-      <td><code style="color:var(--accent);font-size:10px">${tenant ? esc(tenant.slug) : esc(log.tenantId || '—')}</code></td>
-      <td><span class="badge blue" style="padding:1px 6px">${esc(log.eventType || log.event || '—')}</span></td>
-      <td style="font-size:10px;color:var(--fg-dim)">${esc(log.source || '—')}</td>
-      <td>${detailJson
-        ? `<span class="json-toggle" onclick="toggleJson(this)">Details anzeigen</span><div class="json-content">${esc(detailJson)}</div>`
-        : '<span style="color:var(--fg-muted)">—</span>'}</td>
-    </tr>`;
-  }).join('');
+    const detailTd = document.createElement('td');
+    if (detailJson) {
+      const tog = h('span', { className: 'json-toggle', dataset: { action: 'toggle-json' }, text: 'Details anzeigen' });
+      const content = h('div', { className: 'json-content' });
+      content.textContent = detailJson;
+      detailTd.appendChild(tog);
+      detailTd.appendChild(content);
+    } else {
+      detailTd.appendChild(h('span', { className: 'muted', text: '\u2014' }));
+    }
+    tbody.appendChild(h('tr', null, [
+      h('td', { className: 'cell-nowrap-xs', text: log.createdAt ? formatDateTime(log.createdAt) : log.timestamp ? formatDateTime(log.timestamp) : '\u2014' }),
+      h('td', null, h('code', { className: 'code-accent', text: tenant ? tenant.slug : (log.tenantId || '\u2014') })),
+      h('td', null, makeBadge('blue', log.eventType || log.event || '\u2014', 'badge-xs')),
+      h('td', { className: 'text-10-dim', text: log.source || '\u2014' }),
+      detailTd,
+    ]));
+  });
 
-  // Pagination
   const pag = document.getElementById('auditPagination');
-  pag.style.display = 'flex';
+  pag.classList.remove('is-hidden');
   document.getElementById('auditPrev').disabled = auditOffset === 0;
   document.getElementById('auditNext').disabled = auditOffset + auditLimit >= auditTotal;
   const pageNum = Math.floor(auditOffset / auditLimit) + 1;
   const totalPages = Math.ceil(auditTotal / auditLimit) || 1;
-  document.getElementById('auditPageInfo').textContent = `Seite ${pageNum} von ${totalPages} (${auditTotal} Einträge)`;
+  document.getElementById('auditPageInfo').textContent = `Seite ${pageNum} von ${totalPages} (${auditTotal} Eintr\u00e4ge)`;
 }
 
 function toggleJson(el) {
@@ -2182,21 +2384,13 @@ function auditNextPage() {
   loadAuditLog();
 }
 
-// ═══════════════════════════════════════════
-// MAPS
-// ═══════════════════════════════════════════
 function populateMapsTenants() {
   const selectors = ['mapsFilterTenant', 'newMapTenant', 'importMapTenant'];
   selectors.forEach(selId => {
     const sel = document.getElementById(selId);
     if (!sel) return;
-    const currentVal = sel.value;
-    const label = selId === 'mapsFilterTenant' ? '— Alle —' : '— Tenant wählen —';
-    sel.innerHTML = `<option value="">${label}</option>`;
-    tenants.forEach(t => {
-      sel.innerHTML += `<option value="${esc(t.id)}">${esc(t.slug)} — ${esc(t.name || '')}</option>`;
-    });
-    sel.value = currentVal;
+    const label = selId === 'mapsFilterTenant' ? '\u2014 Alle \u2014' : '\u2014 Tenant w\u00e4hlen \u2014';
+    fillSelect(sel, label, tenants, t => t.id, t => `${t.slug} \u2014 ${t.name || ''}`);
   });
 }
 
@@ -2207,8 +2401,7 @@ async function loadMaps() {
     maps = await res.json();
     renderMaps();
   } catch (e) {
-    document.getElementById('mapsBody').innerHTML =
-      `<tr><td colspan="8" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
+    setTableMessage(document.getElementById('mapsBody'), 8, requestErrorMessage(e, 'Fehler: '), true);
   }
 }
 
@@ -2218,45 +2411,57 @@ function renderMaps() {
   const filtered = filterTenant ? maps.filter(m => m.tenantId === filterTenant) : maps;
 
   if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="loading-row">Keine Maps vorhanden.</td></tr>';
+    setTableMessage(tbody, 8, 'Keine Maps vorhanden.');
     return;
   }
-  tbody.innerHTML = filtered.map(m => {
-    const tenantSlug = m.tenant ? m.tenant.slug : (m.tenantSlug || '—');
-    return `<tr>
-      <td><a class="slug-link" onclick="openMapDetail('${esc(m.id)}')">${esc(m.name || '—')}</a></td>
-      <td><code style="font-size:10px;color:var(--accent)">${esc(tenantSlug)}</code></td>
-      <td style="font-size:10px">${m.width || '—'} x ${m.height || '—'}</td>
-      <td style="text-align:center">${m.tilesetCount != null ? m.tilesetCount : '—'}</td>
-      <td style="text-align:center">${m.layerCount != null ? m.layerCount : '—'}</td>
-      <td style="text-align:center">${m.objectCount != null ? m.objectCount : '—'}</td>
-      <td style="white-space:nowrap;font-size:10px;color:var(--fg-dim)">${m.createdAt ? formatDate(m.createdAt) : '—'}</td>
-      <td>
-        <div style="display:flex;gap:4px">
-          <button class="btn btn-xs btn-accent" onclick="promptCopyMap('${esc(m.id)}','${esc(m.name || '')}')">Kopieren</button>
-          <button class="btn btn-xs btn-danger" onclick="deleteMap('${esc(m.id)}','${esc(m.name || '')}')">Löschen</button>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
+  tbody.replaceChildren();
+  filtered.forEach((m) => {
+    const tenantSlug = m.tenant ? m.tenant.slug : (m.tenantSlug || '\u2014');
+    const nameLink = h('a', {
+      className: 'slug-link',
+      dataset: { action: 'open-map-detail', mapId: m.id },
+    });
+    nameLink.textContent = m.name || '\u2014';
+    tbody.appendChild(h('tr', null, [
+      h('td', null, nameLink),
+      h('td', null, h('code', { className: 'cell-accent-xs', text: tenantSlug })),
+      h('td', { className: 'cell-xs', text: (m.width || '\u2014') + ' x ' + (m.height || '\u2014') }),
+      h('td', { className: 'td-center', text: m.tilesetCount != null ? String(m.tilesetCount) : '\u2014' }),
+      h('td', { className: 'td-center', text: m.layerCount != null ? String(m.layerCount) : '\u2014' }),
+      h('td', { className: 'td-center', text: m.objectCount != null ? String(m.objectCount) : '\u2014' }),
+      h('td', { className: 'cell-date', text: m.createdAt ? formatDate(m.createdAt) : '\u2014' }),
+      h('td', null, h('div', { className: 'row-actions' }, [
+        h('button', {
+          className: 'btn btn-xs btn-accent',
+          dataset: { action: 'copy-map', mapId: m.id, mapName: m.name || '' },
+          text: 'Kopieren',
+        }),
+        h('button', {
+          className: 'btn btn-xs btn-danger',
+          dataset: { action: 'delete-map', mapId: m.id, mapName: m.name || '' },
+          text: 'L\u00f6schen',
+        }),
+      ])),
+    ]));
+  });
 }
 
 function toggleNewMapForm() {
   const card = document.getElementById('newMapFormCard');
-  card.style.display = card.style.display === 'none' ? '' : 'none';
-  document.getElementById('importMapFormCard').style.display = 'none';
+  card.classList.toggle('is-hidden');
+  document.getElementById('importMapFormCard').classList.add('is-hidden');
 }
 
 function toggleImportMapForm() {
   const card = document.getElementById('importMapFormCard');
-  card.style.display = card.style.display === 'none' ? '' : 'none';
-  document.getElementById('newMapFormCard').style.display = 'none';
+  card.classList.toggle('is-hidden');
+  document.getElementById('newMapFormCard').classList.add('is-hidden');
 }
 
 async function createMap() {
   const tenantId = document.getElementById('newMapTenant').value;
   const name = document.getElementById('newMapName').value.trim();
-  if (!tenantId) { toast('err', 'Tenant auswählen'); return; }
+  if (!tenantId) { toast('err', 'Tenant ausw\u00e4hlen'); return; }
   if (!name) { toast('err', 'Map-Name erforderlich'); return; }
   const body = {
     tenantId,
@@ -2278,37 +2483,36 @@ async function createMap() {
       toast('err', `Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
 function deleteMap(id, name) {
   showConfirm(
-    'Map löschen',
-    `Map "${name}" wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.`,
-    'Löschen',
+    'Map l\u00f6schen',
+    `Map "${name}" wirklich l\u00f6schen? Dieser Vorgang kann nicht r\u00fcckg\u00e4ngig gemacht werden.`,
+    'L\u00f6schen',
     async () => {
       try {
         const res = await apiFetch(`/admin/maps/${id}`, { method: 'DELETE' });
         if (res.ok) {
-          toast('ok', `Map "${name}" gelöscht`);
-          document.getElementById('mapDetailCard').style.display = 'none';
+          toast('ok', `Map "${name}" gel\u00f6scht`);
+          document.getElementById('mapDetailCard').classList.add('is-hidden');
           await loadMaps();
         } else {
           const err = await res.json().catch(() => ({}));
           toast('err', `Fehler: ${err.error || res.statusText}`);
         }
       } catch (e) {
-        toast('err', `Fehler: ${e.message}`);
+        toast('err', requestErrorMessage(e, 'Fehler: '));
       }
     }
   );
 }
 
 function promptCopyMap(mapId, mapName) {
-  // Build a simple inline copy dialog using the confirm dialog
   const tenantOpts = tenants.map(t => `${t.slug} (${t.id})`).join(', ');
-  const targetTenantId = prompt(`Map "${mapName}" kopieren.\n\nZiel-Tenant ID eingeben:\n\nVerfügbare Tenants:\n${tenantOpts}`);
+  const targetTenantId = prompt(`Map "${mapName}" kopieren.\n\nZiel-Tenant ID eingeben:\n\nVerf\u00fcgbare Tenants:\n${tenantOpts}`);
   if (!targetTenantId || !targetTenantId.trim()) return;
   const newName = prompt('Neuer Map-Name (leer = gleicher Name):', mapName);
   copyMap(mapId, targetTenantId.trim(), newName ? newName.trim() : undefined);
@@ -2330,7 +2534,7 @@ async function copyMap(mapId, targetTenantId, newName) {
       toast('err', `Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
@@ -2339,9 +2543,9 @@ async function importMap() {
   const mapName = document.getElementById('importMapName').value.trim();
   const fileInput = document.getElementById('importMapFile');
   const file = fileInput.files[0];
-  if (!tenantId) { toast('err', 'Tenant auswählen'); return; }
+  if (!tenantId) { toast('err', 'Tenant ausw\u00e4hlen'); return; }
   if (!mapName) { toast('err', 'Map-Name erforderlich'); return; }
-  if (!file) { toast('err', 'Datei auswählen'); return; }
+  if (!file) { toast('err', 'Datei ausw\u00e4hlen'); return; }
 
   const formData = new FormData();
   formData.append('file', file);
@@ -2361,15 +2565,15 @@ async function importMap() {
       toast('err', `Import-Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Import-Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Import-Fehler: '));
   }
 }
 
 async function openMapDetail(mapId) {
   const card = document.getElementById('mapDetailCard');
   const content = document.getElementById('mapDetailContent');
-  card.style.display = '';
-  content.innerHTML = '<div class="loading-row"><span class="spinner"></span> Lade Map-Details...</div>';
+  card.classList.remove('is-hidden');
+  setPanelLoading(content, 'Lade Map-Details...');
 
   try {
     const res = await apiFetch(`/admin/maps/${mapId}`);
@@ -2377,112 +2581,112 @@ async function openMapDetail(mapId) {
     const map = await res.json();
     renderMapDetail(map);
   } catch (e) {
-    content.innerHTML = `<div class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+    setPanelError(content, e);
   }
 }
 
 function renderMapDetail(map) {
   const content = document.getElementById('mapDetailContent');
-  const tenantSlug = map.tenant ? map.tenant.slug : '—';
+  const tenantSlug = map.tenant ? map.tenant.slug : '\u2014';
+  content.replaceChildren();
+  const grid = h('div', { className: 'info-grid' });
+  grid.appendChild(infoItem('Name', map.name || '\u2014'));
+  grid.appendChild(infoItem('Tenant', tenantSlug));
+  grid.appendChild(infoItem(
+    'Dimensionen',
+    `${map.width || '\u2014'} x ${map.height || '\u2014'} (Tile: ${map.tileWidth || '\u2014'} x ${map.tileHeight || '\u2014'})`
+  ));
+  if (map.chunkSize) grid.appendChild(infoItem('ChunkSize', String(map.chunkSize)));
+  if (map.version != null) grid.appendChild(infoItem('Version', String(map.version)));
+  content.appendChild(grid);
 
-  let html = '<div class="info-grid">';
-  html += `<div class="info-item"><div class="info-label">Name</div><div class="info-value">${esc(map.name || '—')}</div></div>`;
-  html += `<div class="info-item"><div class="info-label">Tenant</div><div class="info-value">${esc(tenantSlug)}</div></div>`;
-  html += `<div class="info-item"><div class="info-label">Dimensionen</div><div class="info-value">${map.width || '—'} x ${map.height || '—'} (Tile: ${map.tileWidth || '—'} x ${map.tileHeight || '—'})</div></div>`;
-  if (map.chunkSize) html += `<div class="info-item"><div class="info-label">ChunkSize</div><div class="info-value">${map.chunkSize}</div></div>`;
-  if (map.version != null) html += `<div class="info-item"><div class="info-label">Version</div><div class="info-value">${map.version}</div></div>`;
-  html += '</div>';
-
-  // Rooms
   const rooms = Array.isArray(map.rooms) ? map.rooms : [];
   if (rooms.length) {
-    html += '<div class="card-header" style="padding:0;margin-top:8px">Rooms (' + rooms.length + ')</div>';
-    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
-    html += '<th>Name</th><th>Slug</th><th>Position</th>';
-    html += '</tr></thead><tbody>';
-    rooms.forEach(r => {
-      html += `<tr>
-        <td>${esc(r.name || r.displayName || '—')}</td>
-        <td><code style="font-size:10px">${esc(r.slug || r.id || '—')}</code></td>
-        <td style="font-size:10px">${r.x != null ? r.x + ',' + r.y : '—'}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div>';
+    content.appendChild(h('div', { className: 'card-header card-header-inline', text: 'Rooms (' + rooms.length + ')' }));
+    content.appendChild(wrapTable('table-wrap table-mt-8', ['Name', 'Slug', 'Position'], (tbody) => {
+      rooms.forEach((r) => {
+        tbody.appendChild(h('tr', null, [
+          h('td', { text: r.name || r.displayName || '\u2014' }),
+          h('td', null, h('code', { className: 'code-sm', text: r.slug || r.id || '\u2014' })),
+          h('td', { className: 'cell-xs', text: r.x != null ? r.x + ',' + r.y : '\u2014' }),
+        ]));
+      });
+    }));
   }
 
-  // Tilesets
   const tilesets = Array.isArray(map.tilesets) ? map.tilesets : [];
   if (tilesets.length) {
-    html += '<div class="card-header" style="padding:0;margin-top:16px">Tilesets (' + tilesets.length + ')</div>';
-    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
-    html += '<th>Slot</th><th>Key</th><th>Image URL</th>';
-    html += '</tr></thead><tbody>';
-    tilesets.forEach(ts => {
-      html += `<tr>
-        <td>${ts.slot != null ? ts.slot : '—'}</td>
-        <td><code style="font-size:10px">${esc(ts.key || ts.name || '—')}</code></td>
-        <td style="font-size:9px;color:var(--fg-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${esc(ts.imageUrl || ts.image || '')}">${esc(ts.imageUrl || ts.image || '—')}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div>';
+    content.appendChild(h('div', { className: 'card-header card-header-section', text: 'Tilesets (' + tilesets.length + ')' }));
+    content.appendChild(wrapTable('table-wrap table-mt-8', ['Slot', 'Key', 'Image URL'], (tbody) => {
+      tilesets.forEach((ts) => {
+        const url = ts.imageUrl || ts.image || '';
+        const urlTd = h('td', { className: 'cell-url' });
+        urlTd.title = url;
+        urlTd.textContent = url || '\u2014';
+        tbody.appendChild(h('tr', null, [
+          h('td', { text: ts.slot != null ? String(ts.slot) : '\u2014' }),
+          h('td', null, h('code', { className: 'code-sm', text: ts.key || ts.name || '\u2014' })),
+          urlTd,
+        ]));
+      });
+    }));
   }
 
-  // Layers
   const layers = Array.isArray(map.layers) ? map.layers : [];
   if (layers.length) {
-    html += '<div class="card-header" style="padding:0;margin-top:16px">Layers (' + layers.length + ')</div>';
-    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
-    html += '<th>Name</th><th>Chunks</th>';
-    html += '</tr></thead><tbody>';
-    layers.forEach(l => {
-      const chunkCount = Array.isArray(l.chunks) ? l.chunks.length : (l.chunkCount || '—');
-      html += `<tr>
-        <td>${esc(l.name || '—')}</td>
-        <td>${chunkCount}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div>';
+    content.appendChild(h('div', { className: 'card-header card-header-section', text: 'Layers (' + layers.length + ')' }));
+    content.appendChild(wrapTable('table-wrap table-mt-8', ['Name', 'Chunks'], (tbody) => {
+      layers.forEach((l) => {
+        const chunkCount = Array.isArray(l.chunks) ? l.chunks.length : (l.chunkCount || '\u2014');
+        tbody.appendChild(h('tr', null, [
+          h('td', { text: l.name || '\u2014' }),
+          h('td', { text: String(chunkCount) }),
+        ]));
+      });
+    }));
   }
 
-  // Objects count
   const objects = Array.isArray(map.objects) ? map.objects : [];
   if (objects.length || map.objectCount) {
-    html += `<div class="card-header" style="padding:0;margin-top:16px">Objects (${objects.length || map.objectCount || 0})</div>`;
+    content.appendChild(h('div', {
+      className: 'card-header card-header-section',
+      text: 'Objects (' + (objects.length || map.objectCount || 0) + ')',
+    }));
   }
 
-  // Actions
-  html += `<div class="btn-row" style="margin-top:20px">
-    <button class="btn btn-accent" onclick="promptCopyMap('${esc(map.id)}','${esc(map.name || '')}')">Map kopieren</button>
-    <button class="btn btn-danger" onclick="deleteMap('${esc(map.id)}','${esc(map.name || '')}')">Map löschen</button>
-  </div>`;
-
-  content.innerHTML = html;
+  content.appendChild(h('div', { className: 'btn-row mt-20' }, [
+    h('button', {
+      className: 'btn btn-accent',
+      dataset: { action: 'copy-map', mapId: map.id, mapName: map.name || '' },
+      text: 'Map kopieren',
+    }),
+    h('button', {
+      className: 'btn btn-danger',
+      dataset: { action: 'delete-map', mapId: map.id, mapName: map.name || '' },
+      text: 'Map l\u00f6schen',
+    }),
+  ]));
 }
 
-// ═══════════════════════════════════════════
-// HEALTH
-// ═══════════════════════════════════════════
 async function loadHealth() {
   try {
     const res = await apiFetch('/admin/health');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const h = await res.json();
-    renderHealth(h);
+    const hdata = await res.json();
+    renderHealth(hdata);
     document.getElementById('lastRefresh').textContent = `Letzte Aktualisierung: ${new Date().toLocaleTimeString('de-DE')}`;
   } catch (e) {
-    toast('err', `Health-Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Health-Fehler: '));
   }
 }
 
-function renderHealth(h) {
-  // Server Info
-  document.getElementById('hUptime').textContent = h.uptime != null ? formatUptime(h.uptime) : '—';
-  document.getElementById('hNode').textContent = h.nodeVersion || h.node || '—';
-  document.getElementById('hPlatform').textContent = h.platform || '—';
-  document.getElementById('hOnline').textContent = h.totalOnline != null ? h.totalOnline : '—';
+function renderHealth(health) {
+  document.getElementById('hUptime').textContent = health.uptime != null ? formatUptime(health.uptime) : '\u2014';
+  document.getElementById('hNode').textContent = health.nodeVersion || health.node || '\u2014';
+  document.getElementById('hPlatform').textContent = health.platform || '\u2014';
+  document.getElementById('hOnline').textContent = health.totalOnline != null ? health.totalOnline : '\u2014';
 
-  // Memory
-  const mem = h.memory || {};
+  const mem = health.memory || {};
   const heapUsed = mem.heapUsed || 0;
   const heapTotal = mem.heapTotal || 1;
   const heapPct = Math.round((heapUsed / heapTotal) * 100);
@@ -2494,58 +2698,62 @@ function renderHealth(h) {
   heapBar.style.width = heapPct + '%';
   heapBar.className = 'progress-fill ' + (heapPct > 85 ? 'red' : heapPct > 60 ? 'orange' : 'blue');
 
-  // Services
-  const services = h.services || {};
+  const services = health.services || {};
   const svcContainer = document.getElementById('healthServices');
   const svcNames = ['db', 'websocket', 'livekit', 'stripe', 'email'];
-  let svcHtml = '';
+  const cards = [];
   svcNames.forEach(name => {
     const svc = services[name];
-    if (!svc && !h[name]) return;
-    const data = svc || h[name] || {};
+    if (!svc && !health[name]) return;
+    const data = svc || health[name] || {};
     const status = data.status || data.connected || (data === true ? 'ok' : 'unknown');
     let badgeClass = 'orange';
     if (status === 'ok' || status === 'connected' || status === true || status === 'healthy') badgeClass = 'green';
     else if (status === 'error' || status === 'disconnected' || status === false) badgeClass = 'red';
     const details = data.details || data.latency || data.version || '';
-    svcHtml += `<div class="health-card" style="padding:12px 16px">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-family:var(--font-mono);font-size:12px;font-weight:600;text-transform:capitalize">${esc(name)}</span>
-        <span class="badge ${badgeClass}"><span class="badge-dot"></span>${esc(String(status))}</span>
-      </div>
-      ${details ? `<div style="font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-top:4px">${esc(String(details))}</div>` : ''}
-    </div>`;
+    const card = h('div', { className: 'health-card svc-card' });
+    const head = h('div', { className: 'svc-head' });
+    head.appendChild(h('span', { className: 'svc-name', text: name }));
+    head.appendChild(makeBadge(badgeClass, String(status)));
+    card.appendChild(head);
+    if (details) card.appendChild(h('div', { className: 'svc-details', text: String(details) }));
+    cards.push(card);
   });
-  if (svcHtml) svcContainer.innerHTML = svcHtml;
+  if (cards.length) {
+    svcContainer.replaceChildren();
+    cards.forEach((c) => svcContainer.appendChild(c));
+  }
 
-  // DB counts
-  const counts = h.counts || h.dbCounts || {};
-  document.getElementById('hUsers').textContent = counts.users != null ? counts.users.toLocaleString('de-DE') : '—';
-  document.getElementById('hTenants').textContent = counts.tenants != null ? counts.tenants.toLocaleString('de-DE') : '—';
-  document.getElementById('hSessions').textContent = counts.sessions != null ? counts.sessions.toLocaleString('de-DE') : '—';
-  document.getElementById('hMemberships').textContent = counts.memberships != null ? counts.memberships.toLocaleString('de-DE') : '—';
+  const counts = health.counts || health.dbCounts || {};
+  document.getElementById('hUsers').textContent = counts.users != null ? counts.users.toLocaleString('de-DE') : '\u2014';
+  document.getElementById('hTenants').textContent = counts.tenants != null ? counts.tenants.toLocaleString('de-DE') : '\u2014';
+  document.getElementById('hSessions').textContent = counts.sessions != null ? counts.sessions.toLocaleString('de-DE') : '\u2014';
+  document.getElementById('hMemberships').textContent = counts.memberships != null ? counts.memberships.toLocaleString('de-DE') : '\u2014';
 
-  // Online by tenant
-  const onlineByTenant = h.onlineByTenant || h.tenantOnline || [];
+  const onlineByTenant = health.onlineByTenant || health.tenantOnline || [];
   const obt = document.getElementById('onlineByTenant');
   if (Array.isArray(onlineByTenant) && onlineByTenant.length) {
-    obt.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Tenant</th><th>Online</th></tr></thead>
-      <tbody>${onlineByTenant.map(t => `<tr>
-        <td><code style="color:var(--accent)">${esc(t.slug || t.tenant || '—')}</code></td>
-        <td>${t.count != null ? t.count : t.online != null ? t.online : '—'}</td>
-      </tr>`).join('')}</tbody>
-    </table></div>`;
+    obt.replaceChildren();
+    obt.appendChild(wrapTable('table-wrap', ['Tenant', 'Online'], (tbody) => {
+      onlineByTenant.forEach((row) => {
+        tbody.appendChild(h('tr', null, [
+          h('td', null, h('code', { className: 'code-accent-plain', text: row.slug || row.tenant || '\u2014' })),
+          h('td', { text: row.count != null ? String(row.count) : row.online != null ? String(row.online) : '\u2014' }),
+        ]));
+      });
+    }));
   } else if (typeof onlineByTenant === 'object' && !Array.isArray(onlineByTenant)) {
     const entries = Object.entries(onlineByTenant);
     if (entries.length) {
-      obt.innerHTML = `<div class="table-wrap"><table>
-        <thead><tr><th>Tenant</th><th>Online</th></tr></thead>
-        <tbody>${entries.map(([k, v]) => `<tr>
-          <td><code style="color:var(--accent)">${esc(k)}</code></td>
-          <td>${v}</td>
-        </tr>`).join('')}</tbody>
-      </table></div>`;
+      obt.replaceChildren();
+      obt.appendChild(wrapTable('table-wrap', ['Tenant', 'Online'], (tbody) => {
+        entries.forEach(([k, v]) => {
+          tbody.appendChild(h('tr', null, [
+            h('td', null, h('code', { className: 'code-accent-plain', text: k })),
+            h('td', { text: String(v) }),
+          ]));
+        });
+      }));
     }
   }
 }
@@ -2563,30 +2771,42 @@ function renderGrowth(s) {
   const tbody = document.getElementById('growthBody');
   const userGrowth = s.userGrowth || s.users || {};
   const tenantGrowth = s.tenantGrowth || s.tenants || {};
-
-  tbody.innerHTML = `
-    <tr>
-      <td><strong>Users</strong></td>
-      <td>${fmtGrowth(userGrowth['24h'] ?? userGrowth.day ?? '—')}</td>
-      <td>${fmtGrowth(userGrowth['7d'] ?? userGrowth.week ?? '—')}</td>
-      <td>${fmtGrowth(userGrowth['30d'] ?? userGrowth.month ?? '—')}</td>
-    </tr>
-    <tr>
-      <td><strong>Tenants</strong></td>
-      <td>${fmtGrowth(tenantGrowth['24h'] ?? tenantGrowth.day ?? '—')}</td>
-      <td>${fmtGrowth(tenantGrowth['7d'] ?? tenantGrowth.week ?? '—')}</td>
-      <td>${fmtGrowth(tenantGrowth['30d'] ?? tenantGrowth.month ?? '—')}</td>
-    </tr>
-  `;
+  tbody.replaceChildren();
+  function growthRow(label, g) {
+    return h('tr', null, [
+      h('td', null, h('strong', { text: label })),
+      h('td', null, fmtGrowthNode(g['24h'] ?? g.day ?? '\u2014')),
+      h('td', null, fmtGrowthNode(g['7d'] ?? g.week ?? '\u2014')),
+      h('td', null, fmtGrowthNode(g['30d'] ?? g.month ?? '\u2014')),
+    ]);
+  }
+  tbody.appendChild(growthRow('Users', userGrowth));
+  tbody.appendChild(growthRow('Tenants', tenantGrowth));
 }
 
-function fmtGrowth(val) {
-  if (val === '—' || val == null) return '<span style="color:var(--fg-muted)">—</span>';
+function fmtGrowthNode(val) {
+  const span = document.createElement('span');
+  if (val === '\u2014' || val == null) {
+    span.className = 'growth-zero';
+    span.textContent = '\u2014';
+    return span;
+  }
   const n = Number(val);
-  if (isNaN(n)) return esc(String(val));
-  if (n > 0) return `<span style="color:var(--green)">+${n}</span>`;
-  if (n < 0) return `<span style="color:var(--red)">${n}</span>`;
-  return `<span style="color:var(--fg-muted)">0</span>`;
+  if (isNaN(n)) {
+    span.textContent = String(val);
+    return span;
+  }
+  if (n > 0) {
+    span.className = 'growth-pos';
+    span.textContent = '+' + n;
+  } else if (n < 0) {
+    span.className = 'growth-neg';
+    span.textContent = String(n);
+  } else {
+    span.className = 'growth-zero';
+    span.textContent = '0';
+  }
+  return span;
 }
 
 function toggleAutoRefresh() {
@@ -2602,9 +2822,6 @@ function toggleAutoRefresh() {
   }
 }
 
-// ═══════════════════════════════════════════
-// Helpers
-// ═══════════════════════════════════════════
 function toast(type, text) {
   const container = document.getElementById('toasts');
   const div = document.createElement('div');
@@ -2638,11 +2855,11 @@ function formatDateTime(iso) {
 
 function formatUptime(seconds) {
   const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
+  const hurs = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const parts = [];
   if (d > 0) parts.push(`${d}d`);
-  parts.push(`${h}h`);
+  parts.push(`${hurs}h`);
   parts.push(`${m}m`);
   return parts.join(' ');
 }
@@ -2655,9 +2872,6 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-// ═══════════════════════════════════════════
-// SETTINGS
-// ═══════════════════════════════════════════
 async function loadSettings() {
   try {
     const res = await apiFetch('/admin/settings');
@@ -2685,14 +2899,73 @@ async function saveSettings() {
       toast('err', `Fehler: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Fehler: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Fehler: '));
   }
 }
 
-// Keyboard navigation
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeConfirm();
+const clickActions = {
+  'test-connection': () => { testConnection(); },
+  'switch-section': (el) => { switchSection(el.dataset.section); },
+  'create-tenant': () => { createTenant(); },
+  'close-tenant-detail': () => { closeTenantDetail(); },
+  'switch-detail-tab': (el) => { switchDetailTab(el.dataset.detailTab); },
+  'create-product': () => { createProduct(); },
+  'switch-pack-tab': (el) => { switchPackTab(el.dataset.packTab); },
+  'upload-asset-pack': () => { uploadAssetPack(); },
+  'grant-access': () => { grantAccess(); },
+  'load-audit-log': () => { loadAuditLog(); },
+  'audit-prev': () => { auditPrevPage(); },
+  'audit-next': () => { auditNextPage(); },
+  'toggle-new-map-form': () => { toggleNewMapForm(); },
+  'toggle-import-map-form': () => { toggleImportMapForm(); },
+  'create-map': () => { createMap(); },
+  'import-map': () => { importMap(); },
+  'load-health': () => { loadHealth(); },
+  'save-settings': () => { saveSettings(); },
+  'close-confirm': () => { closeConfirm(); },
+  'confirm-action': () => { confirmAction(); },
+  'open-tenant-detail': (el) => { openTenantDetail(el.dataset.tenantId); },
+  'save-tenant': (el) => { saveTenant(parseInt(el.dataset.tenantIdx, 10)); },
+  'delete-tenant': (el) => { deleteTenant(parseInt(el.dataset.tenantIdx, 10)); },
+  'toggle-price': (el) => { togglePrice(el.dataset.priceId, el.dataset.activate === 'true'); },
+  'toggle-add-price': (el) => { toggleAddPrice(parseInt(el.dataset.productIdx, 10)); },
+  'add-price': (el) => { addPrice(parseInt(el.dataset.productIdx, 10)); },
+  'toggle-product': (el) => { toggleProduct(el.dataset.productId, el.dataset.activate === 'true'); },
+  'toggle-asset-pack-archive': (el) => { toggleAssetPackArchive(parseInt(el.dataset.packIdx, 10), el.dataset.archived === 'true'); },
+  'save-pack': (el) => { savePack(el.dataset.packType, parseInt(el.dataset.packIdx, 10)); },
+  'revoke-access': (el) => { revokeAccess(el.dataset.tenantId, el.dataset.packUuid); },
+  'remove-user': (el) => { removeUser(el.dataset.tenantId, el.dataset.userId, el.dataset.email || ''); },
+  'add-user': (el) => { addUser(el.dataset.tenantId); },
+  'toggle-json': (el) => { toggleJson(el); },
+  'open-map-detail': (el) => { openMapDetail(el.dataset.mapId); },
+  'copy-map': (el) => { promptCopyMap(el.dataset.mapId, el.dataset.mapName || ''); },
+  'delete-map': (el) => { deleteMap(el.dataset.mapId, el.dataset.mapName || ''); },
+};
+
+const changeActions = {
+  'render-maps': () => { renderMaps(); },
+  'toggle-auto-refresh': () => { toggleAutoRefresh(); },
+  'change-user-role': (el) => { changeUserRole(el.dataset.tenantId, el.dataset.userId, el.value); },
+};
+
+document.addEventListener('click', (event) => {
+  const el = event.target.closest('[data-action]');
+  if (!el) return;
+  const fn = clickActions[el.dataset.action];
+  if (fn) fn(el, event);
 });
+
+document.addEventListener('change', (event) => {
+  const el = event.target.closest('[data-action]');
+  if (!el) return;
+  const fn = changeActions[el.dataset.action];
+  if (fn) fn(el, event);
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeConfirm();
+});
+
 </script>
 </body>
 </html>

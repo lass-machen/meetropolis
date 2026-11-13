@@ -1,7 +1,34 @@
 import type { Application, Request, Response } from 'express';
-import type { PrismaClient } from './generated/prisma/index.js';
+import type { Prisma, PrismaClient } from './generated/prisma/index.js';
+import type {
+  TenantDeletionContext,
+  TenantDeletionOptions,
+  TenantDeletionPlanInput,
+  TenantDeletionPreparationContext,
+  TenantDeletionTaskPlan,
+} from './services/tenantDeletionContract.js';
+import {
+  TENANT_DELETION_PROTOCOL,
+  TenantDeletionContractError,
+  TenantDeletionJournalUnavailableError,
+  assertTenantDeletionProtocol,
+} from './services/tenantDeletionContract.js';
 import { z } from 'zod';
 import { logger } from './logger.js';
+
+export {
+  TENANT_DELETION_PROTOCOL,
+  TenantDeletionContractError,
+  TenantDeletionJournalUnavailableError,
+  assertTenantDeletionProtocol,
+};
+export type {
+  TenantDeletionContext,
+  TenantDeletionOptions,
+  TenantDeletionPlanInput,
+  TenantDeletionPreparationContext,
+  TenantDeletionTaskPlan,
+};
 
 /**
  * Expected `version` of the shared `@meetropolis/billing` module.
@@ -104,6 +131,17 @@ export interface AdminEnterpriseModule {
       // optional config field does not change the module's function surface, so
       // it stays within schema version 2 (no version bump required).
       isNativeClientRequest?: (req: Request) => boolean;
+      // Optional: resolves the managed tenant-deletion plan for one tenant,
+      // persisting the intent to the file journal first. The host wires a
+      // cached resolver only when a journal directory is configured; without
+      // it the field stays undefined and the route answers 409. Optional
+      // field, no version bump.
+      resolveTenantDeletionPlan?: (
+        tx: Prisma.TransactionClient,
+        input: { tenantId: string; transactionTime: Date },
+      ) => Promise<TenantDeletionPlanInput | undefined>;
+      /** Optional: true while the NPC media folder of a deleted tenant with this slug is not cleared yet. */
+      isTenantSlugReserved?: (slug: string) => Promise<boolean>;
       // Optional: host-callback returning the telemetry activation block for
       // GET /public/config ({ enabled, environment }) or null when telemetry is
       // off. The enterprise /public/config handler wins over the OSS fallback
@@ -113,6 +151,10 @@ export interface AdminEnterpriseModule {
       // an optional config field keeps the function surface unchanged, so no
       // schema version bump is required.
       getTelemetryPublicConfig?: () => { enabled: boolean; environment: string } | null;
+      deleteTenantWithMembers: (
+        tenantId: string,
+        options?: TenantDeletionOptions,
+      ) => Promise<{ deletedAccounts: number }>;
     },
   ): void;
 
@@ -140,6 +182,7 @@ export interface AdminEnterpriseModule {
       };
       requireSuperAdmin: (req: Request, prisma: PrismaClient) => Promise<{ userId: string } | null>;
       normalizeEmail: (email: string) => string;
+      removeMemberFromTenant: (params: { userId: string; tenantId: string }) => Promise<{ accountDeleted: boolean }>;
     },
   ): void;
 
@@ -177,6 +220,38 @@ export interface AdminEnterpriseModule {
       cacheTtlMs?: number;
     },
   ): void;
+
+  /**
+   * Managed deletion of one tenant outside the HTTP route, with the same
+   * guards and journal path as DELETE /admin/tenants/:id. Used by the restore
+   * replay tool. Optional: older enterprise builds do not export it.
+   */
+  deleteManagedTenant?(
+    config: {
+      prisma: PrismaClient;
+      logger: {
+        info(obj: object): void;
+        error(obj: object): void;
+        warn(obj: object): void;
+      };
+      deleteTenantWithMembers: (
+        tenantId: string,
+        options?: TenantDeletionOptions,
+      ) => Promise<{ deletedAccounts: number }>;
+      resolveTenantDeletionPlan?: (
+        tx: Prisma.TransactionClient,
+        input: { tenantId: string; transactionTime: Date },
+      ) => Promise<TenantDeletionPlanInput | undefined>;
+    },
+    id: string,
+    options: { actor: string },
+  ): Promise<{ ok: true } | { ok: false; status: number; error: string }>;
+
+  /**
+   * Codes of preconditions that must hold before a restored database may
+   * serve again; empty when none is open. Optional like deleteManagedTenant.
+   */
+  pendingRestorePreconditions?(): string[];
 }
 
 export const adminEnterpriseSchema = z.object({
@@ -190,6 +265,9 @@ export const adminEnterpriseSchema = z.object({
   setupPackMarketplaceRoutes: z.function(),
   // Optional: older enterprise builds may not ship the desktop update routes.
   setupDesktopUpdateRoutes: z.function().optional(),
+  // Optional: restore replay hooks, absent in older enterprise builds.
+  deleteManagedTenant: z.function().optional(),
+  pendingRestorePreconditions: z.function().optional(),
 });
 
 let cached: AdminEnterpriseModule | null = null;
@@ -236,6 +314,9 @@ export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule 
       setupTenantUserRoutes: mod.setupTenantUserRoutes as AdminEnterpriseModule['setupTenantUserRoutes'],
       setupPackMarketplaceRoutes: mod.setupPackMarketplaceRoutes as AdminEnterpriseModule['setupPackMarketplaceRoutes'],
       setupDesktopUpdateRoutes: mod.setupDesktopUpdateRoutes as AdminEnterpriseModule['setupDesktopUpdateRoutes'],
+      deleteManagedTenant: mod.deleteManagedTenant as AdminEnterpriseModule['deleteManagedTenant'],
+      pendingRestorePreconditions:
+        mod.pendingRestorePreconditions as AdminEnterpriseModule['pendingRestorePreconditions'],
     };
 
     logger.info({ event: 'admin.enterprise_loaded', version: EXPECTED_ADMIN_MODULE_VERSION });

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Meetropolis UI Prototype – UserCards + Toolbar</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
 <style>
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -544,6 +544,26 @@ body {
   font-weight: 500;
   z-index: 35;
 }
+
+/* ── CSP utilities: replacements for former style attributes (same values) ── */
+.is-hidden { display: none !important; }
+.uc-grid-cols2 { grid-template-columns: repeat(2, 1fr); }
+.bg-btn-caret { border-top-left-radius: 0; border-bottom-left-radius: 0; padding-left: 4px; padding-right: 4px; min-width: 24px; margin-left: -1px; }
+.ds-check { color: var(--speaking-color); font-size: 10px; }
+.ds-spacer { width: 14px; }
+.sp-label-sm { font-size: 13px; }
+.fs-ctrl-btn-sm { font-size: 9px; font-weight: 600; }
+.uc-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: var(--fg); font-weight: 600; font-size: 14px; }
+.uc-fallback-inner { text-align: center; }
+.uc-fallback-icon { font-size: 28px; opacity: 0.4; margin-bottom: 8px; display: block; }
+.uc-fallback-sub { font-size: 12px; opacity: 0.5; }
+.uc-namebadge-float { position: absolute; top: 6px; left: 6px; display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--bg-btn-bg, var(--glass)); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); }
+.uc-badges-float { position: absolute; top: 6px; right: 6px; display: flex; gap: 6px; }
+.uc-badge-icon { font-size: 10px; }
+.uc-fs-fallback-icon { font-size: 48px; opacity: 0.4; margin-bottom: 12px; display: block; }
+.uc-fs-fallback-sub { font-size: 14px; opacity: 0.5; }
+.uc-fs-name { font-size: 24px; }
+.fs-zoom-wrap { transition: transform 0.1s ease-out; max-width: 100%; max-height: 100%; }
 </style>
 </head>
 <body>
@@ -559,7 +579,7 @@ body {
       <button class="uc-expand-btn" id="expand-btn" title="Verkleinern">
         <i class="fa-solid fa-down-left-and-up-right-to-center"></i>
       </button>
-      <div class="uc-grid" id="user-cards-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="uc-grid uc-grid-cols2" id="user-cards-grid">
         <!-- Cards rendered by JS -->
       </div>
     </div>
@@ -575,14 +595,14 @@ body {
       <button class="bg-button bg-btn-primary" id="btn-mic" title="Mikrofon">
         <span class="bg-button-content"><i class="fa-solid fa-microphone"></i></span>
       </button>
-      <button class="bg-button bg-btn-primary" id="btn-mic-caret" style="border-top-left-radius:0;border-bottom-left-radius:0;padding-left:4px;padding-right:4px;min-width:24px;margin-left:-1px;">
+      <button class="bg-button bg-btn-primary bg-btn-caret" id="btn-mic-caret">
         <span class="bg-button-content"><i class="fa-solid fa-caret-up"></i></span>
       </button>
-      <div class="device-selector-dropdown" id="mic-dropdown" style="display:none;">
+      <div class="device-selector-dropdown is-hidden" id="mic-dropdown">
         <div class="ds-label">Mikrofon auswählen</div>
-        <button class="device-selector-item selected"><i class="fa-solid fa-check" style="color:var(--speaking-color);font-size:10px;"></i><span>Standard-Mikrofon</span></button>
-        <button class="device-selector-item"><span style="width:14px;"></span><span>USB Headset Mic</span></button>
-        <button class="device-selector-item"><span style="width:14px;"></span><span>Bluetooth Audio</span></button>
+        <button class="device-selector-item selected"><i class="fa-solid fa-check ds-check"></i><span>Standard-Mikrofon</span></button>
+        <button class="device-selector-item"><span class="ds-spacer"></span><span>USB Headset Mic</span></button>
+        <button class="device-selector-item"><span class="ds-spacer"></span><span>Bluetooth Audio</span></button>
       </div>
     </div>
 
@@ -593,13 +613,13 @@ body {
       <button class="bg-button bg-btn-default" id="btn-cam" title="Kamera">
         <span class="bg-button-content"><i class="fa-solid fa-video-slash"></i></span>
       </button>
-      <button class="bg-button bg-btn-default" id="btn-cam-caret" style="border-top-left-radius:0;border-bottom-left-radius:0;padding-left:4px;padding-right:4px;min-width:24px;margin-left:-1px;">
+      <button class="bg-button bg-btn-default bg-btn-caret" id="btn-cam-caret">
         <span class="bg-button-content"><i class="fa-solid fa-caret-up"></i></span>
       </button>
-      <div class="device-selector-dropdown" id="cam-dropdown" style="display:none;">
+      <div class="device-selector-dropdown is-hidden" id="cam-dropdown">
         <div class="ds-label">Kamera auswählen</div>
-        <button class="device-selector-item selected"><i class="fa-solid fa-check" style="color:var(--speaking-color);font-size:10px;"></i><span>FaceTime HD Camera</span></button>
-        <button class="device-selector-item"><span style="width:14px;"></span><span>USB Webcam</span></button>
+        <button class="device-selector-item selected"><i class="fa-solid fa-check ds-check"></i><span>FaceTime HD Camera</span></button>
+        <button class="device-selector-item"><span class="ds-spacer"></span><span>USB Webcam</span></button>
       </div>
     </div>
 
@@ -639,7 +659,7 @@ body {
   <div class="sp-section">
     <h3>Teilnehmer</h3>
     <div class="sp-slider-row">
-      <label style="font-size:13px;">Anzahl:</label>
+      <label class="sp-label-sm">Anzahl:</label>
       <input type="range" id="user-count-slider" min="1" max="8" value="4">
       <span class="sp-val" id="user-count-val">4</span>
     </div>
@@ -682,7 +702,7 @@ body {
     <button class="fs-ctrl-btn" id="fs-zoom-out" title="Verkleinern (-)">&#8722;</button>
     <div class="fs-zoom-level" id="fs-zoom-level">100%</div>
     <button class="fs-ctrl-btn" id="fs-zoom-in" title="Vergrößern (+)">+</button>
-    <button class="fs-ctrl-btn" id="fs-zoom-reset" title="Zurücksetzen (0)" style="font-size:9px;font-weight:600;">1:1</button>
+    <button class="fs-ctrl-btn fs-ctrl-btn-sm" id="fs-zoom-reset" title="Zurücksetzen (0)">1:1</button>
     <div class="fs-zoom-sep"></div>
     <button class="fs-close-btn" id="fs-close" title="Schließen (Esc)">&#10005;</button>
   </div>
@@ -691,7 +711,7 @@ body {
     <span>Doppelklick: 2x</span>
     <span>Esc: Schließen</span>
   </div>
-  <div class="fs-screen-badge" id="fs-screen-badge" style="display:none;">
+  <div class="fs-screen-badge is-hidden" id="fs-screen-badge">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
       <line x1="8" y1="21" x2="16" y2="21"></line>
@@ -824,34 +844,34 @@ function renderUserCards() {
     // Fallback name (no video)
     var fallbackHTML = '';
     if (isScreen) {
-      fallbackHTML = '<div style="position:absolute;inset:0;display:grid;place-items:center;color:var(--fg);font-weight:600;font-size:14px;">' +
-        '<div style="text-align:center;"><i class="fa-solid fa-display" style="font-size:28px;opacity:0.4;margin-bottom:8px;display:block;"></i>' +
-        '<span style="font-size:12px;opacity:0.5;">Bildschirmfreigabe</span></div></div>';
+      fallbackHTML = '<div class="uc-fallback">' +
+        '<div class="uc-fallback-inner"><i class="fa-solid fa-display uc-fallback-icon"></i>' +
+        '<span class="uc-fallback-sub">Bildschirmfreigabe</span></div></div>';
     } else {
-      fallbackHTML = '<div style="position:absolute;inset:0;display:grid;place-items:center;color:var(--fg);font-weight:600;font-size:14px;">' + user.name + '</div>';
+      fallbackHTML = '<div class="uc-fallback">' + user.name + '</div>';
     }
 
     // Name badge – matches ParticipantCard.tsx line 337-338
-    var nameBadge = '<div style="position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--bg-btn-bg, var(--glass));border-radius:10px;border:1px solid rgba(255,255,255,0.08);">' +
-      '<div style="font-size:12px;color:var(--fg);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + user.name + '</div></div>';
+    var nameBadge = '<div class="uc-namebadge-float">' +
+      '<div class="uc-name-text">' + user.name + '</div></div>';
 
     // Right badges – matches ParticipantCard.tsx lines 340-351 (26px circles, gap 6px)
-    var badges = '<div style="position:absolute;top:6px;right:6px;display:flex;gap:6px;">';
+    var badges = '<div class="uc-badges-float">';
     // DND badge
     if (isDnd) {
-      badges += '<div title="Bitte nicht stören" class="uc-badge badge-dnd"><i class="fa-solid fa-moon" style="font-size:10px;"></i></div>';
+      badges += '<div title="Bitte nicht stören" class="uc-badge badge-dnd"><i class="fa-solid fa-moon uc-badge-icon"></i></div>';
     }
     // Mic badge
     if (user.micOn) {
-      badges += '<div title="Mikrofon an" class="uc-badge badge-on"><i class="fa-solid fa-microphone" style="font-size:10px;"></i></div>';
+      badges += '<div title="Mikrofon an" class="uc-badge badge-on"><i class="fa-solid fa-microphone uc-badge-icon"></i></div>';
     } else {
-      badges += '<div title="Mikrofon aus" class="uc-badge badge-off"><i class="fa-solid fa-microphone-slash" style="font-size:10px;"></i></div>';
+      badges += '<div title="Mikrofon aus" class="uc-badge badge-off"><i class="fa-solid fa-microphone-slash uc-badge-icon"></i></div>';
     }
     // Cam badge
     if (user.camOn) {
-      badges += '<div title="Kamera an" class="uc-badge badge-on"><i class="fa-solid fa-video" style="font-size:10px;"></i></div>';
+      badges += '<div title="Kamera an" class="uc-badge badge-on"><i class="fa-solid fa-video uc-badge-icon"></i></div>';
     } else {
-      badges += '<div title="Kamera aus" class="uc-badge badge-off"><i class="fa-solid fa-video-slash" style="font-size:10px;"></i></div>';
+      badges += '<div title="Kamera aus" class="uc-badge badge-off"><i class="fa-solid fa-video-slash uc-badge-icon"></i></div>';
     }
     badges += '</div>';
 
@@ -869,13 +889,14 @@ function renderPerUserControls() {
     var row = document.createElement('div');
     row.className = 'sp-user-row';
     row.innerHTML =
-      '<div class="sp-user-name" style="color:' + user.color + ';">' + user.name + '</div>' +
+      '<div class="sp-user-name">' + user.name + '</div>' +
       '<div class="sp-user-controls">' +
-        '<button class="sp-btn' + (user.micOn ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="micOn" title="Mikrofon"><i class="fa-solid fa-microphone" style="font-size:10px;"></i></button>' +
-        '<button class="sp-btn' + (user.camOn ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="camOn" title="Kamera"><i class="fa-solid fa-video" style="font-size:10px;"></i></button>' +
-        '<button class="sp-btn' + (user.screenOn ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="screenOn" title="Screen"><i class="fa-solid fa-display" style="font-size:10px;"></i></button>' +
-        '<button class="sp-btn' + (user.speaking ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="speaking" title="Spricht"><i class="fa-solid fa-volume-high" style="font-size:10px;"></i></button>' +
+        '<button class="sp-btn' + (user.micOn ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="micOn" title="Mikrofon"><i class="fa-solid fa-microphone uc-badge-icon"></i></button>' +
+        '<button class="sp-btn' + (user.camOn ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="camOn" title="Kamera"><i class="fa-solid fa-video uc-badge-icon"></i></button>' +
+        '<button class="sp-btn' + (user.screenOn ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="screenOn" title="Screen"><i class="fa-solid fa-display uc-badge-icon"></i></button>' +
+        '<button class="sp-btn' + (user.speaking ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="speaking" title="Spricht"><i class="fa-solid fa-volume-high uc-badge-icon"></i></button>' +
       '</div>';
+    row.querySelector('.sp-user-name').style.color = user.color;
     container.appendChild(row);
   });
 
@@ -903,35 +924,23 @@ function renderAVBar() {
   if (state.micOn) {
     btnMic.className = 'bg-button bg-btn-primary';
     btnMic.querySelector('i').className = 'fa-solid fa-microphone';
-    btnMicCaret.className = 'bg-button bg-btn-primary';
+    btnMicCaret.className = 'bg-button bg-btn-primary bg-btn-caret';
   } else {
     btnMic.className = 'bg-button bg-btn-default';
     btnMic.querySelector('i').className = 'fa-solid fa-microphone-slash';
-    btnMicCaret.className = 'bg-button bg-btn-default';
+    btnMicCaret.className = 'bg-button bg-btn-default bg-btn-caret';
   }
-  btnMicCaret.style.borderTopLeftRadius = '0';
-  btnMicCaret.style.borderBottomLeftRadius = '0';
-  btnMicCaret.style.paddingLeft = '4px';
-  btnMicCaret.style.paddingRight = '4px';
-  btnMicCaret.style.minWidth = '24px';
-  btnMicCaret.style.marginLeft = '-1px';
 
   // Cam
   if (state.camOn) {
     btnCam.className = 'bg-button bg-btn-primary';
     btnCam.querySelector('i').className = 'fa-solid fa-video';
-    btnCamCaret.className = 'bg-button bg-btn-primary';
+    btnCamCaret.className = 'bg-button bg-btn-primary bg-btn-caret';
   } else {
     btnCam.className = 'bg-button bg-btn-default';
     btnCam.querySelector('i').className = 'fa-solid fa-video-slash';
-    btnCamCaret.className = 'bg-button bg-btn-default';
+    btnCamCaret.className = 'bg-button bg-btn-default bg-btn-caret';
   }
-  btnCamCaret.style.borderTopLeftRadius = '0';
-  btnCamCaret.style.borderBottomLeftRadius = '0';
-  btnCamCaret.style.paddingLeft = '4px';
-  btnCamCaret.style.paddingRight = '4px';
-  btnCamCaret.style.minWidth = '24px';
-  btnCamCaret.style.marginLeft = '-1px';
 
   // Share
   if (state.shareOn) {
@@ -958,8 +967,8 @@ function renderAVBar() {
   btnShare.disabled = dndDisable;
 
   // Dropdowns
-  $('#mic-dropdown').style.display = state.micDropdownOpen ? 'grid' : 'none';
-  $('#cam-dropdown').style.display = state.camDropdownOpen ? 'grid' : 'none';
+  $('#mic-dropdown').classList.toggle('is-hidden', !state.micDropdownOpen);
+  $('#cam-dropdown').classList.toggle('is-hidden', !state.camDropdownOpen);
 }
 
 // ─── Render Fullscreen Overlay ───
@@ -986,21 +995,22 @@ function renderFullscreenOverlay() {
   var inner = '';
   if (isScreen) {
     inner = '<div class="uc-fallback-name">' +
-      '<div style="text-align:center;"><i class="fa-solid fa-display" style="font-size:48px;opacity:0.4;margin-bottom:12px;display:block;"></i>' +
-      '<span style="font-size:14px;opacity:0.5;">Bildschirmfreigabe von ' + user.name + '</span></div></div>';
+      '<div class="uc-fallback-inner"><i class="fa-solid fa-display uc-fs-fallback-icon"></i>' +
+      '<span class="uc-fs-fallback-sub">Bildschirmfreigabe von ' + user.name + '</span></div></div>';
   } else {
-    inner = '<div class="uc-fallback-name" style="font-size:24px;">' + user.name + '</div>';
+    inner = '<div class="uc-fallback-name uc-fs-name">' + user.name + '</div>';
   }
 
   inner += '<div class="uc-name-badge"><div class="uc-name-text">' + user.name + '</div></div>';
 
-  container.innerHTML = '<div style="transform:scale(' + state.fsZoom + ');transition:transform 0.1s ease-out;max-width:100%;max-height:100%;"><div class="' + cardClass + '">' + inner + '</div></div>';
+  container.innerHTML = '<div class="fs-zoom-wrap"><div class="' + cardClass + '">' + inner + '</div></div>';
+  container.firstChild.style.transform = 'scale(' + state.fsZoom + ')';
 
   // Zoom level display
   $('#fs-zoom-level').textContent = Math.round(state.fsZoom * 100) + '%';
 
   // Screen badge
-  $('#fs-screen-badge').style.display = isScreen ? 'flex' : 'none';
+  $('#fs-screen-badge').classList.toggle('is-hidden', !isScreen);
 }
 
 // ─── Render State Panel buttons ───

@@ -323,6 +323,23 @@ body::after{
 .toast-item.ok{background:#1a2e1f;color:var(--green);border:1px solid rgba(59,165,93,0.3)}
 .toast-item.err{background:#2e1a1a;color:var(--red);border:1px solid rgba(237,66,69,0.3)}
 @keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* Utility classes replacing former inline style attributes */
+.is-hidden{display:none!important}
+.hint-muted{font-size:11px;color:var(--fg-muted)}
+.mt-8{margin-top:8px}
+.mt-6{margin-top:6px}
+.mb-6{margin-bottom:6px}
+.inline-row{display:flex;gap:6px;align-items:center}
+.inline-row-sm{display:flex;gap:4px;align-items:center}
+.inline-row-md{display:flex;gap:8px;align-items:center}
+.status-mono{font-family:var(--font-mono);font-size:10px;color:var(--fg-dim)}
+.btn-icon{padding:2px 6px}
+.btn-icon-end{margin-left:auto;padding:2px 6px}
+.state-count{font-size:9px;color:var(--fg-muted)}
+.preview-thumb{margin-top:6px;max-width:64px;max-height:96px;image-rendering:pixelated;border:1px solid var(--border);border-radius:3px;background:var(--bg-deep)}
+.preview-meta{margin-top:4px;font-family:var(--font-mono);font-size:10px;color:var(--fg-muted)}
+#uploadMsg{margin-top:6px}
 </style>
 </head>
 <body>
@@ -351,7 +368,7 @@ body::after{
         <input type="text" id="authToken" placeholder="Bearer token or leave empty for cookies">
       </div>
       <div class="btn-row">
-        <button class="btn btn-accent btn-block" onclick="testConnection()">Test Connection</button>
+        <button class="btn btn-accent btn-block" data-action="test-connection">Test Connection</button>
       </div>
       <div class="msg" id="connMsg"></div>
     </div>
@@ -393,17 +410,17 @@ body::after{
       <div class="field-row">
         <div class="field">
           <label>Frame Width (px)</label>
-          <input type="number" id="frameW" value="16" min="1" onchange="onFrameSizeChange()">
+          <input type="number" id="frameW" value="16" min="1" data-action="frame-size-change">
         </div>
         <div class="field">
           <label>Frame Height (px)</label>
-          <input type="number" id="frameH" value="24" min="1" onchange="onFrameSizeChange()">
+          <input type="number" id="frameH" value="24" min="1" data-action="frame-size-change">
         </div>
       </div>
       <div class="field-row">
         <div class="field">
           <label>Zoom</label>
-          <select id="zoomSelect" onchange="onZoomChange()">
+          <select id="zoomSelect" data-action="zoom-change">
             <option value="2">2x</option>
             <option value="3">3x</option>
             <option value="4" selected>4x</option>
@@ -422,25 +439,25 @@ body::after{
     <!-- Existing Packs -->
     <div class="panel-section">
       <div class="section-label">Existing Packs</div>
-      <div id="existingPacks"><span style="font-size:11px;color:var(--fg-muted)">Connect to server to load packs.</span></div>
+      <div id="existingPacks"><span class="hint-muted">Connect to server to load packs.</span></div>
     </div>
   </div>
 
   <!-- CENTER: Viewer -->
   <div class="viewer">
-    <div class="viewer-toolbar" id="viewerToolbar" style="display:none">
+    <div class="viewer-toolbar is-hidden" id="viewerToolbar">
       <div class="info">Size: <span id="imgDims">—</span></div>
       <div class="info">Grid: <span id="gridDims">—</span></div>
       <div class="info">Cell: <span id="cellInfo">—</span></div>
-      <button class="btn btn-sm" onclick="document.getElementById('fileInput').click()">Replace Image</button>
+      <button class="btn btn-sm" data-action="pick-sprite-file">Replace Image</button>
     </div>
     <div class="viewer-canvas-wrap" id="viewerWrap">
-      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div class="drop-zone" id="dropZone" data-action="pick-sprite-file">
         <h3>Drop Spritesheet Here</h3>
         <p>or click to browse — PNG files only</p>
       </div>
     </div>
-    <input type="file" id="fileInput" accept="image/png" style="display:none" onchange="handleFile(this.files[0])">
+    <input type="file" id="fileInput" accept="image/png" class="is-hidden" data-action="sprite-file">
   </div>
 
   <!-- RIGHT PANEL -->
@@ -449,31 +466,31 @@ body::after{
     <div class="panel-section">
       <div class="section-label">Avatars in Pack</div>
       <div id="avatarList"></div>
-      <button class="btn btn-accent btn-block" onclick="addAvatar()" style="margin-top:8px">+ Add Avatar</button>
+      <button class="btn btn-accent btn-block mt-8" data-action="add-avatar">+ Add Avatar</button>
     </div>
 
     <!-- Preview -->
     <div class="panel-section">
       <div class="section-label">Live Preview</div>
       <div id="previewArea">
-        <span style="font-size:11px;color:var(--fg-muted)">Add an avatar and upload a spritesheet to see preview.</span>
+        <span class="hint-muted">Add an avatar and upload a spritesheet to see preview.</span>
       </div>
     </div>
 
     <!-- Submit -->
     <div class="panel-section">
       <div class="section-label">Submit</div>
-      <div class="field" style="margin-bottom:10px">
+      <div class="field">
         <label>Sprite Upload</label>
-        <div style="display:flex;gap:6px;align-items:center">
-          <button class="btn btn-sm btn-accent" onclick="uploadSprite()" id="uploadBtn">Upload Sprite PNG</button>
-          <span id="uploadStatus" style="font-family:var(--font-mono);font-size:10px;color:var(--fg-dim)"></span>
+        <div class="inline-row">
+          <button class="btn btn-sm btn-accent" data-action="upload-sprite" id="uploadBtn">Upload Sprite PNG</button>
+          <span id="uploadStatus" class="status-mono"></span>
         </div>
-        <div class="msg" id="uploadMsg" style="margin-top:6px"></div>
+        <div class="msg" id="uploadMsg"></div>
       </div>
-      <button class="btn btn-sm" onclick="toggleJsonPreview()" style="margin-bottom:6px">Show JSON Payload</button>
+      <button class="btn btn-sm mb-6" data-action="toggle-json-preview">Show JSON Payload</button>
       <div class="json-preview" id="jsonPreview"><pre id="jsonPre"></pre></div>
-      <button class="btn btn-accent btn-block" onclick="submitPack()" style="margin-top:8px">Submit Pack</button>
+      <button class="btn btn-accent btn-block mt-8" data-action="submit-pack">Submit Pack</button>
       <div class="msg" id="submitMsg"></div>
     </div>
   </div>
@@ -495,6 +512,40 @@ let previewAnimId = null;
 let previewState = null;
 let connectedApi = null;
 let existingPacks = [];
+
+const ORIGIN_BLOCKED = 'The API origin is not in the allowed configuration.';
+
+function h(tag, props, children) {
+  const n = document.createElement(tag);
+  if (props) {
+    Object.keys(props).forEach((k) => {
+      const v = props[k];
+      if (v == null || v === false) return;
+      if (k === 'className') n.className = v;
+      else if (k === 'dataset') {
+        Object.keys(v).forEach((dk) => {
+          if (v[dk] != null) n.dataset[dk] = String(v[dk]);
+        });
+      } else if (k === 'text') n.textContent = v;
+      else if (k === 'checked' || k === 'disabled' || k === 'selected') n[k] = true;
+      else if (k === 'value') n.value = v;
+      else if (k === 'id' || k === 'title') n[k] = v;
+      else n.setAttribute(k, String(v));
+    });
+  }
+  const list = children == null ? [] : Array.isArray(children) ? children : [children];
+  list.forEach((c) => {
+    if (c == null || c === false) return;
+    n.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+  });
+  return n;
+}
+
+function requestErrorMessage(e, prefix) {
+  if (e instanceof TypeError) return ORIGIN_BLOCKED;
+  const msg = e && e.message ? e.message : 'Request failed';
+  return prefix ? prefix + msg : msg;
+}
 
 // Default API URL to current origin (tools are served from the same server)
 document.addEventListener('DOMContentLoaded', () => {
@@ -535,27 +586,30 @@ async function testConnection() {
   } catch (e) {
     dot.className = 'conn-dot err';
     label.textContent = 'Error';
-    showMsg(msg, 'err', `Connection failed: ${e.message}`);
+    showMsg(msg, 'err', requestErrorMessage(e, 'Connection failed: '));
   }
 }
 
 function renderExistingPacks() {
   const el = document.getElementById('existingPacks');
   if (existingPacks.length === 0) {
-    el.innerHTML = '<span style="font-size:11px;color:var(--fg-muted)">No packs on server.</span>';
+    el.replaceChildren(h('span', { className: 'hint-muted', text: 'No packs on server.' }));
     return;
   }
-  el.innerHTML = existingPacks.map((p, i) => `
-    <div class="pack-item">
-      <div>
-        <div class="pack-name">${esc(p.name || p.uuid)}</div>
-        <div class="pack-meta">${esc(p.uuid)} · v${esc(p.version || '?')} · ${Array.isArray(p.avatars) ? p.avatars.length : 0} avatar(s)</div>
-      </div>
-      <div class="pack-actions">
-        <button class="btn btn-sm" onclick="loadPack(${i})" title="Edit">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="deletePack(${i})" title="Delete">Del</button>
-      </div>
-    </div>`).join('');
+  el.replaceChildren();
+  existingPacks.forEach((p, i) => {
+    const avatarCount = Array.isArray(p.avatars) ? p.avatars.length : 0;
+    el.appendChild(h('div', { className: 'pack-item' }, [
+      h('div', null, [
+        h('div', { className: 'pack-name', text: p.name || p.uuid || '' }),
+        h('div', { className: 'pack-meta', text: `${p.uuid} · v${p.version || '?'} · ${avatarCount} avatar(s)` }),
+      ]),
+      h('div', { className: 'pack-actions' }, [
+        h('button', { className: 'btn btn-sm', title: 'Edit', dataset: { action: 'load-pack', packIdx: String(i) }, text: 'Edit' }),
+        h('button', { className: 'btn btn-sm btn-danger', title: 'Delete', dataset: { action: 'delete-pack', packIdx: String(i) }, text: 'Del' }),
+      ]),
+    ]));
+  });
 }
 
 function loadPack(idx) {
@@ -626,7 +680,7 @@ async function deletePack(idx) {
       toast('err', `Delete failed: HTTP ${res.status}`);
     }
   } catch (e) {
-    toast('err', `Delete failed: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Delete failed: '));
   }
 }
 
@@ -662,9 +716,9 @@ function handleFile(file) {
 function renderSpriteViewer() {
   if (!spriteImg) return;
   const toolbar = document.getElementById('viewerToolbar');
-  toolbar.style.display = 'flex';
+  toolbar.classList.remove('is-hidden');
   viewerWrap.classList.remove('empty');
-  viewerWrap.innerHTML = '';
+  viewerWrap.replaceChildren();
 
   const container = document.createElement('div');
   container.id = 'spriteContainer';
@@ -687,9 +741,6 @@ function renderSpriteViewer() {
   hoverCanvas.id = 'hoverOverlay';
   hoverCanvas.width = spriteImg.width * zoom;
   hoverCanvas.height = spriteImg.height * zoom;
-  hoverCanvas.style.position = 'absolute';
-  hoverCanvas.style.inset = '0';
-  hoverCanvas.style.pointerEvents = 'none';
   container.appendChild(hoverCanvas);
 
   viewerWrap.appendChild(container);
@@ -883,65 +934,131 @@ function removeState(avId, stateName) {
   updatePreview();
 }
 
+function renderStateRow(av, sn, sv) {
+  const dirs = ['down', 'left', 'right', 'up'].map((d) =>
+    h('label', null, [
+      h('input', {
+        type: 'checkbox',
+        checked: sv.directions.includes(d),
+        dataset: { action: 'toggle-dir', avatarId: String(av._id), stateName: sn, dir: d },
+      }),
+      ' ' + d,
+    ])
+  );
+  return h('div', { className: 'state-row' }, [
+    h('div', { className: 'state-row-header' }, [
+      h('span', { text: sn }),
+      h('button', {
+        className: 'btn btn-sm btn-danger btn-icon-end',
+        dataset: { action: 'remove-state', avatarId: String(av._id), stateName: sn },
+        text: '×',
+      }),
+    ]),
+    h('div', { className: 'state-row-fields' }, [
+      h('div', { className: 'field' }, [
+        h('label', { text: 'Row Start' }),
+        h('input', {
+          type: 'number',
+          min: '0',
+          value: sv.row,
+          dataset: { action: 'update-state-row', avatarId: String(av._id), stateName: sn },
+        }),
+      ]),
+      h('div', { className: 'field' }, [
+        h('label', { text: 'Frames' }),
+        h('input', {
+          type: 'number',
+          min: '1',
+          value: sv.frameCount,
+          dataset: { action: 'update-state-frames', avatarId: String(av._id), stateName: sn },
+        }),
+      ]),
+      h('div', { className: 'field' }, [
+        h('label', { text: 'FPS' }),
+        h('input', {
+          type: 'number',
+          min: '1',
+          value: sv.frameRate,
+          dataset: { action: 'update-state-fps', avatarId: String(av._id), stateName: sn },
+        }),
+      ]),
+    ]),
+    h('div', { className: 'dir-checks' }, dirs),
+  ]);
+}
+
+function renderAvatarCard(av) {
+  let previewImg = null;
+  if (av.previewUrl) {
+    previewImg = h('img', { className: 'preview-thumb' });
+    previewImg.src = getPreviewFullUrl(av.previewUrl);
+  }
+  const previewName = av.previewUrl ? av.previewUrl.split('/').pop() : 'No preview';
+  const stateRows = Object.entries(av.states).map(([sn, sv]) => renderStateRow(av, sn, sv));
+  return h('div', { className: 'avatar-card' }, [
+    h('div', { className: 'avatar-card-header', dataset: { action: 'toggle-avatar', avatarId: String(av._id) } }, [
+      h('span', { text: av.displayName || av.key || '(unnamed)' }),
+      h('div', { className: 'inline-row-sm' }, [
+        h('span', { className: 'state-count', text: `${Object.keys(av.states).length} state(s)` }),
+        h('button', {
+          className: 'btn btn-sm btn-danger btn-icon',
+          dataset: { action: 'remove-avatar', avatarId: String(av._id) },
+          text: '×',
+        }),
+      ]),
+    ]),
+    h('div', { className: 'avatar-card-body' + (av.collapsed ? ' collapsed' : '') }, [
+      h('div', { className: 'field' }, [
+        h('label', { text: 'Key (ID)' }),
+        h('input', {
+          type: 'text',
+          value: av.key,
+          dataset: { action: 'update-avatar-key', avatarId: String(av._id) },
+        }),
+      ]),
+      h('div', { className: 'field' }, [
+        h('label', { text: 'Display Name' }),
+        h('input', {
+          type: 'text',
+          value: av.displayName,
+          dataset: { action: 'update-avatar-name', avatarId: String(av._id) },
+        }),
+      ]),
+      h('div', { className: 'field' }, [
+        h('label', { text: 'Preview Image' }),
+        h('div', { className: 'inline-row-md' }, [
+          h('button', {
+            className: 'btn btn-sm',
+            dataset: { action: 'pick-preview-file', avatarId: String(av._id) },
+            text: 'Upload Preview',
+          }),
+          h('input', {
+            type: 'file',
+            id: 'previewFile_' + av._id,
+            accept: 'image/png',
+            className: 'is-hidden',
+            dataset: { action: 'preview-file', avatarId: String(av._id) },
+          }),
+          h('span', { className: 'status-mono', id: 'previewStatus_' + av._id, text: previewName }),
+        ]),
+        previewImg,
+      ]),
+      ...stateRows,
+      h('button', {
+        className: 'btn btn-sm btn-block mt-6',
+        dataset: { action: 'add-state', avatarId: String(av._id) },
+        text: '+ Add State',
+      }),
+    ]),
+  ]);
+}
+
 function renderAvatars() {
   const el = document.getElementById('avatarList');
-  el.innerHTML = avatars.map(av => {
-    const statesHtml = Object.entries(av.states).map(([sn, sv]) => `
-      <div class="state-row">
-        <div class="state-row-header">
-          <span>${esc(sn)}</span>
-          <button class="btn btn-sm btn-danger" onclick="removeState(${av._id},'${esc(sn)}')" style="margin-left:auto;padding:2px 6px">×</button>
-        </div>
-        <div class="state-row-fields">
-          <div class="field">
-            <label>Row Start</label>
-            <input type="number" min="0" value="${sv.row}" onchange="avatars.find(a=>a._id===${av._id}).states['${esc(sn)}'].row=+this.value;redrawOverlays();updatePreview()">
-          </div>
-          <div class="field">
-            <label>Frames</label>
-            <input type="number" min="1" value="${sv.frameCount}" onchange="avatars.find(a=>a._id===${av._id}).states['${esc(sn)}'].frameCount=+this.value;updatePreview()">
-          </div>
-          <div class="field">
-            <label>FPS</label>
-            <input type="number" min="1" value="${sv.frameRate}" onchange="avatars.find(a=>a._id===${av._id}).states['${esc(sn)}'].frameRate=+this.value;updatePreview()">
-          </div>
-        </div>
-        <div class="dir-checks">
-          ${['down','left','right','up'].map(d => `
-            <label><input type="checkbox" ${sv.directions.includes(d)?'checked':''} onchange="toggleDir(${av._id},'${esc(sn)}','${d}',this.checked)"> ${d}</label>
-          `).join('')}
-        </div>
-      </div>
-    `).join('');
-
-    return `
-      <div class="avatar-card">
-        <div class="avatar-card-header" onclick="toggleAvatar(${av._id})">
-          <span>${esc(av.displayName || av.key || '(unnamed)')}</span>
-          <div style="display:flex;gap:4px;align-items:center">
-            <span style="font-size:9px;color:var(--fg-muted)">${Object.keys(av.states).length} state(s)</span>
-            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();removeAvatar(${av._id})" style="padding:2px 6px">×</button>
-          </div>
-        </div>
-        <div class="avatar-card-body${av.collapsed ? ' collapsed' : ''}">
-          <div class="field"><label>Key (ID)</label><input type="text" value="${esc(av.key)}" onchange="avatars.find(a=>a._id===${av._id}).key=this.value;renderAvatars()"></div>
-          <div class="field"><label>Display Name</label><input type="text" value="${esc(av.displayName)}" onchange="avatars.find(a=>a._id===${av._id}).displayName=this.value;renderAvatars()"></div>
-          <div class="field">
-            <label>Preview Image</label>
-            <div style="display:flex;gap:8px;align-items:center">
-              <button class="btn btn-sm" onclick="document.getElementById('previewFile_${av._id}').click()">Upload Preview</button>
-              <input type="file" id="previewFile_${av._id}" accept="image/png" style="display:none" onchange="handlePreviewFile(${av._id}, this.files[0])">
-              <span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-dim)" id="previewStatus_${av._id}">
-                ${av.previewUrl ? esc(av.previewUrl.split('/').pop()) : 'No preview'}
-              </span>
-            </div>
-            ${av.previewUrl ? '<img src="' + esc(getPreviewFullUrl(av.previewUrl)) + '" style="margin-top:6px;max-width:64px;max-height:96px;image-rendering:pixelated;border:1px solid var(--border);border-radius:3px;background:var(--bg-deep)">' : ''}
-          </div>
-          ${statesHtml}
-          <button class="btn btn-sm btn-block" onclick="addState(${av._id})" style="margin-top:6px">+ Add State</button>
-        </div>
-      </div>`;
-  }).join('');
+  el.replaceChildren();
+  avatars.forEach((av) => {
+    el.appendChild(renderAvatarCard(av));
+  });
 }
 
 function toggleDir(avId, stateName, dir, checked) {
@@ -962,7 +1079,7 @@ function redrawOverlays() {
 function updatePreview() {
   const area = document.getElementById('previewArea');
   if (avatars.length === 0 || !spriteImg) {
-    area.innerHTML = '<span style="font-size:11px;color:var(--fg-muted)">Add an avatar and upload a spritesheet to see preview.</span>';
+    area.replaceChildren(h('span', { className: 'hint-muted', text: 'Add an avatar and upload a spritesheet to see preview.' }));
     if (previewAnimId) { cancelAnimationFrame(previewAnimId); previewAnimId = null; }
     return;
   }
@@ -971,15 +1088,11 @@ function updatePreview() {
   const av = avatars[0];
   const stateNames = Object.keys(av.states);
   if (stateNames.length === 0) {
-    area.innerHTML = '<span style="font-size:11px;color:var(--fg-muted)">Add at least one state.</span>';
+    area.replaceChildren(h('span', { className: 'hint-muted', text: 'Add at least one state.' }));
     return;
   }
 
   if (!previewState || !av.states[previewState]) previewState = stateNames[0];
-
-  const stateButtons = stateNames.map(s =>
-    `<button class="preview-state-btn${s === previewState ? ' active' : ''}" onclick="previewState='${esc(s)}';updatePreview()">${esc(s)}</button>`
-  ).join('');
 
   const st = av.states[previewState];
   const dirs = st.directions.length > 0 ? st.directions : ['down','left','right','up'];
@@ -987,22 +1100,32 @@ function updatePreview() {
   const scale = 4;
   const pw = frameW * scale, ph = frameH * scale;
 
-  area.innerHTML = `
-    <div class="preview-section">
-      <div class="preview-state-select">${stateButtons}</div>
-      <div style="margin-top:4px;font-family:var(--font-mono);font-size:10px;color:var(--fg-muted)">
-        ${st.frameCount} frame(s) @ ${st.frameRate} fps · row ${st.row}
-      </div>
-      <div class="preview-grid" id="previewGrid">
-        ${allDirs.map(d => `
-          <div class="preview-cell">
-            <canvas width="${pw}" height="${ph}" data-dir="${d}" style="width:${pw}px;height:${ph}px"></canvas>
-            <div class="dir-label">${d}</div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
+  const stateButtons = stateNames.map((s) =>
+    h('button', {
+      className: 'preview-state-btn' + (s === previewState ? ' active' : ''),
+      dataset: { action: 'set-preview-state', stateName: s },
+      text: s,
+    })
+  );
+  const gridCells = allDirs.map((d) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = pw;
+    canvas.height = ph;
+    canvas.dataset.dir = d;
+    canvas.style.width = pw + 'px';
+    canvas.style.height = ph + 'px';
+    return h('div', { className: 'preview-cell' }, [
+      canvas,
+      h('div', { className: 'dir-label', text: d }),
+    ]);
+  });
+  area.replaceChildren(
+    h('div', { className: 'preview-section' }, [
+      h('div', { className: 'preview-state-select' }, stateButtons),
+      h('div', { className: 'preview-meta', text: `${st.frameCount} frame(s) @ ${st.frameRate} fps · row ${st.row}` }),
+      h('div', { className: 'preview-grid', id: 'previewGrid' }, gridCells),
+    ])
+  );
 
   // Start animation loop
   if (previewAnimId) cancelAnimationFrame(previewAnimId);
@@ -1096,7 +1219,7 @@ async function uploadSprite() {
       status.textContent = 'Failed';
     }
   } catch (e) {
-    showMsg(msg, 'err', 'Upload failed: ' + e.message);
+    showMsg(msg, 'err', requestErrorMessage(e, 'Upload failed: '));
     status.textContent = 'Error';
   } finally {
     btn.disabled = false;
@@ -1134,7 +1257,7 @@ async function handlePreviewFile(avId, file) {
       toast('err', `Preview upload failed: HTTP ${res.status} — ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', 'Preview upload failed: ' + e.message);
+    toast('err', requestErrorMessage(e, 'Preview upload failed: '));
   }
 }
 
@@ -1202,7 +1325,7 @@ async function submitPack() {
       showMsg(msg, 'err', `HTTP ${res.status}: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    showMsg(msg, 'err', `Submit failed: ${e.message}`);
+    showMsg(msg, 'err', requestErrorMessage(e, 'Submit failed: '));
   }
 }
 
@@ -1221,10 +1344,123 @@ function toast(type, text) {
   setTimeout(() => { div.style.opacity = '0'; div.style.transition = 'opacity 0.3s'; setTimeout(() => div.remove(), 300); }, 3000);
 }
 
-function esc(s) {
-  if (typeof s !== 'string') return '';
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+function avatarFromEl(el) {
+  return avatars.find(a => a._id === parseInt(el.dataset.avatarId, 10));
 }
+
+function pickSpriteFile() {
+  document.getElementById('fileInput').click();
+}
+
+function pickPreviewFile(el) {
+  const input = el.parentElement && el.parentElement.querySelector('input[type="file"]');
+  if (input) input.click();
+}
+
+function setPreviewState(el) {
+  previewState = el.dataset.stateName;
+  updatePreview();
+}
+
+function updateStateRow(el) {
+  const av = avatarFromEl(el);
+  av.states[el.dataset.stateName].row = +el.value;
+  redrawOverlays();
+  updatePreview();
+}
+
+function updateStateFrames(el) {
+  const av = avatarFromEl(el);
+  av.states[el.dataset.stateName].frameCount = +el.value;
+  updatePreview();
+}
+
+function updateStateFps(el) {
+  const av = avatarFromEl(el);
+  av.states[el.dataset.stateName].frameRate = +el.value;
+  updatePreview();
+}
+
+function updateAvatarKey(el) {
+  avatarFromEl(el).key = el.value;
+  renderAvatars();
+}
+
+function updateAvatarName(el) {
+  avatarFromEl(el).displayName = el.value;
+  renderAvatars();
+}
+
+const actions = {
+  'test-connection': () => { testConnection(); },
+  'pick-sprite-file': () => { pickSpriteFile(); },
+  'add-avatar': () => { addAvatar(); },
+  'upload-sprite': () => { uploadSprite(); },
+  'toggle-json-preview': () => { toggleJsonPreview(); },
+  'submit-pack': () => { submitPack(); },
+  'load-pack': (el) => { loadPack(parseInt(el.dataset.packIdx, 10)); },
+  'delete-pack': (el) => { deletePack(parseInt(el.dataset.packIdx, 10)); },
+  'remove-state': (el) => { removeState(parseInt(el.dataset.avatarId, 10), el.dataset.stateName); },
+  'toggle-avatar': (el) => { toggleAvatar(parseInt(el.dataset.avatarId, 10)); },
+  'remove-avatar': (el, event) => { event.stopPropagation(); removeAvatar(parseInt(el.dataset.avatarId, 10)); },
+  'pick-preview-file': (el) => { pickPreviewFile(el); },
+  'add-state': (el) => { addState(parseInt(el.dataset.avatarId, 10)); },
+  'set-preview-state': (el) => { setPreviewState(el); },
+  'frame-size-change': () => { onFrameSizeChange(); },
+  'zoom-change': () => { onZoomChange(); },
+  'sprite-file': (el) => { handleFile(el.files[0]); },
+  'update-state-row': (el) => { updateStateRow(el); },
+  'update-state-frames': (el) => { updateStateFrames(el); },
+  'update-state-fps': (el) => { updateStateFps(el); },
+  'toggle-dir': (el) => { toggleDir(parseInt(el.dataset.avatarId, 10), el.dataset.stateName, el.dataset.dir, el.checked); },
+  'update-avatar-key': (el) => { updateAvatarKey(el); },
+  'update-avatar-name': (el) => { updateAvatarName(el); },
+  'preview-file': (el) => { handlePreviewFile(parseInt(el.dataset.avatarId, 10), el.files[0]); },
+};
+
+const clickActions = {
+  'test-connection': actions['test-connection'],
+  'pick-sprite-file': actions['pick-sprite-file'],
+  'add-avatar': actions['add-avatar'],
+  'upload-sprite': actions['upload-sprite'],
+  'toggle-json-preview': actions['toggle-json-preview'],
+  'submit-pack': actions['submit-pack'],
+  'load-pack': actions['load-pack'],
+  'delete-pack': actions['delete-pack'],
+  'remove-state': actions['remove-state'],
+  'toggle-avatar': actions['toggle-avatar'],
+  'remove-avatar': actions['remove-avatar'],
+  'pick-preview-file': actions['pick-preview-file'],
+  'add-state': actions['add-state'],
+  'set-preview-state': actions['set-preview-state'],
+};
+
+const changeActions = {
+  'frame-size-change': actions['frame-size-change'],
+  'zoom-change': actions['zoom-change'],
+  'sprite-file': actions['sprite-file'],
+  'update-state-row': actions['update-state-row'],
+  'update-state-frames': actions['update-state-frames'],
+  'update-state-fps': actions['update-state-fps'],
+  'toggle-dir': actions['toggle-dir'],
+  'update-avatar-key': actions['update-avatar-key'],
+  'update-avatar-name': actions['update-avatar-name'],
+  'preview-file': actions['preview-file'],
+};
+
+document.addEventListener('click', (event) => {
+  const el = event.target.closest('[data-action]');
+  if (!el) return;
+  const fn = clickActions[el.dataset.action];
+  if (fn) fn(el, event);
+});
+
+document.addEventListener('change', (event) => {
+  const el = event.target.closest('[data-action]');
+  if (!el) return;
+  const fn = changeActions[el.dataset.action];
+  if (fn) fn(el, event);
+});
 
 // Init
 viewerWrap.classList.add('empty');

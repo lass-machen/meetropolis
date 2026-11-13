@@ -324,6 +324,20 @@ body::after{
   0%, 100% { box-shadow: 0 0 0 0 rgba(88,101,242,0.4) }
   50% { box-shadow: 0 0 0 6px rgba(88,101,242,0) }
 }
+
+/* Utility classes replacing former inline style attributes */
+.grow{flex:1}
+.spread{justify-content:space-between}
+.label-inline{display:flex;align-items:center;gap:8px}
+.label-dot{flex:0 0 3px;height:3px;background:var(--accent);border-radius:1px}
+.muted{font-size:11px;color:var(--fg-muted)}
+.is-hidden{display:none!important}
+.tight{margin-top:4px}
+.pixel-hint{font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-bottom:8px}
+.mt-16{margin-top:16px}
+.file-input{font-size:11px}
+.flush{margin-top:0}
+.mt-8{margin-top:8px}
 </style>
 </head>
 <body>
@@ -352,18 +366,18 @@ body::after{
         <input type="text" id="authToken" placeholder="Bearer token or leave empty for cookies">
       </div>
       <div class="btn-row">
-        <button class="btn btn-accent btn-block" onclick="testConnection()">Test Connection</button>
+        <button class="btn btn-accent btn-block" data-action="test-connection">Test Connection</button>
       </div>
     </div>
 
     <!-- NPC List -->
-    <div class="panel-section" style="flex:1">
-      <div class="section-label" style="justify-content:space-between">
-        <span style="display:flex;align-items:center;gap:8px"><span style="flex:0 0 3px;height:3px;background:var(--accent);border-radius:1px"></span>NPCs</span>
-        <button class="btn btn-sm btn-accent" onclick="openCreateModal()">+ Create</button>
+    <div class="panel-section grow">
+      <div class="section-label spread">
+        <span class="label-inline"><span class="label-dot"></span>NPCs</span>
+        <button class="btn btn-sm btn-accent" data-action="open-create-modal">+ Create</button>
       </div>
       <div id="npcList">
-        <span style="font-size:11px;color:var(--fg-muted)">Connect to server to load NPCs.</span>
+        <span class="muted">Connect to server to load NPCs.</span>
       </div>
     </div>
   </div>
@@ -373,11 +387,11 @@ body::after{
     <div class="detail-empty" id="detailEmpty">
       <span>Select an NPC from the list or create a new one.</span>
     </div>
-    <div id="detailContent" style="display:none">
+    <div id="detailContent" class="is-hidden">
       <div class="tab-bar">
-        <button class="tab-btn active" data-tab="info" onclick="switchTab('info')">Info &amp; Config</button>
-        <button class="tab-btn" data-tab="media" onclick="switchTab('media')">Media</button>
-        <button class="tab-btn" data-tab="controls" onclick="switchTab('controls')">Controls</button>
+        <button class="tab-btn active" data-tab="info" data-action="switch-tab">Info &amp; Config</button>
+        <button class="tab-btn" data-tab="media" data-action="switch-tab">Media</button>
+        <button class="tab-btn" data-tab="controls" data-action="switch-tab">Controls</button>
       </div>
 
       <!-- Info & Config Tab -->
@@ -389,36 +403,36 @@ body::after{
         </div>
         <div class="field">
           <label>Name</label>
-          <input type="text" id="npcName">
+          <input type="text" id="npcName" data-action="info-field">
         </div>
         <input type="hidden" id="npcAvatarId">
-        <div class="section-label" style="margin-top:4px">Avatar</div>
+        <div class="section-label tight">Avatar</div>
         <div id="infoAvatarGrid" class="avatar-grid" data-target="npcAvatarId"></div>
         <div class="avatar-picker-fallback" id="infoAvatarFallback">
           <div class="field">
             <label>Avatar ID</label>
             <input type="text" id="npcAvatarIdFallback" placeholder="e.g. pack-uuid:avatar-key"
-                   oninput="document.getElementById('npcAvatarId').value=this.value; checkDirty()">
+                   data-action="sync-avatar-fallback" data-target="npcAvatarId">
           </div>
         </div>
         <div class="field">
           <label>Map</label>
-          <select id="npcMapName">
+          <select id="npcMapName" data-action="info-field">
             <option value="">(Default)</option>
           </select>
         </div>
         <div class="field-row">
           <div class="field">
             <label>Spawn X (Tile)</label>
-            <input type="number" id="npcSpawnX">
+            <input type="number" id="npcSpawnX" data-action="info-field">
           </div>
           <div class="field">
             <label>Spawn Y (Tile)</label>
-            <input type="number" id="npcSpawnY">
+            <input type="number" id="npcSpawnY" data-action="info-field">
           </div>
           <div class="field">
             <label>Spawn Direction</label>
-            <select id="npcSpawnDir">
+            <select id="npcSpawnDir" data-action="info-field">
               <option value="">(none)</option>
               <option value="up">up</option>
               <option value="down">down</option>
@@ -427,23 +441,23 @@ body::after{
             </select>
           </div>
         </div>
-        <div style="font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-bottom:8px" id="spawnPixelHint">Pixel: --</div>
+        <div class="pixel-hint" id="spawnPixelHint">Pixel: --</div>
         <div class="toggle-row">
-          <input type="checkbox" id="npcEnabled">
+          <input type="checkbox" id="npcEnabled" data-action="info-field">
           <label for="npcEnabled">Enabled</label>
         </div>
         <div class="toggle-row">
-          <input type="checkbox" id="npcShowBadge">
+          <input type="checkbox" id="npcShowBadge" data-action="info-field">
           <label for="npcShowBadge">Show Badge</label>
         </div>
         <div class="field">
           <label>Config (JSON)</label>
-          <textarea id="npcConfig" placeholder='{"key": "value"}'></textarea>
+          <textarea id="npcConfig" placeholder='{"key": "value"}' data-action="info-field"></textarea>
         </div>
         <div class="btn-row">
-          <button class="btn btn-accent" id="btnSave" onclick="saveNpc()">Save Changes</button>
+          <button class="btn btn-accent" id="btnSave" data-action="save-npc">Save Changes</button>
           <span class="unsaved-hint" id="unsavedHint">Unsaved changes</span>
-          <button class="btn btn-danger" onclick="deleteNpc()">Delete NPC</button>
+          <button class="btn btn-danger" data-action="delete-npc">Delete NPC</button>
         </div>
       </div>
 
@@ -451,13 +465,13 @@ body::after{
       <div class="tab-content" id="tab-media">
         <div class="section-label">Media Files</div>
         <div id="mediaList">
-          <span style="font-size:11px;color:var(--fg-muted)">Loading...</span>
+          <span class="muted">Loading...</span>
         </div>
-        <div class="control-group" style="margin-top:16px">
+        <div class="control-group mt-16">
           <div class="control-group-label">Upload Media</div>
           <div class="field">
             <label>File (audio/video)</label>
-            <input type="file" id="mediaFileInput" accept="audio/*,video/*" style="font-size:11px">
+            <input type="file" id="mediaFileInput" class="file-input" accept="audio/*,video/*">
           </div>
           <div class="field">
             <label>Media Type Override (optional)</label>
@@ -468,7 +482,7 @@ body::after{
               <option value="screenshare">screenshare</option>
             </select>
           </div>
-          <button class="btn btn-accent btn-sm" onclick="uploadMedia()">Upload</button>
+          <button class="btn btn-accent btn-sm" data-action="upload-media">Upload</button>
         </div>
       </div>
 
@@ -479,9 +493,9 @@ body::after{
         <!-- Spawn/Despawn -->
         <div class="control-group">
           <div class="control-group-label">Lifecycle</div>
-          <div class="btn-row" style="margin-top:0">
-            <button class="btn btn-green" onclick="spawnNpc()">Spawn</button>
-            <button class="btn btn-danger" onclick="despawnNpc()">Despawn</button>
+          <div class="btn-row flush">
+            <button class="btn btn-green" data-action="spawn-npc">Spawn</button>
+            <button class="btn btn-danger" data-action="despawn-npc">Despawn</button>
           </div>
         </div>
 
@@ -502,9 +516,9 @@ body::after{
               <input type="number" id="cmdMoveSpeed" placeholder="default">
             </div>
           </div>
-          <div class="btn-row" style="margin-top:0">
-            <button class="btn btn-accent btn-sm" onclick="cmdMove()">Move</button>
-            <button class="btn btn-danger btn-sm" onclick="cmdStopMovement()">Stop</button>
+          <div class="btn-row flush">
+            <button class="btn btn-accent btn-sm" data-action="cmd-move">Move</button>
+            <button class="btn btn-danger btn-sm" data-action="cmd-stop-movement">Stop</button>
           </div>
         </div>
 
@@ -519,7 +533,7 @@ body::after{
             <input type="checkbox" id="cmdAudioLoop">
             <label for="cmdAudioLoop">Loop</label>
           </div>
-          <button class="btn btn-accent btn-sm" onclick="cmdPlayAudio()">Play Audio</button>
+          <button class="btn btn-accent btn-sm" data-action="cmd-play-audio">Play Audio</button>
         </div>
 
         <!-- Play Video -->
@@ -533,7 +547,7 @@ body::after{
             <input type="checkbox" id="cmdVideoLoop">
             <label for="cmdVideoLoop">Loop</label>
           </div>
-          <button class="btn btn-accent btn-sm" onclick="cmdPlayVideo()">Play Video</button>
+          <button class="btn btn-accent btn-sm" data-action="cmd-play-video">Play Video</button>
         </div>
 
         <!-- Play Screenshare -->
@@ -547,21 +561,21 @@ body::after{
             <input type="checkbox" id="cmdScreenshareLoop">
             <label for="cmdScreenshareLoop">Loop</label>
           </div>
-          <button class="btn btn-accent btn-sm" onclick="cmdPlayScreenshare()">Play Screenshare</button>
+          <button class="btn btn-accent btn-sm" data-action="cmd-play-screenshare">Play Screenshare</button>
         </div>
 
         <!-- Stop Media -->
         <div class="control-group">
           <div class="control-group-label">Stop Media</div>
-          <button class="btn btn-orange btn-sm" onclick="cmdStopMedia()">Stop All Media</button>
+          <button class="btn btn-orange btn-sm" data-action="cmd-stop-media">Stop All Media</button>
         </div>
 
         <!-- Set DND -->
         <div class="control-group">
           <div class="control-group-label">Do Not Disturb</div>
-          <div class="btn-row" style="margin-top:0">
-            <button class="btn btn-orange btn-sm" onclick="cmdSetDnd(true)">Enable DND</button>
-            <button class="btn btn-sm" onclick="cmdSetDnd(false)">Disable DND</button>
+          <div class="btn-row flush">
+            <button class="btn btn-orange btn-sm" data-action="cmd-set-dnd" data-dnd="true">Enable DND</button>
+            <button class="btn btn-sm" data-action="cmd-set-dnd" data-dnd="false">Disable DND</button>
           </div>
         </div>
 
@@ -569,16 +583,16 @@ body::after{
         <div class="control-group">
           <div class="control-group-label">Set Avatar (Live)</div>
           <input type="hidden" id="cmdAvatarId">
-          <div class="section-label" style="margin-top:4px">Avatar</div>
+          <div class="section-label tight">Avatar</div>
           <div id="cmdAvatarGrid" class="avatar-grid" data-target="cmdAvatarId"></div>
           <div class="avatar-picker-fallback" id="cmdAvatarFallback">
             <div class="field">
               <label>Avatar ID</label>
               <input type="text" id="cmdAvatarIdFallback" placeholder="pack-uuid:avatar-key"
-                     oninput="document.getElementById('cmdAvatarId').value=this.value">
+                     data-action="sync-avatar-fallback" data-target="cmdAvatarId">
             </div>
           </div>
-          <button class="btn btn-accent btn-sm" style="margin-top:8px" onclick="cmdSetAvatar()">Set Avatar</button>
+          <button class="btn btn-accent btn-sm mt-8" data-action="cmd-set-avatar">Set Avatar</button>
         </div>
       </div>
     </div>
@@ -586,7 +600,7 @@ body::after{
 </div>
 
 <!-- Create NPC Modal -->
-<div class="modal-overlay" id="createModal">
+<div class="modal-overlay" id="createModal" data-action="close-create-modal">
   <div class="modal">
     <h2>Create NPC</h2>
     <div class="field">
@@ -598,13 +612,13 @@ body::after{
       <input type="text" id="createName" placeholder="My NPC">
     </div>
     <input type="hidden" id="createAvatarId">
-    <div class="section-label" style="margin-top:4px">Avatar</div>
+    <div class="section-label tight">Avatar</div>
     <div id="createAvatarGrid" class="avatar-grid" data-target="createAvatarId"></div>
     <div class="avatar-picker-fallback" id="createAvatarFallback">
       <div class="field">
         <label>Avatar ID (optional)</label>
         <input type="text" id="createAvatarIdFallback" placeholder="pack-uuid:avatar-key"
-               oninput="document.getElementById('createAvatarId').value=this.value">
+               data-action="sync-avatar-fallback" data-target="createAvatarId">
       </div>
     </div>
     <div class="field">
@@ -634,8 +648,8 @@ body::after{
       </div>
     </div>
     <div class="btn-row">
-      <button class="btn btn-accent" onclick="createNpc()">Create</button>
-      <button class="btn" onclick="closeCreateModal()">Cancel</button>
+      <button class="btn btn-accent" data-action="create-npc">Create</button>
+      <button class="btn" data-action="close-create-modal">Cancel</button>
     </div>
   </div>
 </div>
@@ -653,6 +667,45 @@ let isDirty = false; // Tracks unsaved changes in Info tab
 let maps = []; // list of map objects from /maps API
 let mapTileWidth = 16;  // default fallback
 let mapTileHeight = 16;
+
+const ORIGIN_BLOCKED = 'The API origin is not in the allowed configuration.';
+
+function h(tag, props, children) {
+  const n = document.createElement(tag);
+  if (props) {
+    Object.keys(props).forEach((k) => {
+      const v = props[k];
+      if (v == null || v === false) return;
+      if (k === 'className') n.className = v;
+      else if (k === 'dataset') {
+        Object.keys(v).forEach((dk) => {
+          if (v[dk] != null) n.dataset[dk] = String(v[dk]);
+        });
+      } else if (k === 'text') n.textContent = v;
+      else if (k === 'checked' || k === 'disabled' || k === 'selected') n[k] = true;
+      else if (k === 'value') n.value = v;
+      else if (k === 'id' || k === 'title') n[k] = v;
+      else n.setAttribute(k, String(v));
+    });
+  }
+  const list = children == null ? [] : Array.isArray(children) ? children : [children];
+  list.forEach((c) => {
+    if (c == null || c === false) return;
+    n.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+  });
+  return n;
+}
+
+function requestErrorMessage(e, prefix) {
+  if (e instanceof TypeError) return ORIGIN_BLOCKED;
+  const msg = e && e.message ? e.message : 'Request failed';
+  return prefix ? prefix + msg : msg;
+}
+
+function textOrEmpty(v) {
+  if (v == null) return '';
+  return typeof v === 'string' ? v : String(v);
+}
 
 // Default API URL to current origin (tools are served from the same server)
 document.addEventListener('DOMContentLoaded', () => {
@@ -719,7 +772,7 @@ async function testConnection() {
   } catch (e) {
     dot.className = 'conn-dot err';
     label.textContent = 'Error';
-    toast('err', `Connection failed: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Connection failed: '));
   }
 }
 
@@ -727,18 +780,25 @@ async function testConnection() {
 function renderNpcList() {
   const el = document.getElementById('npcList');
   if (npcs.length === 0) {
-    el.innerHTML = '<span style="font-size:11px;color:var(--fg-muted)">No NPCs found.</span>';
+    el.replaceChildren(h('span', { className: 'muted', text: 'No NPCs found.' }));
     return;
   }
-  el.innerHTML = npcs.map(npc => `
-    <div class="npc-item${npc.id === selectedNpcId ? ' active' : ''}" onclick="selectNpc('${esc(npc.id)}')">
-      <div class="npc-name">${esc(npc.name)}</div>
-      <div class="npc-meta">
-        <span>${esc(npc.identity)}</span>
-        <span class="badge ${npc.enabled ? 'badge-enabled' : 'badge-disabled'}">${npc.enabled ? 'Enabled' : 'Disabled'}</span>
-      </div>
-    </div>
-  `).join('');
+  el.replaceChildren();
+  npcs.forEach((npc) => {
+    el.appendChild(h('div', {
+      className: 'npc-item' + (npc.id === selectedNpcId ? ' active' : ''),
+      dataset: { action: 'select-npc', npcId: npc.id },
+    }, [
+      h('div', { className: 'npc-name', text: textOrEmpty(npc.name) }),
+      h('div', { className: 'npc-meta' }, [
+        h('span', { text: textOrEmpty(npc.identity) }),
+        h('span', {
+          className: 'badge ' + (npc.enabled ? 'badge-enabled' : 'badge-disabled'),
+          text: npc.enabled ? 'Enabled' : 'Disabled',
+        }),
+      ]),
+    ]));
+  });
 }
 
 // ── NPC Selection ──
@@ -758,12 +818,12 @@ async function selectNpc(id) {
     }
     selectedNpc = await res.json();
   } catch (e) {
-    toast('err', `Failed to load NPC: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Failed to load NPC: '));
     return;
   }
 
-  document.getElementById('detailEmpty').style.display = 'none';
-  document.getElementById('detailContent').style.display = 'block';
+  document.getElementById('detailEmpty').classList.add('is-hidden');
+  document.getElementById('detailContent').classList.remove('is-hidden');
 
   // Populate info tab
   document.getElementById('npcIdentity').value = selectedNpc.identity || '';
@@ -803,8 +863,8 @@ function clearSelection() {
   selectedNpc = null;
   npcMediaFiles = [];
   setDirty(false);
-  document.getElementById('detailEmpty').style.display = 'flex';
-  document.getElementById('detailContent').style.display = 'none';
+  document.getElementById('detailEmpty').classList.remove('is-hidden');
+  document.getElementById('detailContent').classList.add('is-hidden');
   renderNpcList();
 }
 
@@ -861,7 +921,7 @@ async function saveNpc() {
       toast('err', `Save failed: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Save failed: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Save failed: '));
   }
 }
 
@@ -880,7 +940,7 @@ async function deleteNpc() {
       toast('err', `Delete failed: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Delete failed: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Delete failed: '));
   }
 }
 
@@ -941,14 +1001,9 @@ async function createNpc() {
       toast('err', `Create failed: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Create failed: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Create failed: '));
   }
 }
-
-// Close modal on overlay click
-document.getElementById('createModal').addEventListener('click', function(e) {
-  if (e.target === this) closeCreateModal();
-});
 
 // ── Media ──
 async function loadMedia() {
@@ -961,8 +1016,9 @@ async function loadMedia() {
     } else {
       npcMediaFiles = selectedNpc.mediaFiles || [];
     }
-  } catch {
+  } catch (e) {
     npcMediaFiles = selectedNpc.mediaFiles || [];
+    if (e instanceof TypeError) toast('err', ORIGIN_BLOCKED);
   }
   renderMediaList();
 }
@@ -970,20 +1026,24 @@ async function loadMedia() {
 function renderMediaList() {
   const el = document.getElementById('mediaList');
   if (npcMediaFiles.length === 0) {
-    el.innerHTML = '<span style="font-size:11px;color:var(--fg-muted)">No media files uploaded.</span>';
+    el.replaceChildren(h('span', { className: 'muted', text: 'No media files uploaded.' }));
     return;
   }
-  el.innerHTML = npcMediaFiles.map(mf => `
-    <div class="media-item">
-      <div class="media-info">
-        <div class="media-name">${esc(mf.filename)}</div>
-        <div class="media-meta">
-          ${esc(mf.mediaType)} / ${esc(mf.mimeType)} / ${formatBytes(mf.sizeBytes)}
-        </div>
-      </div>
-      <button class="btn btn-sm btn-danger" onclick="deleteMedia('${esc(mf.id)}')">Del</button>
-    </div>
-  `).join('');
+  el.replaceChildren();
+  npcMediaFiles.forEach((mf) => {
+    const metaText = `${textOrEmpty(mf.mediaType)} / ${textOrEmpty(mf.mimeType)} / ${formatBytes(mf.sizeBytes)}`;
+    el.appendChild(h('div', { className: 'media-item' }, [
+      h('div', { className: 'media-info' }, [
+        h('div', { className: 'media-name', text: textOrEmpty(mf.filename) }),
+        h('div', { className: 'media-meta', text: metaText }),
+      ]),
+      h('button', {
+        className: 'btn btn-sm btn-danger',
+        dataset: { action: 'delete-media', mediaId: mf.id },
+        text: 'Del',
+      }),
+    ]));
+  });
 }
 
 function populateMediaDropdowns() {
@@ -998,9 +1058,14 @@ function populateMediaDropdowns() {
 
 function populateSelect(selectId, files) {
   const sel = document.getElementById(selectId);
-  sel.innerHTML = files.length === 0
-    ? '<option value="">No files</option>'
-    : files.map(f => `<option value="${esc(f.id)}">${esc(f.filename)}</option>`).join('');
+  sel.replaceChildren();
+  if (files.length === 0) {
+    sel.appendChild(h('option', { value: '', text: 'No files' }));
+    return;
+  }
+  files.forEach((f) => {
+    sel.appendChild(h('option', { value: textOrEmpty(f.id), text: textOrEmpty(f.filename) }));
+  });
 }
 
 async function uploadMedia() {
@@ -1031,7 +1096,7 @@ async function uploadMedia() {
       toast('err', `Upload failed: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Upload failed: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Upload failed: '));
   }
 }
 
@@ -1049,7 +1114,7 @@ async function deleteMedia(mediaId) {
       toast('err', `Delete failed: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Delete failed: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Delete failed: '));
   }
 }
 
@@ -1065,7 +1130,7 @@ async function spawnNpc() {
       toast('err', `Spawn failed: ${err.error || err.message || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Spawn failed: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Spawn failed: '));
   }
 }
 
@@ -1080,7 +1145,7 @@ async function despawnNpc() {
       toast('err', `Despawn failed: ${err.error || err.message || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Despawn failed: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Despawn failed: '));
   }
 }
 
@@ -1101,7 +1166,7 @@ async function sendCommand(action, payload) {
       toast('err', `Command failed: ${err.error || res.statusText}`);
     }
   } catch (e) {
-    toast('err', `Command failed: ${e.message}`);
+    toast('err', requestErrorMessage(e, 'Command failed: '));
   }
 }
 
@@ -1188,6 +1253,7 @@ async function fetchAvatarPacks() {
   } catch (e) {
     console.warn('Failed to fetch avatar packs:', e);
     avatarCache = [];
+    if (e instanceof TypeError) toast('err', ORIGIN_BLOCKED);
   }
   // Render all avatar grids after fetch
   renderAllAvatarGrids();
@@ -1207,35 +1273,31 @@ function renderAvatarGrid(gridId, fallbackId) {
   const targetInputId = gridEl.dataset.target;
 
   if (avatarCache.length === 0) {
-    gridEl.innerHTML = '';
-    gridEl.style.display = 'none';
+    gridEl.replaceChildren();
+    gridEl.classList.add('is-hidden');
     if (fallbackEl) fallbackEl.classList.add('show');
     return;
   }
 
-  gridEl.style.display = '';
+  gridEl.classList.remove('is-hidden');
   if (fallbackEl) fallbackEl.classList.remove('show');
 
   const currentVal = document.getElementById(targetInputId)?.value || '';
 
-  gridEl.innerHTML = '';
+  gridEl.replaceChildren();
   for (const av of avatarCache) {
-    const card = document.createElement('div');
-    card.className = 'avatar-card' + (av.id === currentVal ? ' selected' : '');
-    card.title = av.displayName;
-    card.onclick = () => selectAvatarInGrid(gridId, av.id);
+    const card = h('div', {
+      className: 'avatar-card' + (av.id === currentVal ? ' selected' : ''),
+      title: av.displayName,
+      dataset: { action: 'select-avatar', avatarId: av.id },
+    });
 
     const canvas = document.createElement('canvas');
     canvas.width = 64;
     canvas.height = 96;
     renderAvatarCanvas(canvas, av);
     card.appendChild(canvas);
-
-    const label = document.createElement('div');
-    label.className = 'avatar-label';
-    label.textContent = av.displayName;
-    card.appendChild(label);
-
+    card.appendChild(h('div', { className: 'avatar-label', text: av.displayName }));
     gridEl.appendChild(card);
   }
 }
@@ -1335,30 +1397,18 @@ function setDirty(dirty) {
   if (hint) hint.classList.toggle('show', dirty);
 }
 
-function attachDirtyListeners() {
-  const fields = ['npcName', 'npcSpawnX', 'npcSpawnY', 'npcSpawnDir', 'npcMapName', 'npcEnabled', 'npcShowBadge', 'npcConfig'];
-  for (const id of fields) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    el.addEventListener('input', checkDirty);
-    el.addEventListener('change', checkDirty);
-  }
-  // Update pixel hint when spawn fields change
-  const spawnFields = ['npcSpawnX', 'npcSpawnY'];
-  for (const id of spawnFields) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    el.addEventListener('input', updateSpawnPixelHint);
-    el.addEventListener('change', updateSpawnPixelHint);
-  }
-  // Update pixel hint and dirty state when map selection changes
-  document.getElementById('npcMapName').addEventListener('change', () => {
+function onInfoField(el) {
+  checkDirty();
+  if (el.id === 'npcSpawnX' || el.id === 'npcSpawnY' || el.id === 'npcMapName') {
     updateSpawnPixelHint();
-  });
+  }
 }
 
-// Attach dirty listeners once on load
-document.addEventListener('DOMContentLoaded', attachDirtyListeners);
+function syncAvatarFallback(el) {
+  const target = document.getElementById(el.dataset.target);
+  if (target) target.value = el.value;
+  if (el.dataset.target === 'npcAvatarId') checkDirty();
+}
 
 // ── Spawn Pixel Hint ──
 function updateSpawnPixelHint() {
@@ -1384,12 +1434,10 @@ function populateMapDropdowns() {
   for (const id of selectors) {
     const sel = document.getElementById(id);
     if (!sel) continue;
-    sel.innerHTML = '<option value="">(Default)</option>';
+    sel.replaceChildren();
+    sel.appendChild(h('option', { value: '', text: '(Default)' }));
     for (const map of maps) {
-      const opt = document.createElement('option');
-      opt.value = map.name;
-      opt.textContent = map.name;
-      sel.appendChild(opt);
+      sel.appendChild(h('option', { value: map.name, text: map.name }));
     }
   }
 }
@@ -1419,18 +1467,73 @@ function toast(type, text) {
   }, 3000);
 }
 
-function esc(s) {
-  if (s == null) return '';
-  if (typeof s !== 'string') s = String(s);
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
 function formatBytes(bytes) {
   if (bytes == null) return '?';
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
+
+const clickActions = {
+  'test-connection': () => { testConnection(); },
+  'open-create-modal': () => { openCreateModal(); },
+  'switch-tab': (el) => { switchTab(el.dataset.tab); },
+  'save-npc': () => { saveNpc(); },
+  'delete-npc': () => { deleteNpc(); },
+  'upload-media': () => { uploadMedia(); },
+  'spawn-npc': () => { spawnNpc(); },
+  'despawn-npc': () => { despawnNpc(); },
+  'cmd-move': () => { cmdMove(); },
+  'cmd-stop-movement': () => { cmdStopMovement(); },
+  'cmd-play-audio': () => { cmdPlayAudio(); },
+  'cmd-play-video': () => { cmdPlayVideo(); },
+  'cmd-play-screenshare': () => { cmdPlayScreenshare(); },
+  'cmd-stop-media': () => { cmdStopMedia(); },
+  'cmd-set-dnd': (el) => { cmdSetDnd(el.dataset.dnd === 'true'); },
+  'cmd-set-avatar': () => { cmdSetAvatar(); },
+  'create-npc': () => { createNpc(); },
+  'close-create-modal': (el, event) => {
+    if (el.id === 'createModal' && event.target !== el) return;
+    closeCreateModal();
+  },
+  'select-npc': (el) => { selectNpc(el.dataset.npcId); },
+  'delete-media': (el) => { deleteMedia(el.dataset.mediaId); },
+  'select-avatar': (el) => {
+    const grid = el.closest('.avatar-grid');
+    if (!grid) return;
+    selectAvatarInGrid(grid.id, el.dataset.avatarId);
+  },
+};
+
+const inputActions = {
+  'sync-avatar-fallback': (el) => { syncAvatarFallback(el); },
+  'info-field': (el) => { onInfoField(el); },
+};
+
+const changeActions = {
+  'info-field': (el) => { onInfoField(el); },
+};
+
+document.addEventListener('click', (event) => {
+  const el = event.target.closest('[data-action]');
+  if (!el) return;
+  const fn = clickActions[el.dataset.action];
+  if (fn) fn(el, event);
+});
+
+document.addEventListener('input', (event) => {
+  const el = event.target.closest('[data-action]');
+  if (!el) return;
+  const fn = inputActions[el.dataset.action];
+  if (fn) fn(el, event);
+});
+
+document.addEventListener('change', (event) => {
+  const el = event.target.closest('[data-action]');
+  if (!el) return;
+  const fn = changeActions[el.dataset.action];
+  if (fn) fn(el, event);
+});
 </script>
 </body>
 </html>

@@ -3,11 +3,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '../src/generated/prisma/index.js';
 import { PrismaPg } from '@prisma/adapter-pg';
-import bcrypt from 'bcryptjs';
+import { applySeedAdminCredentials, enforceSeedAdminCredentials } from '../src/ops/seedAdminCredentials.js';
 import { importTmjIntoMap } from '../src/scripts/importMapV2.lib.js';
 import { resolveTemplateTenantSlug } from '../src/services/templateTenant.js';
 import { ATELIER_STANDARD_MAP_FILE, ATELIER_STANDARD_MAP_NAME } from '../src/services/atelierStandardMap.js';
 import { ATELIER_PACK_UUID, loadAtelierProductData } from './atelierCatalog.js';
+
+// Production seed-admin policy: fail closed on missing or public-template
+// credentials before the driver adapter is constructed and before any write.
+enforceSeedAdminCredentials(process.env);
 
 // Prisma 7 requires a driver-adapter. The seed runs via `prisma db seed`
 // (outside the application's normal entrypoint) so we construct one here.
@@ -123,25 +127,7 @@ async function main() {
     update: {},
   });
 
-  // Seed Root Admin (env-configurable)
-  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@meetropolis.local';
-  const adminPass = process.env.SEED_ADMIN_PASSWORD || 'admin123';
-  const adminName = process.env.SEED_ADMIN_NAME || 'Root Admin';
-
-  let admin = await prisma.user.findUnique({ where: { email: adminEmail } });
-  const hash = await bcrypt.hash(adminPass, 10);
-  if (!admin) {
-    admin = await prisma.user.create({
-      data: { email: adminEmail, name: adminName, passwordHash: hash, emailVerifiedAt: new Date() },
-    });
-
-    console.log('Seeded admin user:', adminEmail);
-  } else {
-    // Update password hash (so seed always sets the expected password)
-    admin = await prisma.user.update({ where: { email: adminEmail }, data: { passwordHash: hash } });
-
-    console.log('Admin user exists, password updated:', adminEmail);
-  }
+  const admin = await applySeedAdminCredentials(prisma, process.env);
 
   // Ensure memberships
   if (admin) {
@@ -436,14 +422,14 @@ async function main() {
   }
 
   // Create a default invite (for onboarding teammates)
-  const existingInvite = await prisma.invite.findFirst({ where: { email: adminEmail, tenantId: def.id } });
+  const existingInvite = await prisma.invite.findFirst({ where: { email: admin.email, tenantId: def.id } });
   if (!existingInvite) {
     const code = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
     await prisma.invite.create({
-      data: { code, email: adminEmail, createdBy: admin.id, tenantId: def.id, role: 'admin' as any },
+      data: { code, email: admin.email, createdBy: admin.id, tenantId: def.id, role: 'admin' as any },
     });
 
-    console.log('Seeded invite for admin email (can be shared to teammates):', code);
+    console.log('Seeded invite for admin email');
   }
 }
 

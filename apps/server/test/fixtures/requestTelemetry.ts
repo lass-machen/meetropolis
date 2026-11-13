@@ -1,11 +1,11 @@
 /**
- * Kindprozess-Fixture für requestTelemetry.test.ts.
+ * Child-process fixture for requestTelemetry.test.ts.
  *
- * Baut eine echte Express-App mit der echten metricsMiddleware und dem echten
- * requestLogger, feuert drei echte HTTP-Requests über supertest und schreibt
- * danach genau eine JSON-Ergebniszeile nach stdout. Die Pino-Logzeilen sind
- * die eigene stdout-Ausgabe der Middleware und werden vom Elterntest geparst;
- * hier wird nichts synthetisiert.
+ * Builds a real Express app with the real metricsMiddleware and the real
+ * requestLogger, fires three real HTTP requests via supertest, then writes
+ * exactly one JSON result line to stdout. The pino log lines are the
+ * middleware's own stdout output and are parsed by the parent test;
+ * nothing is synthesized here.
  */
 import express from 'express';
 import request from 'supertest';
@@ -88,8 +88,8 @@ async function main(): Promise<void> {
   await waitForObservations(3);
   const metricValues = await readRouteLabels();
   process.stdout.write(`${JSON.stringify({ marker: RESULT_MARKER, cases, metricValues })}\n`);
-  // main kehrt zurück; ohne offene Handles läuft der Prozess natürlich aus,
-  // stdout drainet dabei vollständig.
+  // main returns; with no open handles the process exits naturally while
+  // stdout fully drains.
 }
 
 void main();

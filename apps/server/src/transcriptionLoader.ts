@@ -52,6 +52,11 @@ export interface TranscriptionModule {
    * leaves the transcriber out of every allow-list (fail-closed).
    */
   isTenantTranscriptionActive?(tenantId: string): boolean;
+  /**
+   * Optional: revokes every active OAuth refresh token after a database restore
+   * and returns how many were revoked. Absent in transcription builds without it.
+   */
+  revokeOAuthRefreshTokensAfterRestore?(prisma: PrismaClient, now: Date): Promise<number>;
   setupRoutes(app: Express, deps: TranscriptionRouteDeps): void;
 }
 
@@ -62,11 +67,19 @@ export const transcriptionModuleSchema = z.object({
   onGateChange: z.function(),
   evaluateJoin: z.function().optional(),
   isTenantTranscriptionActive: z.function().optional(),
+  // Optional: absent in transcription builds without OAuth restore revocation.
+  revokeOAuthRefreshTokensAfterRestore: z.function().optional(),
   setupRoutes: z.function(),
 });
 
+/** Outcome of the last load attempt: the package is absent, installed but rejected, or loaded. */
+export type TranscriptionLoadState = 'absent' | 'rejected' | 'loaded';
+
+type TranscriptionImporter = () => Promise<unknown>;
+
 let cached: TranscriptionModule | null = null;
 let loadAttempted = false;
+let loadState: TranscriptionLoadState | undefined;
 
 function unwrapDefaultExport(moduleValue: unknown): unknown {
   if (!moduleValue || typeof moduleValue !== 'object') return moduleValue;
@@ -84,26 +97,63 @@ export function toTranscriptionModule(mod: z.infer<typeof transcriptionModuleSch
     onGateChange: mod.onGateChange as TranscriptionModule['onGateChange'],
     evaluateJoin: mod.evaluateJoin as TranscriptionModule['evaluateJoin'],
     isTenantTranscriptionActive: mod.isTenantTranscriptionActive as TranscriptionModule['isTenantTranscriptionActive'],
+    revokeOAuthRefreshTokensAfterRestore:
+      mod.revokeOAuthRefreshTokensAfterRestore as TranscriptionModule['revokeOAuthRefreshTokensAfterRestore'],
     setupRoutes: mod.setupRoutes as TranscriptionModule['setupRoutes'],
   };
+}
+
+/** Only the exact absence of the package selects OSS mode; any other failure is an installed but rejected module. */
+function isAbsentTranscriptionPackage(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? error.code : undefined;
+  const message = 'message' in error ? error.message : undefined;
+  if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') return false;
+  return (
+    typeof message === 'string' && /Cannot find (?:package|module) ['"]@meetropolis\/transcription['"]/.test(message)
+  );
+}
+
+// Variable specifier: the optional package is not a build dependency, so TypeScript must not resolve it.
+const importTranscriptionPackage: TranscriptionImporter = () => {
+  const moduleName: string = '@meetropolis/transcription';
+  return import(moduleName);
+};
+
+/**
+ * Loads and validates the optional module. The state separates an absent package,
+ * which selects OSS mode, from an installed package that fails to load or to validate.
+ */
+export async function resolveTranscriptionModule(
+  importModule: TranscriptionImporter = importTranscriptionPackage,
+): Promise<{ state: TranscriptionLoadState; module: TranscriptionModule | null }> {
+  try {
+    const modUnknown: unknown = await importModule();
+    const parsed = transcriptionModuleSchema.parse(unwrapDefaultExport(modUnknown));
+    return { state: 'loaded', module: toTranscriptionModule(parsed) };
+  } catch (error) {
+    return { state: isAbsentTranscriptionPackage(error) ? 'absent' : 'rejected', module: null };
+  }
+}
+
+/** Outcome of the last load attempt; undefined before the first one. */
+export function getTranscriptionLoadState(): TranscriptionLoadState | undefined {
+  return loadState;
 }
 
 export async function getTranscriptionModule(): Promise<TranscriptionModule | null> {
   if (loadAttempted) return cached;
   loadAttempted = true;
 
-  try {
-    const moduleName: string = '@meetropolis/transcription';
-    const modUnknown: unknown = await import(moduleName);
-    cached = toTranscriptionModule(transcriptionModuleSchema.parse(unwrapDefaultExport(modUnknown)));
-
-    logger.info({ event: 'transcription.module_loaded', version: EXPECTED_TRANSCRIPTION_MODULE_VERSION });
-    return cached;
-  } catch (_error) {
+  const resolution = await resolveTranscriptionModule();
+  loadState = resolution.state;
+  cached = resolution.module;
+  if (cached === null) {
     logger.debug({ event: 'transcription.module_not_available', message: 'Transcription disabled (OSS)' });
-    cached = null;
     return null;
   }
+  logger.info({ event: 'transcription.module_loaded', version: EXPECTED_TRANSCRIPTION_MODULE_VERSION });
+  return cached;
 }
 
 export function getTranscriptionModuleSync(): TranscriptionModule | null {

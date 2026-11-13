@@ -13,7 +13,9 @@ interface NpcListEntry extends NpcDefinition {
 export const logger = pino({ level: config.logLevel });
 
 const app = express();
-app.use(express.json());
+// The config import above already enforces the service secret before the
+// listener, timers, or auto-respawn start. JSON parsing stays scoped to /bots
+// behind authentication (see registerHttpApi).
 
 // Health check
 app.get('/healthz', (_req, res) => {

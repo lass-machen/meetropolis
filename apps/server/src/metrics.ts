@@ -75,7 +75,7 @@ registry.registerMetric(livekitPacketLossRatio);
 export function metricsMiddleware(): RequestHandler {
   return function (req: Request, res: Response, next: NextFunction) {
     const start = process.hrtime.bigint();
-    // The route is only known after routing; unmatched requests are labelled "<unmatched>".
+    // The route becomes available after routing; unmatched requests use "<unmatched>".
     res.on('finish', () => {
       try {
         const end = process.hrtime.bigint();

@@ -1,4 +1,4 @@
-import type express from 'express';
+import express from 'express';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import crypto from 'crypto';
 import path from 'path';
@@ -157,17 +157,61 @@ async function handleDeleteMedia(
 
 // --- Route registration ---
 
-export function registerNpcMediaRoutes(app: express.Application, prisma: PrismaClient) {
-  const npcMediaDir = process.env.NPC_MEDIA_DIR || path.resolve(process.cwd(), '../../npc-media');
+/**
+ * Shared with the npc service (apps/npc-service/src/config.ts) and mounted as
+ * one volume in compose; a local run without Docker sets NPC_MEDIA_DIR.
+ */
+export const NPC_MEDIA_DEFAULT_DIR = '/data/npc-media';
+
+/** Storage root of NPC media files; shared with the tenant file cleanup. */
+export function npcMediaDir(): string {
+  return process.env.NPC_MEDIA_DIR || NPC_MEDIA_DEFAULT_DIR;
+}
+
+/** Create the storage root; logs loudly instead of failing silently. */
+export function ensureNpcMediaDir(): boolean {
   try {
-    fs.mkdirSync(npcMediaDir, { recursive: true });
-  } catch {
-    /* ignore */
+    fs.mkdirSync(npcMediaDir(), { recursive: true });
+    return true;
+  } catch (error) {
+    logger.error({
+      event: 'npc_media.dir_unavailable',
+      hint: 'set NPC_MEDIA_DIR to a writable directory',
+      error: String(error),
+    });
+    return false;
   }
+}
+
+/** Serve NPC media files; mirrors the upload and deletion roots. */
+export function registerNpcMediaStatic(app: express.Application): void {
+  const mediaDir = npcMediaDir();
+  ensureNpcMediaDir();
+  app.use(
+    '/npc-media',
+    express.static(mediaDir, {
+      maxAge: '7d',
+      setHeaders: (res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.removeHeader('Access-Control-Allow-Credentials');
+      },
+    }),
+  );
+}
+
+/** Resolve a stored NPC media path below the storage root. */
+export function npcMediaFilePath(storagePath: string): string {
+  return path.join(npcMediaDir(), storagePath);
+}
+
+export function registerNpcMediaRoutes(app: express.Application, prisma: PrismaClient) {
+  const mediaDir = npcMediaDir();
+  ensureNpcMediaDir();
 
   const upload = uploadParser('npc');
 
-  app.post('/npcs/:id/media', uploadGuard(prisma, 'npc'), boundedMultipart(upload.single('file')), (req, res) => handleUploadMedia(req, res, prisma, npcMediaDir));
+  app.post('/npcs/:id/media', uploadGuard(prisma, 'npc'), boundedMultipart(upload.single('file')), (req, res) => handleUploadMedia(req, res, prisma, mediaDir));
   app.get('/npcs/:id/media', (req, res) => handleListMedia(req, res, prisma));
-  app.delete('/npcs/:id/media/:mediaId', (req, res) => handleDeleteMedia(req, res, prisma, npcMediaDir));
+  app.delete('/npcs/:id/media/:mediaId', (req, res) => handleDeleteMedia(req, res, prisma, mediaDir));
 }

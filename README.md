@@ -65,6 +65,8 @@ override or in the (private) deploy repo.
 
 Requires a running PostgreSQL instance. Configure `DATABASE_URL` in `.env`.
 
+Set `NPC_MEDIA_DIR` to a writable directory (for example `./.data/npc-media`); its default `/data/npc-media` is meant for the Docker volume, and the server logs `npc_media.dir_unavailable` if it cannot create it.
+
 ```bash
 npm install
 npm run dev          # starts server + web concurrently
@@ -166,17 +168,20 @@ boundaries; the OSS build runs fully without them.
 
 Copy `.env.example` to `.env`. Key variables:
 
-| Variable             | Description                                           |
-| -------------------- | ----------------------------------------------------- |
-| `DATABASE_URL`       | PostgreSQL connection string                          |
-| `JWT_SECRET`         | JWT signing secret (32+ chars in production)          |
-| `LIVEKIT_URL`        | LiveKit server URL                                    |
-| `LIVEKIT_API_KEY`    | LiveKit API key                                       |
-| `LIVEKIT_API_SECRET` | LiveKit API secret                                    |
-| `HOST_IP`            | Host LAN IP for LiveKit ICE (Docker Desktop on macOS) |
-| `CORS_ORIGIN`        | Allowed CORS origins (required in production)         |
-| `VITE_API_BASE`      | Server URL baked into the web bundle at _build_ time  |
-| `VITE_LIVEKIT_URL`   | LiveKit URL baked into the web bundle at _build_ time |
+| Variable             | Description                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `DATABASE_URL`       | PostgreSQL connection string                                                             |
+| `JWT_SECRET`         | JWT signing secret (32+ chars in production)                                             |
+| `LIVEKIT_URL`        | LiveKit server URL                                                                       |
+| `LIVEKIT_API_KEY`    | LiveKit API key                                                                          |
+| `LIVEKIT_API_SECRET` | LiveKit API secret                                                                       |
+| `HOST_IP`            | Host LAN IP for LiveKit ICE (Docker Desktop on macOS)                                    |
+| `CORS_ORIGIN`        | Exact list of allowed browser origins (required)                                         |
+| `METRICS_PORT`       | Optional scrape listener; unset disables it                                              |
+| `METRICS_HOST`       | Bind address for that listener (default loopback)                                        |
+| `VITE_API_BASE`      | Server URL baked into the web bundle at _build_ time                                     |
+| `VITE_LIVEKIT_URL`   | LiveKit URL baked into the web bundle at _build_ time                                    |
+| `NPC_MEDIA_DIR`      | Storage directory for NPC media, shared with the npc service (default `/data/npc-media`) |
 
 See `.env.example` for the full list including optional variables.
 
@@ -318,6 +323,69 @@ The bundled `compose.yaml` covers the minimum self-host case (Postgres
 | `API_TOKEN_PEPPER` | Random string for API token hashing      |
 | `CORS_ORIGIN`      | Explicit list of allowed origins         |
 | `COOKIE_SECURE`    | `true`                                   |
+
+`CORS_ORIGIN` holds exact origins (`scheme://host[:port]`) and nothing else:
+no wildcard, no suffix rule, no path, and `null` is not an origin. The server
+refuses to start when the list is missing or malformed, in every mode. The
+same list decides for the HTTP API, for the matchmaking route and for the
+websocket upgrade: an origin that is not listed gets `403` and no CORS
+headers, and `Origin: null` is refused as well. A request without an `Origin`
+header is not a browser request: it stays possible for native clients,
+webhooks and health checks, gets no CORS headers, and is decided by the
+route's own auth.
+
+The official desktop app reports `tauri://localhost` on macOS/Linux and
+`http://tauri.localhost` on Windows. Both must be listed explicitly, older
+builds included. The same applies to the API origin of an operator who uses
+the `/tools` pages: it is an ordinary origin now, there is no same-origin
+exception any more. See [`docs/origin-allowlist.md`](docs/origin-allowlist.md).
+
+`GET`/`HEAD` `/metrics` on the public app port always returns 404.
+Prometheus scrapes `METRICS_PORT` (compose default 9100) on the
+container network. `compose.yaml` does not publish that port and does
+not put a proxy route in front of it. Direct runs bind loopback unless
+`METRICS_HOST` is set. See [`docs/metrics.md`](docs/metrics.md).
+
+Websocket upgrades are budgeted per client address: every upgrade
+attempt is counted before the origin check, and an exhausted budget
+answers `429` with a `Retry-After` header instead of a handshake.
+`WS_UPGRADE_RATE_LIMIT_MAX` (default 120) sets the budget,
+`WS_UPGRADE_RATE_LIMIT_WINDOW_MS` (default 60000) the window. The mobile
+gateway joins from inside the server process and the npc-service runs in
+its own container: both share the budget of their source address.
+
+Every production start path (server entrypoint, migration service, and
+the server process itself) enforces the credential policy below before
+any migration, seed, or listen work. A violation stops the start and
+reports only the offending key name, never a value. `TOOLS_PASSWORD`
+stays optional: unset or empty keeps the tools route disabled and the
+start valid.
+
+| Variable             | Production rule                             |
+| -------------------- | ------------------------------------------- |
+| `LIVEKIT_API_KEY`    | Present, non-blank, not the template value  |
+| `LIVEKIT_API_SECRET` | Present, non-blank, not the template value  |
+| `DATABASE_URL`       | Valid Postgres URL, password neither blank  |
+|                      | nor the template value                      |
+| `POSTGRES_PASSWORD`  | When set, non-blank and not the template    |
+|                      | value                                       |
+| `TOOLS_PASSWORD`     | When set, non-blank and not the template    |
+|                      | value                                       |
+
+The seed program additionally enforces `SEED_ADMIN_EMAIL` and
+`SEED_ADMIN_PASSWORD` before it opens a database connection. It uses
+the same production mode detection as the start path and does not
+require LiveKit or tools credentials.
+
+| Variable              | Production rule                            |
+| --------------------- | ------------------------------------------ |
+| `SEED_ADMIN_EMAIL`    | Present and non-blank; an explicit         |
+|                       | historical default address is allowed      |
+| `SEED_ADMIN_PASSWORD` | Present, non-blank, and not the template   |
+|                       | value                                      |
+
+Development keeps the previous fallbacks. A violation exits with
+status 1 and prints only the offending key name.
 
 See [`docs/livekit-production.md`](docs/livekit-production.md) for the
 LiveKit-specific hardening walkthrough (replacing `--dev`, rotating

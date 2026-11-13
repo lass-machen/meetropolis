@@ -20,6 +20,7 @@ import { registerAdminMapRoutes } from './api/routes/adminMaps.js';
 import { registerAdminPasswordResetRoutes } from './api/routes/admin.passwordReset.js';
 import { copyMapToTenant } from './api/routes/adminMaps.js';
 import { registerGuestRoutes } from './api/routes/guests.js';
+import { deleteTenantWithMembers, removeMemberFromTenant } from './services/accountDeletion.js';
 import { registerTenantRoutes } from './api/routes/tenant.js';
 import { registerContactRoutes } from './api/routes/contact.js';
 import { registerMobileRoutes } from './mobile/routes.js';
@@ -55,7 +56,11 @@ import { isNativeClientRequest } from './api/routes/auth.helpers.js';
 import { buildPublicWebLink, publicWebBase } from './api/utils/publicLinks.js';
 
 // Enterprise module loaders
-import { getAdminEnterpriseModule } from './adminLoader.js';
+import { assertTenantDeletionProtocol, getAdminEnterpriseModule } from './adminLoader.js';
+import { createJournalPlanResolver } from './services/tenantDeletionPlanning.js';
+import { createSharedPlanResolver } from './services/sharedPlanResolver.js';
+import { createAccountJournalPlanResolver, registerAccountDeletionJournal } from './services/accountDeletionJournal.js';
+import { isTenantSlugReserved } from './services/tenantSlugReservation.js';
 import { getBillingModule } from './billingLoader.js';
 import { getTenancyModule } from './tenancyLoader.js';
 import { getTelemetryModule } from './telemetryLoader.js';
@@ -66,6 +71,55 @@ import { resolveTenantBySlug } from './tenancy.js';
 import { resolveTemplateTenantSlug } from './services/templateTenant.js';
 
 const prisma = createPrismaClient();
+
+// File-backed deletion journal: one plan resolver per process, shared by the
+// admin routes and the scheduled tenant deletion. It is created lazily on first
+// use (route setup never touches the database or the filesystem for it) and
+// created again after a failed attempt. Creation reconciles undecided intents,
+// so no second resolver may exist in the process; see createSharedPlanResolver.
+// The journal directory is trimmed here, the one place both callers pass.
+const sharedPlanResolverForDir = createSharedPlanResolver(
+  (journalDir: string) =>
+    createJournalPlanResolver({ prisma, journalDir, retentionDays: process.env.BACKUP_RETENTION_DAYS }),
+  (error) => logger.warn({ event: 'tenant_delete.journal_resolver_unavailable', error: String(error) }),
+);
+const sharedJournalPlanResolver = (journalDir: string) => sharedPlanResolverForDir(journalDir.trim());
+type JournalPlanResolver = NonNullable<Awaited<ReturnType<typeof sharedJournalPlanResolver>>>;
+
+/** Plan resolver for the admin routes; undefined without a journal directory. */
+function tenantDeletionPlanResolver(journalDir: string | undefined) {
+  if (journalDir === undefined || journalDir.trim() === '') return undefined;
+  return async (tx: Parameters<JournalPlanResolver>[0], input: Parameters<JournalPlanResolver>[1]) => {
+    const resolver = await sharedJournalPlanResolver(journalDir);
+    return resolver === undefined ? undefined : resolver(tx, input);
+  };
+}
+
+/**
+ * Registers the file-backed account deletion journal from the environment. The directory and
+ * the retention are read and trimmed exactly like the tenant plan resolver above. Without a
+ * directory nothing is registered.
+ */
+function registerAccountJournalFromEnv() {
+  const journalDir = process.env.DELETION_JOURNAL_DIR?.trim();
+  registerAccountDeletionJournal(
+    journalDir
+      ? createAccountJournalPlanResolver({ prisma, journalDir, retentionDays: process.env.BACKUP_RETENTION_DAYS })
+      : undefined,
+  );
+}
+
+/** Dependencies of the scheduled tenant deletion in the hourly billing pass. */
+function scheduledTenantDeletionDeps() {
+  return {
+    journalDir: process.env.DELETION_JOURNAL_DIR || undefined,
+    deleteTenantWithMembers: (tenantId: string, options?: Parameters<typeof deleteTenantWithMembers>[2]) => {
+      assertTenantDeletionProtocol(options?.deletionProtocol);
+      return deleteTenantWithMembers(prisma, tenantId, options);
+    },
+    createPlanResolver: (journalDir: string) => sharedJournalPlanResolver(journalDir),
+  };
+}
 
 /** The shared API client used by startup invariants before the server listens. */
 export function getApiPrismaClient(): PrismaClient {
@@ -239,6 +293,8 @@ async function registerEnterpriseAdminRoutes(app: express.Express) {
     prisma,
     logger,
     requireSuperAdmin,
+    resolveTenantDeletionPlan: tenantDeletionPlanResolver(process.env.DELETION_JOURNAL_DIR),
+    isTenantSlugReserved: (slug) => isTenantSlugReserved(prisma, slug),
     computeOnlineUsageByTenantSlug,
     isMultiTenantEnabled: () => tenancy.isMultiTenantEnabled(),
     hashPassword: (password: string) => bcrypt.hash(password, 10),
@@ -246,6 +302,10 @@ async function registerEnterpriseAdminRoutes(app: express.Express) {
     setAuthCookie,
     normalizeEmail: normalizeEmailForStorage,
     copyTemplateMaps: (p, tenantId) => copyTemplateMapsForSignup(p, tenantId),
+    deleteTenantWithMembers: (tenantId, options) => {
+      assertTenantDeletionProtocol(options?.deletionProtocol);
+      return deleteTenantWithMembers(prisma, tenantId, options);
+    },
     sendWelcomeEmail: sendSignupWelcomeEmail,
     isNativeClientRequest,
     requireAuth,
@@ -276,6 +336,7 @@ async function registerEnterpriseAdminRoutes(app: express.Express) {
     logger,
     requireSuperAdmin,
     normalizeEmail: normalizeEmailForStorage,
+    removeMemberFromTenant: (params) => removeMemberFromTenant(prisma, params),
   });
 
   adminEnterprise.setupPackMarketplaceRoutes(app, {
@@ -369,6 +430,8 @@ async function registerEnterpriseBillingRoutes(app: express.Express) {
     // event without billing importing the telemetry package. Undefined (inert)
     // in OSS-only builds or when telemetry is not configured.
     captureServerEvent: telemetryModule?.captureServerEvent,
+    // Scheduled tenant deletion in the hourly billing pass (same deletion path and resolver).
+    tenantDeletion: scheduledTenantDeletionDeps(),
   });
   // The EE module is responsible for logging its own initialization
   // (billing.routes.initialized) or its disabled-state warning
@@ -443,6 +506,8 @@ export async function registerApi(app: express.Express) {
   // tenant-scoped routes fail closed instead of serving a foreign tenant.
   app.use(createTenantAccessMiddleware(prisma));
 
+  // Account deletion journal: registered on every call, independent of the enterprise module.
+  registerAccountJournalFromEnv();
   registerHealthRoutes(app, prisma);
   registerAuthRoutes(app, prisma);
 

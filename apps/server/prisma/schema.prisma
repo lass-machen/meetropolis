@@ -588,5 +588,68 @@ model NpcMediaFile {
   @@index([npcId])
 }
 
+enum DeletionJournalStatus {
+  blocked
+  requested
+  db_deleted
+  cleanup_pending
+  completed
+}
+
+enum DeletionTaskStatus {
+  pending
+  leased
+  retry
+  manual_required
+  done
+  failed
+}
+
+// References intentionally survive removal of tenant and user rows.
+model DeletionJournal {
+  id             String                @id @default(cuid())
+  idempotencyKey String                @unique
+  generation     BigInt                @unique @default(autoincrement())
+  scope          String
+  tenantRef      String?
+  accountRefs    String[]              @default([])
+  objectRefs     String[]              @default([])
+  policyVersion  String
+  requestedAt    DateTime              @default(now())
+  dbDeletedAt    DateTime?
+  accessStatus   String                @default("pending") @db.VarChar(64)
+  cleanupStatus  String                @default("pending") @db.VarChar(64)
+  status         DeletionJournalStatus @default(requested)
+  completedAt    DateTime?
+  journalUntil   DateTime
+  lastErrorCode  String?               @db.VarChar(64)
+  tasks          DeletionTask[]
+
+  @@index([status, journalUntil])
+}
+
+model DeletionTask {
+  id               String             @id @default(cuid())
+  journalId        String
+  journal          DeletionJournal    @relation(fields: [journalId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  kind             String             @db.VarChar(64)
+  targetSystem     String             @db.VarChar(64)
+  objectId         String
+  objectGeneration String
+  storageKey       String?
+  dedupeKey        String             @unique
+  status           DeletionTaskStatus @default(pending)
+  attempts         Int                @default(0)
+  nextAttemptAt    DateTime           @default(now())
+  leaseToken       String?
+  leaseUntil       DateTime?
+  lastErrorCode    String?            @db.VarChar(64)
+  completedAt      DateTime?
+  receiptCode      String?            @db.VarChar(64)
+
+  @@index([journalId])
+  @@index([status, nextAttemptAt])
+}
+
 // Optional commercial modules can extend this schema at build time via
 // their own tooling. See docs/enterprise.md.

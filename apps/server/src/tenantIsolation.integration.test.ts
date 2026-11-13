@@ -4,7 +4,7 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Role } from './generated/prisma/index.js';
 import { createPrismaClient } from './db.js';
 import { registerApi } from './api.js';
@@ -187,6 +187,11 @@ describe('flows that must keep working without a membership (real stack)', () =>
     const created = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     expect(created).not.toBeNull();
     if (created) userIds.push(created.id);
+    // Registration starts the email verification without awaiting it; wait for
+    // its row so that the cleanup does not race that write.
+    await vi.waitFor(async () => expect(await prisma.emailVerification.count({ where: { user: { email } } })).toBe(1), {
+      timeout: 5_000,
+    });
     expect(await prisma.membership.count({ where: { tenantId, user: { email } } })).toBe(0);
   });
 

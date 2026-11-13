@@ -15,6 +15,9 @@
  * Every test therefore asserts against `validateSessionToken` — the function
  * the world join calls — with real timers and no TTL advance: revocation has to
  * bite NOW, not in 30 seconds.
+ *
+ * The admin revocation is covered against a real database in
+ * api/routes/guestRevocation.integration.test.ts.
  */
 import express from 'express';
 import request from 'supertest';
@@ -137,7 +140,6 @@ vi.mock('./emailLoader.js', () => ({ sendIfAvailable: vi.fn() }));
 import { hashSessionToken, validateSessionToken } from './api/utils/sessionAuth.js';
 import { clearSessionCache, getCachedSession } from './api/utils/sessionCache.js';
 import { setAuthResolution } from './api/utils/authState.js';
-import { registerGuestRoutes } from './api/routes/guests.js';
 import { guestExpiryMiddleware } from './api/middleware/guestExpiry.js';
 import { startGuestExpiryInterval } from './rooms/lifecycle/guestExpiry.js';
 import { createWorldAccess } from './rooms/lifecycle/worldAccess.js';
@@ -179,48 +181,6 @@ beforeEach(() => {
   );
   clearSessionCache();
   vi.clearAllMocks();
-});
-
-describe('admin revoke (DELETE /guests/:membershipId)', () => {
-  function makeApp(): express.Application {
-    const app = express();
-    app.use(express.json());
-    app.use((req, _res, next) => {
-      req.tenant = TENANT;
-      setAuthResolution(req, {
-        auth: { userId: ADMIN_USER, tenantId: TENANT.id, sessionId: 'admin-sess', tokenHash: 'admin-hash' },
-      });
-      next();
-    });
-    registerGuestRoutes(app, prisma);
-    return app;
-  }
-
-  it('a revoked guest cannot authenticate any more — not even from the warm cache', async () => {
-    const token = seedSession(GUEST_USER);
-    await warmCache(token);
-
-    const res = await request(makeApp()).delete('/guests/m-guest');
-    expect(res.status).toBe(200);
-
-    // Rows gone AND cache dropped. The row check alone was already true while
-    // the hole was open; the cache check is the regression guard.
-    expect(db.sessions.filter((s) => s.userId === GUEST_USER)).toHaveLength(0);
-    expect(getCachedSession(hashSessionToken(token))).toBeNull();
-    // This is the call rooms/lifecycle/onAuth.ts makes on a world join.
-    await expect(validateSessionToken(prisma, token)).resolves.toBeNull();
-  });
-
-  it('leaves another user’s session alone', async () => {
-    const guestToken = seedSession(GUEST_USER);
-    const adminToken = seedSession(ADMIN_USER);
-    await warmCache(guestToken);
-    await warmCache(adminToken);
-
-    await request(makeApp()).delete('/guests/m-guest');
-
-    await expect(validateSessionToken(prisma, adminToken)).resolves.not.toBeNull();
-  });
 });
 
 describe('guestExpiryMiddleware (REST)', () => {

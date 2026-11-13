@@ -3,9 +3,11 @@ import type { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { requireAuth, requireApiToken, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
+import { requestMatchesServiceSecret } from '../utils/serviceSecret.js';
 import { logger } from '../../logger.js';
 import { npcServiceSpawn, npcServiceDespawn } from '../utils/npcServiceClient.js';
 import { isAllowedAvatarId, isCustomAvatarId } from '../../services/avatarAccess.js';
+import { npcMediaFilePath } from './npcMedia.js';
 import { resolvePackScope } from '../utils/resolvePackScope.js';
 import { MAX_DISPLAY_NAME_LENGTH } from '../utils/displayName.js';
 
@@ -109,11 +111,7 @@ const commandSchema = z.discriminatedUnion('action', [
 
 async function handleListNpcs(req: express.Request, res: express.Response, prisma: PrismaClient) {
   // Internal service auth via NPC_SERVICE_SECRET (service-to-service)
-  const npcSecret = process.env.NPC_SERVICE_SECRET;
-  const reqSecret = req.headers['x-npc-secret'] as string | undefined;
-  const isServiceAuth = !!(npcSecret && reqSecret && npcSecret === reqSecret);
-
-  if (isServiceAuth) {
+  if (requestMatchesServiceSecret(req, 'NPC_SERVICE_SECRET', 'x-npc-secret')) {
     // Service-to-service: return all enabled NPCs across all tenants
     const enabledFilter = req.query.enabled === 'true' ? { enabled: true } : {};
     const npcs = await prisma.npc.findMany({
@@ -231,10 +229,9 @@ async function handleDeleteNpc(req: express.Request, res: express.Response, pris
   try {
     const mediaFiles = await prisma.npcMediaFile.findMany({ where: { npcId: npc.id } });
     const fsp = await import('fs/promises');
-    const npcMediaDir = process.env.NPC_MEDIA_DIR || '/data/npc-media';
     for (const mf of mediaFiles) {
       try {
-        await fsp.rm(`${npcMediaDir}/${mf.storagePath}`, { force: true });
+        await fsp.rm(npcMediaFilePath(mf.storagePath), { force: true });
       } catch {
         /* ignore */
       }

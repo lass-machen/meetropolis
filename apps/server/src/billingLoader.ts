@@ -2,6 +2,8 @@ import type { Router, Request, Response, NextFunction, Express } from 'express';
 import type { PrismaClient } from './generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from './logger.js';
+import type { deleteTenantWithMembers } from './services/accountDeletion.js';
+import type { createJournalPlanResolver } from './services/tenantDeletionPlanning.js';
 
 /**
  * Expected `version` of the `@meetropolis/billing` module. Single source of
@@ -82,6 +84,21 @@ export interface BillingModule {
        * validates the module's exports, not this config object).
        */
       captureServerEvent?: (event: { name: string; tenant?: string; properties?: Record<string, unknown> }) => void;
+      /**
+       * Optional dependencies of the scheduled tenant deletion in the hourly
+       * billing pass: journal directory, deletion path and the shared plan
+       * resolver. Optional, so this is a backward-compatible config-shape addition.
+       */
+      tenantDeletion?: {
+        journalDir: string | undefined;
+        deleteTenantWithMembers: (
+          tenantId: string,
+          options?: Parameters<typeof deleteTenantWithMembers>[2],
+        ) => Promise<{ deletedAccounts: number }>;
+        createPlanResolver: (
+          journalDir: string,
+        ) => Promise<Awaited<ReturnType<typeof createJournalPlanResolver>> | undefined>;
+      };
     },
   ): void;
 

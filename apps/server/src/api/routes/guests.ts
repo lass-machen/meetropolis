@@ -7,12 +7,12 @@ import { requireAuth, getTenantFromReq, requireMembership, normalizeEmailForStor
 import { buildPublicWebLink, requirePublicWebBase } from '../utils/publicLinks.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { displayNameSchema, invalidNameBodyFor } from '../utils/displayName.js';
-import { establishSession, revokeSessionsForUser } from '../utils/sessionAuth.js';
+import { establishSession } from '../utils/sessionAuth.js';
+import { MembershipNotFoundError, removeMemberFromTenant } from '../../services/accountDeletion.js';
 import { getTenancyModule } from '../../tenancyLoader.js';
 import { sendIfAvailable } from '../../emailLoader.js';
 import { guestLoginRateLimiter } from '../middleware/rateLimit.js';
 import { credentialRoute } from '../middleware/tenantAccess.js';
-import { revokeTenantAccess } from '../../services/tenantAccessRevocation.js';
 
 type GuestAdminGate =
   | {
@@ -256,16 +256,25 @@ async function handleRevokeGuest(prisma: PrismaClient, req: express.Request, res
     return;
   }
 
-  await prisma.guestToken.deleteMany({ where: { membershipId } });
-  // Via the helper, never a raw `session.deleteMany`: deleting the rows alone
-  // leaves the resolved session in the in-process cache, and a revoked guest
-  // stayed authenticated for up to SESSION_CACHE_TTL_MS — long enough to enter
-  // the world (presence, camera, microphone), which onAuth admits on the same
-  // cache. revokeSessionsForUser drops the cache entries with the rows.
-  await revokeSessionsForUser(prisma, guestMembership.userId);
-  await prisma.membership.delete({ where: { id: membershipId } });
-  // End the guest's open world and AV connections now, not at the next sweep.
-  await revokeTenantAccess(tenant.slug, guestMembership.userId);
+  // The shared removal (services/accountDeletion.ts) signs the guest out
+  // everywhere, deletes the account with its last membership and ends open
+  // world and AV connections after the commit. Guest tokens go with the
+  // membership (ON DELETE CASCADE).
+  try {
+    await removeMemberFromTenant(prisma, { userId: guestMembership.userId, tenantId: tenant.id });
+  } catch (e: unknown) {
+    if (e instanceof MembershipNotFoundError) {
+      res.status(404).json({ error: 'guest_not_found' });
+      return;
+    }
+    logger.error({
+      event: 'guests.revoke_failed',
+      tenantId: tenant.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    res.status(500).json({ error: 'revoke_failed' });
+    return;
+  }
 
   res.json({ ok: true });
 }

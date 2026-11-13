@@ -1,19 +1,27 @@
-import type { Request, Response, NextFunction, Application } from 'express';
-import type { NpcSpawnCommand, NpcRoomCommand } from '@meetropolis/shared';
+import crypto from 'crypto';
+import express, { type Application, type NextFunction, type Request, type Response } from 'express';
+import type { NpcRoomCommand, NpcSpawnCommand } from '@meetropolis/shared';
+import { despawnCommand, roomCommand, spawnCommand, tenantSlug } from './commandSchemas.js';
 import { config } from './config.js';
 import { botManager } from './botManager.js';
 import { logger } from './index.js';
 
-interface DespawnBody {
-  identity?: string;
-  tenantSlug?: string;
+const NPC_BODY_LIMIT_BYTES = 16 * 1024;
+
+function timingSafeEqualStrings(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a, 'utf8');
+  const bBuf = Buffer.from(b, 'utf8');
+  return aBuf.length === bBuf.length && crypto.timingSafeEqual(aBuf, bBuf);
 }
 
-type CommandBody = Partial<NpcRoomCommand> & { tenantSlug?: string };
-
 function authMiddleware(req: Request, res: Response, next: NextFunction): void {
-  const secret = req.headers['x-npc-secret'] as string;
-  if (secret !== config.npcServiceSecret) {
+  const distinct = req.headersDistinct?.['x-npc-secret'];
+  const raw = req.headers['x-npc-secret'];
+  if (!Array.isArray(distinct) || distinct.length !== 1 || typeof raw !== 'string') {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+  if (!timingSafeEqualStrings(raw, config.npcServiceSecret)) {
     res.status(401).json({ error: 'unauthorized' });
     return;
   }
@@ -21,12 +29,12 @@ function authMiddleware(req: Request, res: Response, next: NextFunction): void {
 }
 
 function handleSpawn(req: Request, res: Response): void {
-  const body = req.body as Partial<NpcSpawnCommand> | undefined;
-  if (!body?.npc?.identity || !body?.tenantSlug) {
+  const parsed = spawnCommand.safeParse(req.body);
+  if (!parsed.success) {
     res.status(400).json({ error: 'invalid_payload' });
     return;
   }
-  const command = body as NpcSpawnCommand;
+  const command: NpcSpawnCommand = parsed.data;
   botManager
     .spawn(command)
     .then(() => {
@@ -42,14 +50,14 @@ function handleSpawn(req: Request, res: Response): void {
 }
 
 function handleDespawn(req: Request, res: Response): void {
-  const body = (req.body || {}) as DespawnBody;
-  const { identity, tenantSlug } = body;
-  if (!identity || !tenantSlug) {
-    res.status(400).json({ error: 'identity and tenantSlug required' });
+  const parsed = despawnCommand.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_payload' });
     return;
   }
+  const { identity, tenantSlug: slug } = parsed.data;
   botManager
-    .despawn(tenantSlug, identity)
+    .despawn(slug, identity)
     .then(() => {
       res.json({ ok: true });
     })
@@ -62,17 +70,40 @@ function handleDespawn(req: Request, res: Response): void {
     });
 }
 
+function resolveTenantSlug(req: Request): string | null {
+  const queryTenant = req.query.tenant;
+  if (Array.isArray(queryTenant)) return null;
+  if (queryTenant !== undefined && typeof queryTenant !== 'string') return null;
+  const bodyTenant = (req.body as { tenantSlug?: unknown } | undefined)?.tenantSlug;
+  if (bodyTenant !== undefined && typeof bodyTenant !== 'string') return null;
+  if (queryTenant !== undefined && bodyTenant !== undefined && queryTenant !== bodyTenant) {
+    return null;
+  }
+  const merged = queryTenant ?? bodyTenant;
+  if (merged === undefined || !tenantSlug.safeParse(merged).success) return null;
+  return merged;
+}
+
 function handleCommand(req: Request, res: Response): void {
   const identityParam = req.params.identity;
-  const identity = Array.isArray(identityParam) ? (identityParam[0] ?? '') : (identityParam ?? '');
-  const body = (req.body || {}) as CommandBody;
-  const tenantSlug = (req.query.tenant as string) || body.tenantSlug;
-  if (!tenantSlug) {
-    res.status(400).json({ error: 'tenantSlug required' });
+  if (typeof identityParam !== 'string' || identityParam.length === 0) {
+    res.status(400).json({ error: 'invalid_payload' });
     return;
   }
+  const slug = resolveTenantSlug(req);
+  if (slug === null) {
+    res.status(400).json({ error: 'invalid_payload' });
+    return;
+  }
+  const body = (req.body ?? {}) as { action?: unknown; payload?: unknown };
+  const parsed = roomCommand.safeParse({ action: body.action, payload: body.payload });
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_payload' });
+    return;
+  }
+  const command: NpcRoomCommand = parsed.data;
   try {
-    botManager.sendCommand(tenantSlug, identity, body as NpcRoomCommand);
+    botManager.sendCommand(slug, identityParam, command);
     res.json({ ok: true });
   } catch (e: unknown) {
     logger.error({ err: e }, '[HTTP] command error');
@@ -89,6 +120,7 @@ function handleGetAll(_req: Request, res: Response): void {
 
 export function registerHttpApi(app: Application): void {
   app.use('/bots', authMiddleware);
+  app.use('/bots', express.json({ limit: NPC_BODY_LIMIT_BYTES }));
 
   app.post('/bots/spawn', handleSpawn);
   app.post('/bots/despawn', handleDespawn);
