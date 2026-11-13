@@ -77,7 +77,7 @@ test('die kanonische Token-Datei darf Hex-Werte enthalten', async () => {
   }
 });
 
-test('eine fremde tokens.css wird blockiert', async () => {
+test('a foreign tokens.css is blocked', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -97,7 +97,7 @@ test('eine fremde tokens.css wird blockiert', async () => {
   }
 });
 
-test('neue Hex-Werte und var()-Fallbacks werden blockiert', async () => {
+test('new hex values and var() fallbacks are blocked', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -119,7 +119,7 @@ test('neue Hex-Werte und var()-Fallbacks werden blockiert', async () => {
   }
 });
 
-test('Kommentare, quotierte Werte und url() werden ignoriert', async () => {
+test('comments, quoted values and url() are ignored', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -142,7 +142,7 @@ test('Kommentare, quotierte Werte und url() werden ignoriert', async () => {
   }
 });
 
-test('ein Disable-Kommentar darf die Hex-Prüfung nicht abschalten', async () => {
+test('a disable comment must not switch off the hex check', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -167,7 +167,7 @@ test('ein Disable-Kommentar darf die Hex-Prüfung nicht abschalten', async () =>
   }
 });
 
-test('ein Disable-next-line-Kommentar darf die Hex-Prüfung nicht abschalten', async () => {
+test('a disable-next-line comment must not switch off the hex check', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -192,7 +192,7 @@ test('ein Disable-next-line-Kommentar darf die Hex-Prüfung nicht abschalten', a
   }
 });
 
-test('ein Disable-line-Kommentar darf die Hex-Prüfung nicht abschalten', async () => {
+test('a disable-line comment must not switch off the hex check', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -241,7 +241,7 @@ test('die kanonische Token-Datei bleibt auch mit Disable-Kommentar erlaubt', asy
   }
 });
 
-test('eine fremde tokens.css mit Disable-Kommentar wird blockiert', async () => {
+test('a foreign tokens.css with a disable comment is blocked', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -266,7 +266,7 @@ test('eine fremde tokens.css mit Disable-Kommentar wird blockiert', async () => 
   }
 });
 
-test('dasselbe Hex-Wert öfter ist eine Regression', async () => {
+test('the same hex value appearing more often is a regression', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -332,7 +332,7 @@ test('eine Reduktion ist erlaubt', async () => {
   }
 });
 
-test('fehlerhaftes CSS schließt den Lauf fehl', async () => {
+test('malformed CSS fails the run', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -349,7 +349,7 @@ test('fehlerhaftes CSS schließt den Lauf fehl', async () => {
   }
 });
 
-test('eine fehlende Baseline schließt den Lauf fehl', async () => {
+test('a missing baseline fails the run', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -369,7 +369,7 @@ test('eine fehlende Baseline schließt den Lauf fehl', async () => {
   }
 });
 
-test('eine Baseline mit falscher Version schließt den Lauf fehl', async () => {
+test('a baseline with the wrong version fails the run', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -386,7 +386,7 @@ test('eine Baseline mit falscher Version schließt den Lauf fehl', async () => {
   }
 });
 
-test('eine Baseline mit ungültigem Hex-Wert schließt den Lauf fehl', async () => {
+test('a baseline with an invalid hex value fails the run', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -403,7 +403,7 @@ test('eine Baseline mit ungültigem Hex-Wert schließt den Lauf fehl', async () 
   }
 });
 
-test('der Vergleich meldet je Datei und Wert', () => {
+test('the comparison reports per file and value', () => {
   const regressions = compareFileCounts(
     new Map([
       ['#fff', 2],
@@ -421,7 +421,7 @@ test('der Vergleich meldet je Datei und Wert', () => {
   assert.equal(regressions[0].current, 1);
 });
 
-test('die Dateisuche liefert POSIX-Pfade und überspringt Symlinks', () => {
+test('the file search returns POSIX paths and skips symlinks', () => {
   const workspace = createWorkspace();
 
   try {
@@ -439,7 +439,7 @@ test('die Dateisuche liefert POSIX-Pfade und überspringt Symlinks', () => {
   }
 });
 
-test('ein fehlendes Root-Verzeichnis schließt den Lauf fehl', async () => {
+test('a missing root directory fails the run', async () => {
   const workspace = createWorkspace();
 
   try {
@@ -464,9 +464,9 @@ test('ein fehlendes Root-Verzeichnis schließt den Lauf fehl', async () => {
   }
 });
 
-test('ein unlesbares Unterverzeichnis schließt den Lauf fehl', async (t) => {
+test('an unreadable subdirectory fails the run', async (t) => {
   if (typeof process.getuid === 'function' && process.getuid() === 0) {
-    t.skip('Root umgeht die Rechteprüfung des Dateisystems');
+    t.skip('root bypasses the filesystem permission check');
     return;
   }
 

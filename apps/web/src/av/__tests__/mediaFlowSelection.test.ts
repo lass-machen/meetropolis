@@ -90,14 +90,14 @@ describe('selectOutbound two-snapshot growth', () => {
     const before = row({ bytesSent: 500 });
     const after = row({ bytesSent: 500 });
     expect(() => selectOutbound(single('pc-0', [before]), single('pc-0', [after]), 'video', track)).toThrow(
-      /media-flow-kein-outbound-video/,
+      /media-flow-no-outbound-video/,
     );
   });
 
   it('rejects a new row without a matching previous row', () => {
     const fresh = row({ statsId: 'outbound-rtp-q', ssrc: 9, bytesSent: 40 });
     expect(() => selectOutbound(single('pc-0', []), single('pc-0', [fresh]), 'video', track)).toThrow(
-      /media-flow-kein-outbound-video/,
+      /media-flow-no-outbound-video/,
     );
   });
 
@@ -105,7 +105,7 @@ describe('selectOutbound two-snapshot growth', () => {
     const before = row({ bytesSent: 900 });
     const after = row({ bytesSent: 12 });
     expect(() => selectOutbound(single('pc-0', [before]), single('pc-0', [after]), 'video', track)).toThrow(
-      /media-flow-kein-outbound-video/,
+      /media-flow-no-outbound-video/,
     );
   });
 
@@ -121,7 +121,7 @@ describe('selectOutbound two-snapshot growth', () => {
     const before = row({ bytesSent: 10 });
     const after = row({ bytesSent: null });
     expect(() => selectOutbound(single('pc-0', [before]), single('pc-0', [after]), 'video', track)).toThrow(
-      /media-flow-kein-outbound-video/,
+      /media-flow-no-outbound-video/,
     );
   });
 
@@ -144,7 +144,7 @@ describe('selectOutbound two-snapshot growth', () => {
       { ref: 'pc-0', bindings: [ownAfter] },
       { ref: 'pc-9', bindings: [foreignAfter] },
     ]);
-    expect(() => selectOutbound(before, after, 'video', track)).toThrow(/media-flow-kein-outbound-video/);
+    expect(() => selectOutbound(before, after, 'video', track)).toThrow(/media-flow-no-outbound-video/);
   });
 });
 
@@ -190,21 +190,21 @@ describe('selectInbound two-snapshot growth', () => {
         track,
         sid,
       ),
-    ).toThrow(/media-flow-kein-inbound-video/);
+    ).toThrow(/media-flow-no-inbound-video/);
   });
 
   it('rejects unchanged byte counters', () => {
     const before = inbound({ bytesReceived: 500 });
     const after = inbound({ bytesReceived: 500 });
     expect(() => selectInbound(single('pc-1', [before]), single('pc-1', [after]), 'video', track, sid)).toThrow(
-      /media-flow-kein-inbound-video/,
+      /media-flow-no-inbound-video/,
     );
   });
 
   it('rejects a new row without a matching previous row', () => {
     const fresh = inbound({ statsId: 'inbound-rtp-q', ssrc: 29, bytesReceived: 60 });
     expect(() => selectInbound(single('pc-1', []), single('pc-1', [fresh]), 'video', track, sid)).toThrow(
-      /media-flow-kein-inbound-video/,
+      /media-flow-no-inbound-video/,
     );
   });
 

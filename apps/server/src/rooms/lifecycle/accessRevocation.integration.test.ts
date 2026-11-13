@@ -31,7 +31,7 @@ let previousGameServer: typeof global.gameServer;
 let previousActiveWorldRooms: typeof global.activeWorldRooms;
 
 async function createUser(role: Role): Promise<{ id: string; sessionId: string }> {
-  const user = await prisma.user.create({ data: { email: `qacc-${crypto.randomUUID()}@example.test` } });
+  const user = await prisma.user.create({ data: { email: `case-${crypto.randomUUID()}@example.test` } });
   userIds.push(user.id);
   await prisma.membership.create({ data: { userId: user.id, tenantId, role } });
   // Every connected client stands on a live session row, as a real join via
@@ -105,7 +105,7 @@ beforeAll(async () => {
   previousGameServer = global.gameServer;
   previousActiveWorldRooms = global.activeWorldRooms;
   global.gameServer = { presence };
-  tenantSlug = `qacc-${crypto.randomUUID()}`;
+  tenantSlug = `case-${crypto.randomUUID()}`;
   tenantId = (await prisma.tenant.create({ data: { slug: tenantSlug, name: tenantSlug } })).id;
 });
 

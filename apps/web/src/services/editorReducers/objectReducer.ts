@@ -29,8 +29,8 @@ function applyPendingObjectDelete(
       ...updatedPending,
       objectsToAdd: updatedPending.objectsToAdd.filter((o) => String(o.id) !== String(action.objectId)),
     };
-    // Nur das exakt zugehörige Asset entfernen: über die beim Erzeugen
-    // gespeicherte Client-Instanzreferenz, nicht über die Kachelposition.
+    // Remove only the exactly matching asset, via the
+    // client instance reference stored on creation, not via the tile position.
     const assetId = objToDelete.clientAssetId;
     if (assetId !== undefined) {
       updatedAssets = state.assets.filter((a) => a.id !== assetId);

@@ -2,9 +2,9 @@ import { defineConfig, devices } from '@playwright/test';
 import type { Project } from '@playwright/test';
 
 /**
- * Visual baselines for the OSS surfaces (Q-UX).
+ * Visual baselines for the OSS surfaces.
  *
- * Own config instead of a second one in the Q-TEST config: that file owns
+ * Own config instead of a second one in the root test config: that file owns
  * apps/web/e2e/{fixtures,support,smoke} and must not be touched. The media
  * flags and the base URL handling are taken over from it so both suites talk
  * to the same slot in the same way.
@@ -47,7 +47,7 @@ const projects: Project[] = [
 export default defineConfig({
   testDir: '.',
   testMatch: '**/*.spec.ts',
-  // The Q-TEST root config also finds **/*.spec.ts. This marker is what the
+  // The root test config also finds **/*.spec.ts. This marker is what the
   // suite checks: without it the visual specs would run under the root config
   // and write OSS baselines from an EE or Brand build.
   metadata: { ossVisualSuite: true },

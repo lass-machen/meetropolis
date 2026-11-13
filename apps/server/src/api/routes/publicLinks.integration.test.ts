@@ -72,7 +72,7 @@ function makeApp(): express.Application {
 
 async function createFixture(): Promise<Fixture> {
   const suffix = crypto.randomUUID();
-  const slug = `qlink-${suffix}`;
+  const slug = `link-${suffix}`;
   const tenant = await prisma.tenant.create({ data: { slug, name: slug } });
   tenantIds.push(tenant.id);
 

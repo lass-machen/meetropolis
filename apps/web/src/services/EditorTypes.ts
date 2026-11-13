@@ -97,8 +97,8 @@ export type MapObjectRecord = {
   collisionBaseHeight?: number;
   renderLayer?: 'floor' | 'sorted' | 'overhead';
   _pending?: 'add'; // Marker for objects that have not been saved yet
-  // Rein clientseitige Instanzreferenz auf das beim Stempeln/Drag erzeugte
-  // Asset. Geladene Serverrecords haben dieses Feld nicht und bleiben gültig.
+  // Purely client-side instance reference to the asset created by stamp/drag
+  // Asset. Loaded server records lack this field and stay valid.
   clientAssetId?: string;
 };
 

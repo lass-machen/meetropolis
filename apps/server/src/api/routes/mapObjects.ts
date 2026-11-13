@@ -270,7 +270,7 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
     }
 
     const dims = getMapDimensions(map);
-    // Maß-/Skaliereingaben vorab begrenzen (stabile 400er, kein 500).
+    // Limit size and scale inputs up front (stable 400s, no 500).
     const footprint = checkSingleFootprint(data, dims);
     if (!footprint.ok) {
       res.status(400).json({ error: footprint.error });
@@ -538,7 +538,7 @@ async function handleBulkCreateObjects(
     }
 
     const dims = getMapDimensions(map);
-    // Ganze Bulk-Liste vorab prüfen, keine Teilwrites (stabile 400er).
+    // Validate the whole bulk list up front, no partial writes (stable 400s).
     const bulkFootprint = checkBulkFootprints(parse.data.objects, dims);
     if (!bulkFootprint.ok) {
       res.status(400).json({ error: bulkFootprint.error });

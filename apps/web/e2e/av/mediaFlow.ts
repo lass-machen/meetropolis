@@ -1,7 +1,7 @@
 import type { Page, TestInfo } from '@playwright/test';
 
 /**
- * Passive media-flow observation for the Q-AV media proof draft.
+ * Passive media-flow observation for the media proof draft.
  *
  * The init script wraps the native RTCPeerConnection constructor (Proxy
  * plus Reflect.construct) before the app creates its peer connections.
@@ -386,39 +386,39 @@ function parseBinding(value: unknown, peer: string): MediaFlowBinding | null {
 
 function parseSnapshot(raw: unknown): MediaFlowSnapshot {
   if (!isRecord(raw) || raw['instrumented'] !== true || !Array.isArray(raw['peers'])) {
-    throw new Error('media-flow-unvollständig');
+    throw new Error('media-flow-incomplete');
   }
   const peers: MediaFlowPeerSnapshot[] = [];
   for (const entry of raw['peers']) {
-    if (!isRecord(entry) || typeof entry['ref'] !== 'string') throw new Error('media-flow-unvollständig');
+    if (!isRecord(entry) || typeof entry['ref'] !== 'string') throw new Error('media-flow-incomplete');
     if (typeof entry['iceConnectionState'] !== 'string' || typeof entry['connectionState'] !== 'string') {
-      throw new Error('media-flow-unvollständig');
+      throw new Error('media-flow-incomplete');
     }
     if (!Array.isArray(entry['bindings']) || !Array.isArray(entry['iceCandidateErrors'])) {
-      throw new Error('media-flow-unvollständig');
+      throw new Error('media-flow-incomplete');
     }
     const errors: string[] = [];
     for (const code of entry['iceCandidateErrors']) {
-      if (typeof code !== 'string') throw new Error('media-flow-unvollständig');
+      if (typeof code !== 'string') throw new Error('media-flow-incomplete');
       errors.push(code);
     }
     const bindings: MediaFlowBinding[] = [];
     for (const row of entry['bindings']) {
       const binding = parseBinding(row, entry['ref']);
-      if (binding === null) throw new Error('media-flow-unvollständig');
+      if (binding === null) throw new Error('media-flow-incomplete');
       bindings.push(binding);
     }
     let selectedPair: MediaFlowSelectedPair | null = null;
     const rawPair = entry['selectedPair'];
     if (rawPair !== null) {
-      if (!isRecord(rawPair) || typeof rawPair['state'] !== 'string') throw new Error('media-flow-unvollständig');
+      if (!isRecord(rawPair) || typeof rawPair['state'] !== 'string') throw new Error('media-flow-incomplete');
       if (rawPair['source'] !== 'transport-selected-id' && rawPair['source'] !== 'pair-selected-flag') {
-        throw new Error('media-flow-unvollständig');
+        throw new Error('media-flow-incomplete');
       }
       selectedPair = { source: rawPair['source'], state: rawPair['state'] };
     }
     const pairStatsError = entry['pairStatsError'];
-    if (pairStatsError !== null && typeof pairStatsError !== 'string') throw new Error('media-flow-unvollständig');
+    if (pairStatsError !== null && typeof pairStatsError !== 'string') throw new Error('media-flow-incomplete');
     peers.push({
       ref: entry['ref'],
       iceConnectionState: entry['iceConnectionState'],
@@ -440,10 +440,10 @@ function parseSnapshot(raw: unknown): MediaFlowSnapshot {
 export async function readMediaFlowSnapshot(page: Page): Promise<MediaFlowSnapshot> {
   const raw: unknown = await page.evaluate(() => {
     if (Reflect.get(window, '__avMediaFlowReady') !== true) {
-      throw new Error('media-flow-nicht-installiert');
+      throw new Error('media-flow-not-installed');
     }
     const snapshot = Reflect.get(window, '__avMediaFlowSnapshot');
-    if (typeof snapshot !== 'function') throw new Error('media-flow-nicht-installiert');
+    if (typeof snapshot !== 'function') throw new Error('media-flow-not-installed');
     return (snapshot as () => Promise<unknown>)();
   });
   return parseSnapshot(raw);
@@ -517,7 +517,7 @@ function selectGrownKey(
   }
   if (winner) return winner;
   const gap = identityGap ? 'native stats identity missing' : 'no byte growth between two snapshots';
-  throw new Error(`media-flow-kein-${direction}-${kind}: ${gap} yet.`);
+  throw new Error(`media-flow-no-${direction}-${kind}: ${gap} yet.`);
 }
 
 export function selectOutbound(
@@ -585,12 +585,12 @@ export async function readRemoteAudioMirrors(page: Page): Promise<RemoteAudioMir
       return { participantSid: sid, trackIds: ids };
     });
   });
-  if (!Array.isArray(raw)) throw new Error('audio-mirror-unvollständig');
+  if (!Array.isArray(raw)) throw new Error('audio-mirror-incomplete');
   const out: RemoteAudioMirror[] = [];
   for (const entry of raw) {
-    if (!isRecord(entry) || typeof entry['participantSid'] !== 'string') throw new Error('audio-mirror-unvollständig');
+    if (!isRecord(entry) || typeof entry['participantSid'] !== 'string') throw new Error('audio-mirror-incomplete');
     if (!Array.isArray(entry['trackIds']) || entry['trackIds'].some((id) => typeof id !== 'string')) {
-      throw new Error('audio-mirror-unvollständig');
+      throw new Error('audio-mirror-incomplete');
     }
     out.push({ participantSid: entry['participantSid'], trackIds: entry['trackIds'] as string[] });
   }

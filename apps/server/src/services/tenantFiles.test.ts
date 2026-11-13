@@ -16,14 +16,14 @@ describe('tenant file cleanup resolves the NPC media directory like the NPC medi
   });
 
   it('uses NPC_MEDIA_DIR when it is set', () => {
-    vi.stubEnv('NPC_MEDIA_DIR', '/tmp/qacc-npc-media');
-    expect(npcMediaDir()).toBe('/tmp/qacc-npc-media');
-    expect(tenantNpcMediaDir('acme')).toBe(path.join('/tmp/qacc-npc-media', 'acme'));
+    vi.stubEnv('NPC_MEDIA_DIR', '/tmp/npc-media-case');
+    expect(npcMediaDir()).toBe('/tmp/npc-media-case');
+    expect(tenantNpcMediaDir('acme')).toBe(path.join('/tmp/npc-media-case', 'acme'));
   });
 
   it('refuses a slug that leaves the directory', () => {
-    vi.stubEnv('NPC_MEDIA_DIR', '/tmp/qacc-npc-media');
-    expect(tenantNpcMediaDir('../qacc-decoy')).toBeNull();
+    vi.stubEnv('NPC_MEDIA_DIR', '/tmp/npc-media-case');
+    expect(tenantNpcMediaDir('../decoy-case')).toBeNull();
   });
 });
 
@@ -31,7 +31,7 @@ describe('tenant file cleanup removes avatar-pack sprites, not catalogue packs',
   const avatarPackUuid = '123e4567-e89b-12d3-a456-426614174000';
 
   it('removes packs/avatars/<uuid> for a deleted tenant avatar pack', async () => {
-    const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'qacc-tenant-avatar-'));
+    const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'tenant-avatar-case-'));
     const packsDir = path.join(root, 'packs');
     const spriteDir = path.join(packsDir, 'avatars', avatarPackUuid);
     const foreignDir = path.join(packsDir, avatarPackUuid);
@@ -59,7 +59,7 @@ describe('tenant file cleanup removes avatar-pack sprites, not catalogue packs',
   });
 
   it('keeps packs/<uuid> catalogue assets untouched by avatar-pack cleanup', async () => {
-    const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'qacc-tenant-catalogue-'));
+    const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'tenant-catalogue-case-'));
     const packsDir = path.join(root, 'packs');
     const spriteDir = path.join(packsDir, 'avatars', avatarPackUuid);
     const foreignDir = path.join(packsDir, avatarPackUuid);

@@ -22,7 +22,7 @@ it('preserves status, stable code, message and retry delay across response forma
   expect(needsEmailVerification(new AccountActionError(409, 'EMAIL_VERIFICATION_REQUIRED', 'Please confirm.'))).toBe(
     true,
   );
-  expect(needsEmailVerification(new AccountActionError(403, 'forbidden', 'Kein Zugang.'))).toBe(false);
+  expect(needsEmailVerification(new AccountActionError(403, 'forbidden', 'No access.'))).toBe(false);
 });
 
 it('does not infer delivery or a confirmed email change from unknown JSON', () => {

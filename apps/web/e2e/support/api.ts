@@ -363,7 +363,7 @@ export class MeetropolisApi {
       .map((entry, index) => ({ entry: asRecord(entry, `${route}[${index}]`), index }))
       .find(({ entry }) => entry.email === normalizedEmail && entry.usedAt === null);
     if (!match) return null;
-    // Decision 13 (knowledge/quality/Q-ACC-P3-einladungen.md): no invite code in URL
+    // Decision 13: no invite code in URL
     // paths; the list returns id and url only, so the code comes from the link.
     const url = requiredString(match.entry.url, `${route}[${match.index}]`);
     const hashQuery = new URL(url).hash.split('?')[1] ?? '';

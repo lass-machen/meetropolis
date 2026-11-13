@@ -30,7 +30,7 @@ let app: express.Express;
 let tenantA: string;
 let tenantB: string;
 
-async function createTenant(slug = `qacc-${crypto.randomUUID()}`): Promise<string> {
+async function createTenant(slug = `case-${crypto.randomUUID()}`): Promise<string> {
   const tenant = await prisma.tenant.create({ data: { slug, name: slug } });
   tenantIds.push(tenant.id);
   return tenant.id;
@@ -39,7 +39,7 @@ async function createTenant(slug = `qacc-${crypto.randomUUID()}`): Promise<strin
 async function createUser(
   memberships: Array<{ tenantId: string; role: Role; expiresAt?: Date }>,
 ): Promise<{ id: string; session: string }> {
-  const user = await prisma.user.create({ data: { email: `qacc-${crypto.randomUUID()}@example.test` } });
+  const user = await prisma.user.create({ data: { email: `case-${crypto.randomUUID()}@example.test` } });
   userIds.push(user.id);
   for (const m of memberships) await prisma.membership.create({ data: { userId: user.id, ...m } });
   const session = jwt.sign({ sub: user.id, tid: memberships[0]?.tenantId, jti: crypto.randomUUID() }, getJwtSecret(), {
@@ -57,7 +57,7 @@ async function createApiToken(userId: string): Promise<string> {
     .createHash('sha256')
     .update(getApiTokenPepper() + raw)
     .digest('hex');
-  await prisma.apiToken.create({ data: { userId, hash, name: 'qacc' } });
+  await prisma.apiToken.create({ data: { userId, hash, name: 'sample' } });
   return raw;
 }
 

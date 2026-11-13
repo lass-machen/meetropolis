@@ -209,8 +209,8 @@ FOR EACH ROW EXECUTE FUNCTION "${functionName}"()
 
 async function rejectMembershipInsertForTenant(tenantId: string): Promise<void> {
   const suffix = crypto.randomUUID().replaceAll('-', '');
-  const functionName = `qacc_reject_membership_${suffix}`;
-  const triggerName = `qacc_reject_insert_${suffix}`;
+  const functionName = `sample_reject_membership_${suffix}`;
+  const triggerName = `sample_reject_insert_${suffix}`;
   membershipTrigger = { functionName, triggerName, tableName: 'Membership' };
   await prisma.$executeRawUnsafe(`
     CREATE FUNCTION "${functionName}"() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -241,7 +241,7 @@ async function inviteByCode(code: string) {
 function registerInvite(fixture: Fixture, code: string, email: string, name = 'Registered Invitee') {
   return request(fixture.app)
     .post('/auth/register')
-    .send({ code, email, name, password: 'qacc-registration-password' });
+    .send({ code, email, name, password: 'case-registration-password' });
 }
 
 async function waitForEmailVerification(email: string): Promise<void> {
@@ -324,7 +324,7 @@ afterAll(async () => {
   );
 });
 
-describe('Q-ACC-7 invite delivery feedback and open invite reuse', () => {
+describe('invite delivery feedback and open invite reuse', () => {
   it('delivers, records success, reuses an open invite, and rejects an existing member', async () => {
     const fixture = await createFixture();
     const email = `invite-${crypto.randomUUID()}@example.test`;
@@ -376,7 +376,7 @@ describe('Q-ACC-7 invite delivery feedback and open invite reuse', () => {
   });
 });
 
-describe('Q-ACC-8 invite expiry, status, and resend', () => {
+describe('invite expiry, status, and resend', () => {
   it('lists the exact projection and expires open invites with a NULL expiry', async () => {
     const fixture = await createFixture();
     const pending = await createInviteRecord(fixture, `pending-${crypto.randomUUID()}@example.test`);
@@ -519,7 +519,7 @@ describe('Q-ACC-8 invite expiry, status, and resend', () => {
   });
 });
 
-describe('Q-ACC-4 invite list and revoke require tenant admins', () => {
+describe('invite list and revoke require tenant admins', () => {
   it('denies list and revoke to a plain member without changing the invite', async () => {
     const fixture = await createFixture();
     const invite = await createInviteRecord(fixture, `member-access-${crypto.randomUUID()}@example.test`);
@@ -556,7 +556,7 @@ describe('Q-ACC-4 invite list and revoke require tenant admins', () => {
   });
 });
 
-describe('Q-ACC-5 bound invites for existing accounts', () => {
+describe('bound invites for existing accounts', () => {
   it('previews a public invite with only the documented fields and validates the code', async () => {
     const fixture = await createFixture();
     const invite = await createActiveInvite(fixture, `x-${crypto.randomUUID()}@example.test`);
@@ -672,7 +672,7 @@ describe('Q-ACC-5 bound invites for existing accounts', () => {
   });
 });
 
-describe('Q-ACC-6 atomic registration with an invite code', () => {
+describe('atomic registration with an invite code', () => {
   it('returns invite_unavailable for unknown and already-used invitations', async () => {
     const fixture = await createFixture();
     const email = `unavailable-${crypto.randomUUID()}@example.test`;
@@ -824,7 +824,7 @@ describe('POST /auth/register display names', () => {
   });
 });
 
-describe('Q-ACC-28 guest invite mail expiry', () => {
+describe('guest invite mail expiry', () => {
   it('states the guest access expiry in Berlin time with its zone', async () => {
     const fixture = await createFixture();
     const email = `guest-${crypto.randomUUID()}@example.test`;

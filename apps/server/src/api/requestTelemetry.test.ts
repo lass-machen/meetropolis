@@ -1,5 +1,5 @@
 /**
- * Route metadata in request logs and metric labels (Q-DISC-12).
+ * Route metadata in request logs and metric labels.
  *
  * Runs test/fixtures/requestTelemetry.ts exactly once as a real Node
  * subprocess and asserts only on its real output: pino log lines plus one

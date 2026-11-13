@@ -127,7 +127,7 @@ afterAll(async () => {
   );
 });
 
-describe('Q-ACC-7 undeliverable invitation', () => {
+describe('undeliverable invitation', () => {
   it('takes the SMTP path and not the no-module path', async () => {
     const module = await getEmailModule();
     expect(module).not.toBeNull();

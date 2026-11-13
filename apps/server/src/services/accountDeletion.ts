@@ -156,7 +156,7 @@ export async function removeMemberFromTenant(
   let accountDeleted: boolean;
   try {
     accountDeleted = await runAccountTransaction(prisma, journalActive, async (tx) => {
-      // Serialize concurrent removals of the same user (S1-R7): without the row
+      // Serialize concurrent removals of the same user: without the row
       // lock, two removals of the last two memberships each still see the
       // other's membership, and both keep an account that ends up memberless.
       await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
@@ -197,7 +197,7 @@ export async function deleteTenantWithMembers(
   tenantId: string,
   options: TenantDeletionOptions = {},
 ): Promise<{ deletedAccounts: number }> {
-  // Vertragliche Prüfung vor allen DB-Lesevorgängen; bare Aufrufe liefern undefined.
+  // Contract check before all DB reads; bare calls return undefined.
   const managed = resolveTenantDeletionOptions(options);
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
   if (!tenant) throw new Error('tenant not found');
@@ -225,12 +225,12 @@ export async function deleteTenantWithMembers(
   const deletedUserIds = await prisma
     .$transaction(
       async (tx) => {
-        // Same row lock as removeMemberFromTenant (S1-R7), in id order so that
+        // Same row lock as removeMemberFromTenant in id order so that
         // two deletions cannot deadlock each other.
         if (memberIds.length > 0) {
           await tx.$queryRaw`SELECT id FROM "User" WHERE id IN (${Prisma.join(memberIds)}) ORDER BY id FOR UPDATE`;
         }
-        // Journal/Tasks stehen vor dem ersten operativen DELETE; danach läuft das EE-Cleanup.
+        // Journal/tasks come before the first operational DELETE; EE cleanup runs after.
         const prepared = await prepareTenantDeletionInTx(tx, tenantId, memberIds, managed);
         await tx.presence.deleteMany({ where: { OR: [{ tenantId }, { roomId: { in: roomIds } }] } });
         await tx.zone.deleteMany({
@@ -265,7 +265,7 @@ export async function deleteTenantWithMembers(
         return deleted;
       },
       // A tenant with large maps deletes tens of thousands of map chunks in this
-      // transaction; the Prisma default of 5 s is not enough (Q-ACC-19c large-map
+      // transaction; the Prisma default of 5 s is not enough (timeout-case large-map
       // test).
       { timeout: TENANT_DELETION_TX_TIMEOUT_MS, maxWait: TENANT_DELETION_TX_MAX_WAIT_MS },
     )

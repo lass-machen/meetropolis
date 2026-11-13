@@ -17,7 +17,7 @@ import {
 import type { MediaFlowBinding, MediaFlowSnapshot } from './mediaFlow';
 
 /**
- * Q-AV media-flow M1: two independent per-kind tests (audio, video) over one shared parametrized flow.
+ * Media flow: two independent per-kind tests (audio, video) over one shared parametrized flow.
  *
  * Each test checks only its own measured capture capability from
  * testInfo.project.metadata.capabilities (audio -> getUserMediaAudio,
@@ -232,10 +232,10 @@ type VideoElementFacts = {
 };
 
 function parseVideoFacts(raw: unknown): VideoElementFacts[] {
-  if (!Array.isArray(raw)) throw new Error('video-facts-unvollständig');
+  if (!Array.isArray(raw)) throw new Error('video-facts-incomplete');
   const numbers = ['rectWidth', 'rectHeight', 'readyState', 'videoWidth', 'videoHeight'];
   return raw.map((entry) => {
-    if (typeof entry !== 'object' || entry === null) throw new Error('video-facts-unvollständig');
+    if (typeof entry !== 'object' || entry === null) throw new Error('video-facts-incomplete');
     const record = entry as Record<string, unknown>;
     const trackIds = record['trackIds'];
     if (
@@ -245,7 +245,7 @@ function parseVideoFacts(raw: unknown): VideoElementFacts[] {
       typeof record['paused'] !== 'boolean' ||
       numbers.some((key) => typeof record[key] !== 'number')
     ) {
-      throw new Error('video-facts-unvollständig');
+      throw new Error('video-facts-incomplete');
     }
     return {
       trackIds: trackIds as string[],

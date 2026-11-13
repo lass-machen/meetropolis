@@ -28,7 +28,7 @@ function roundedBox(box: Box | null): Box | null {
 async function handleVisibility(canvas: ElementHandle<SVGElement | HTMLElement>): Promise<string> {
   return canvas.evaluate((element) => {
     if (!element.isConnected) {
-      throw new Error('Das Canvas der Welt wurde während der Aufnahme vom Dokument getrennt.');
+      throw new Error('The world canvas was detached from the document during capture.');
     }
     return getComputedStyle(element).visibility;
   });
@@ -39,7 +39,7 @@ async function uniqueTargetBox(target: Locator): Promise<Box> {
   await expect(target).toBeVisible();
   const box = await target.boundingBox();
   if (!box || box.width <= 0 || box.height <= 0) {
-    throw new Error('Das Ziel der Masken-Regression hat keine sichtbare Fläche.');
+    throw new Error('The target of the masking regression has no visible area.');
   }
   return box;
 }
@@ -57,7 +57,7 @@ async function compareSurfaceWithReferenceStyle(page: Page, testInfo: TestInfo, 
   await expect(visibleCanvas).toBeVisible();
   const canvas = await visibleCanvas.elementHandle();
   if (!canvas) {
-    throw new Error('Das sichtbare Canvas der Welt konnte nicht festgehalten werden.');
+    throw new Error('The visible world canvas could not be captured.');
   }
 
   try {

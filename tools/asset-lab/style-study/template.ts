@@ -60,7 +60,7 @@ function skinRow(model: SheetModel): string {
   const img = model.pngPath('skin_row.png');
   return (
     `<section class="panel"><h2>Hautton-Farbreihe</h2>` +
-    `<p>Vier Bestandstöne an den Figuren, vier weitere nur in der Reihe. Kein produktiver Baukasten-Ausbau.</p>` +
+    `<p>Four existing tones on the figures, four more only in the series. No productive kit expansion.</p>` +
     `<img class="strip" src="${img}" alt="Acht Hautton-Rampen">` +
     `<div class="tones">${swatches}</div></section>`
   );
@@ -69,13 +69,13 @@ function skinRow(model: SheetModel): string {
 function scaleSection(model: SheetModel): string {
   const img = model.pngPath('scale_strip.png');
   return (
-    `<section class="panel"><h2>Maßstab · 1 Spritepixel = 1 Weltpixel</h2>` +
-    `<img class="strip" src="${img}" alt="Massstabsstreifen mit Figur, Schreibtisch und Stuhl">` +
+    `<section class="panel"><h2>Scale · 1 sprite pixel = 1 world pixel</h2>` +
+    `<img class="strip" src="${img}" alt="Scale strip with figure, desk and chair">` +
     `<ul><li>16px-Weltraster, Standlinie als Signatur, alle drei auf derselben Grundlinie.</li>` +
     `<li>Figur: Nachher-Raster vorne, 32x32 (Figur 1).</li>` +
     `<li>Schreibtisch: tools/asset-lab/src/assets.ts (desk), 64x48, Thema holz.</li>` +
     `<li>Stuhl: tools/asset-lab/src/assets.ts (chair), 24x32, Thema holz.</li>` +
-    `<li>Keine neuen Möbel gezeichnet; nur genehmigte Bestands-Office-Pixel.</li></ul></section>`
+    `<li>No new furniture drawn; only approved existing office pixels.</li></ul></section>`
   );
 }
 
@@ -128,17 +128,17 @@ footer code { font-size: 12px; }
 </style>
 </head>
 <body><div class="wrap">
-<header><span class="draft">Stilvorschlag — produktiver Katalog unverändert</span>
-<h1>Ruhige Figuren für das virtuelle Büro</h1>
-<p class="sub">Vier Figuren, je vier Richtungen, jeweils vorher und nachher. Statische Richtungen ohne Lauf- oder Atem-Frames, eigene handgesetzte Pixel.</p>
-<p class="sub">Kopf 12 px, Körper mit Hals 14 px, insgesamt 26 px. Weniger Konturmasse, klare Gesichter und Licht von links oben. Kleidung und Haarfarben bleiben im Vergleich gleich.</p></header>
+<header><span class="draft">Style proposal: production catalog unchanged</span>
+<h1>Calm figures for the virtual office</h1>
+<p class="sub">Four figures, four directions each, before and after. Static directions without walk or breathing frames, hand-set pixels.</p>
+<p class="sub">Head 12 px, body with neck 14 px, 26 px in total. Less outline mass, clear faces and light from the top left. Clothing and hair colors stay the same in the comparison.</p></header>
 <h2>Hell</h2>
 ${light}
 <h2>Dunkel</h2>
 ${dark}
 ${skinRow(model)}
 ${scaleSection(model)}
-<footer><p>Entwurfsvorschlag, Stand ${model.generatedAt}. Produktiver Katalog unverändert. Quellen und Aufbau stehen in der README im Studienordner.</p></footer>
+<footer><p>Draft proposal, as of ${model.generatedAt}. Production catalog unchanged. Sources and structure are in the README in the study folder.</p></footer>
 </div></body>
 </html>
 `;

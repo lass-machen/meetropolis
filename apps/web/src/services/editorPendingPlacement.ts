@@ -1,16 +1,16 @@
 import { EditorService } from './EditorService';
 import type { EditorState } from './EditorTypes';
 
-// Modulweit monoton fallender Negativ-Zähler für temporäre MapObject-IDs.
-// Jede neu erzeugte Pending-Instanz erhält den nächsten um eins kleineren
-// Wert, beginnend bei -1. Die Vergabe ist damit unabhängig von Uhr und
-// Kachelkoordinaten, sodass auch dicht aufeinanderfolgende Stempel und Drags
-// nie kollidieren. Der Zähler lebt auf Modulebene (Client-Sitzungsdauer) und
-// wird bei EditorService.reset bewusst nicht zurückgesetzt.
+// Module-wide, monotonically decreasing negative counter for temporary MapObject IDs.
+// Each newly created pending instance gets the next value, one smaller than
+// value, starting at -1. Assignment is therefore independent of the clock and
+// tile coordinates, so that even densely consecutive stamps and drags
+// never collide. The counter lives at module level (client session lifetime) and
+// is deliberately not reset by EditorService.reset.
 let nextPendingObjectId = -1;
 
-// Vergibt die nächste temporäre Negativ-ID. Nicht exportiert: nur die beiden
-// produktiven Helfer in dieser Datei dürfen IDs erzeugen.
+// Assigns the next temporary negative ID. Not exported: only the two
+// production helpers in this file may create IDs.
 function allocatePendingObjectId(): number {
   const id = nextPendingObjectId;
   nextPendingObjectId -= 1;
@@ -18,26 +18,26 @@ function allocatePendingObjectId(): number {
 }
 
 /**
- * stampPendingAsset: stempelt ein Objekt-/Struktur-Asset auf eine Kachel.
+ * stampPendingAsset: stamps an object/structure asset onto a tile.
  *
- * Führt den aus EditorInputHandler.handleAssetTool herausgezogenen
- * Stempel-Zweig aus: PLACE_ASSET dispatchen, das an diesem Append-Index neu
- * erzeugte Asset adressieren und ein Pending-Create mit sämtlichen bisherigen
- * Feldern (einschließlich clientAssetId) vormerken. Dispatch,
- * Append-Referenz und Pending-Create sind gegenüber dem Handler unverändert.
+ * Runs the logic extracted from EditorInputHandler.handleAssetTool
+ * stamp branch: dispatch PLACE_ASSET, and address the asset newly
+ * address the created asset and a pending create with all previous
+ * fields (including clientAssetId) queued. Dispatch,
+ * Append reference and pending create are unchanged from the handler.
  */
 export function stampPendingAsset(
   tileX: number,
   tileY: number,
   pendingAsset: NonNullable<EditorState['pendingAsset']>,
 ): void {
-  // Assetanzahl vor dem Stempeln merken, um danach exakt das an diesem
+  // Record the asset count before stamping, so that afterwards exactly the asset newly created at this
   // Append-Index neu erzeugte Asset zu adressieren.
   const assetCountBefore = EditorService.getState().assets.length;
   EditorService.dispatch({ type: 'PLACE_ASSET', tileX, tileY });
   const placedAsset = EditorService.getState().assets[assetCountBefore];
 
-  // Jede gestempelte Kachel für die DB-Persistenz vormerken.
+  // Queue every stamped tile for DB persistence.
   EditorService.dispatch({
     type: 'ADD_PENDING_OBJECT_CREATE',
     object: {
@@ -54,27 +54,27 @@ export function stampPendingAsset(
       scaleFactor: pendingAsset.scaleFactor || 1,
       rotation: pendingAsset.rotation || 0,
       dataUrl: pendingAsset.dataUrl,
-      // Depth-Layering (Strang B/C): Manifest-Standardwert des Asset-Typs
-      // übernehmen, damit per Editor platzierte Objekte der generierten Vorlage entsprechen.
+      // Depth layering: take over the manifest default value of the asset type
+      // adopt, so that editor-placed objects match the generated template.
       collisionBaseHeight: pendingAsset.collisionBaseHeight ?? 0,
       renderLayer: pendingAsset.renderLayer ?? 'sorted',
       _pending: 'add',
-      // Rein clientseitige Instanzreferenz auf das eben gestempelte Asset.
+      // Purely client-side instance reference to the just-stamped asset.
       clientAssetId: placedAsset.id,
     },
   });
 }
 
 /**
- * completePendingTerrainDrag: schließt einen Terrain-Drag ab.
+ * completePendingTerrainDrag: finishes a terrain drag.
  *
- * Führt den aus EditorInputHandler.handleAssetTool herausgezogenen
- * Terrain-Zweig phase up aus: COMPLETE_ASSET_DRAG dispatchen, den danach
- * angehängten Asset-Bereich erfassen und je Rechteck-Kachel ein
- * Pending-Create mit sämtlichen bisherigen Feldern (einschließlich
- * clientAssetId) vormerken. Nutzt den echten EditorService und ist frei
- * von Phaser-Abhängigkeiten. Algorithmus, Metadaten, Temp-IDs und
- * Append-Reihenfolge sind gegenüber dem Handler unverändert.
+ * Runs the logic extracted from EditorInputHandler.handleAssetTool
+ * terrain branch phase up: dispatch COMPLETE_ASSET_DRAG, then the
+ * capture the appended asset range and queue one
+ * pending create with all existing fields (including
+ * clientAssetId) queued. Uses the real EditorService and is free
+ * of Phaser dependencies. Algorithm, metadata, temp IDs and
+ * append order are unchanged from the handler.
  */
 export function completePendingTerrainDrag(
   tileX: number,
@@ -82,13 +82,13 @@ export function completePendingTerrainDrag(
   pendingAsset: NonNullable<EditorState['pendingAsset']>,
   dragState: NonNullable<EditorState['dragState']>,
 ): void {
-  // Assetanzahl vor dem Drag-Append merken; der danach angehängte Bereich
-  // steht bereits in Rechteckreihenfolge (erst minY/maxY, dann minX/maxX).
+  // record the asset count before the drag append; the area appended afterwards
+  // is already in rectangle order (minY/maxY first, then minX/maxX).
   const assetCountBefore = EditorService.getState().assets.length;
   EditorService.dispatch({ type: 'COMPLETE_ASSET_DRAG', tileX, tileY });
   const appendedAssets = EditorService.getState().assets.slice(assetCountBefore);
 
-  // Jede Kachel im Drag-Rechteck für die DB-Persistenz vormerken.
+  // Queue every tile in the drag rectangle for DB persistence.
   const minX = Math.min(dragState.startTileX, tileX);
   const minY = Math.min(dragState.startTileY, tileY);
   const maxX = Math.max(dragState.startTileX, tileX);
@@ -115,11 +115,11 @@ export function completePendingTerrainDrag(
           scaleFactor: pendingAsset.scaleFactor || 1,
           rotation: pendingAsset.rotation || 0,
           dataUrl: pendingAsset.dataUrl,
-          // Terrain-Objekte rendern auf dem Boden, immer unter Akteuren (Strang C).
+          // Terrain objects render on the floor, always below actors.
           collisionBaseHeight: pendingAsset.collisionBaseHeight ?? 0,
           renderLayer: 'floor',
           _pending: 'add',
-          // Zugehöriges Drag-Asset in Rechteckreihenfolge adressieren.
+          // Address the associated drag asset in rectangle order.
           clientAssetId: dragAsset.id,
         },
       });

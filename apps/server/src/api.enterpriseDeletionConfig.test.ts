@@ -46,8 +46,8 @@ const { journalResolver } = vi.hoisted(() => ({
   journalResolver: vi.fn(),
 }));
 
-// Der Resolver-Erzeuger ist die Verdrahtung, nicht die geprüfte Logik: er wird
-// gezählt und steuerbar abgelehnt oder aufgelöst.
+// The resolver factory is wiring, not the tested logic: it is
+// counted and controllably rejected or resolved.
 vi.mock('./services/tenantDeletionPlanning.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./services/tenantDeletionPlanning.js')>();
   return { ...actual, createJournalPlanResolver: journalResolver };

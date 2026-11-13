@@ -14,7 +14,7 @@ const devices = [
 ];
 
 for (const device of devices) {
-  test(`Q-AV-2: denied ${device.name} access explains the failure and leaves capture off`, async ({ roomUsers }) => {
+  test(`Denied ${device.name} access explains the failure and leaves capture off`, async ({ roomUsers }) => {
     const [{ page }] = await roomUsers(1, { permissions: ['denied'] });
 
     // DeviceSelector currently exposes the device through its icon. In

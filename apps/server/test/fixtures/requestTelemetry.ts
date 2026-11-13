@@ -71,7 +71,7 @@ async function main(): Promise<void> {
   });
   const address = server.address();
   if (typeof address !== 'object' || address === null || typeof address.port !== 'number') {
-    throw new Error('ephemerer Server meldete keine nutzbare Adresse');
+    throw new Error('ephemeral server reported no usable address');
   }
   const agent = request(`http://127.0.0.1:${address.port}`);
   const cases: CaseResult[] = [];

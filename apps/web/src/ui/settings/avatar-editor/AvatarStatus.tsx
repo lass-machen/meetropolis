@@ -1,13 +1,13 @@
 /**
- * Statuszeile des Avatar-Editors. Reiner Props-Baustein: keine Zustände,
- * keine Effekte, kein Netzwerk — der Text kommt vom Hook und wird hier nur
+ * Status line of the avatar editor. Pure props component: no states,
+ * no effects, no network: the text comes from the hook and is only
  * ausgegeben.
  *
- * Die Region existiert immer, auch ohne Meldung: eine Live-Region muss vor der
- * Meldung im DOM stehen (ARIA22), sonst wird nichts angekündigt. Ohne Text
- * steht sie absolut, damit sie keinen zusätzlichen Abstand in der Spalte
- * erzeugt; versteckt wird sie nicht, weil ein verborgener Container aus dem
- * Accessibility-Baum fällt.
+ * The region always exists, even without a message: a live region must come before the
+ * be in the DOM before a message, otherwise nothing is announced. Without text
+ * it is positioned absolutely so it adds no extra spacing in the column
+ * creates it; it is not hidden, because a hidden container drops out of the
+ * accessibility tree.
  */
 export function AvatarStatus({ status }: { status: string | null }) {
   const hasText = typeof status === 'string' && status.trim().length > 0;

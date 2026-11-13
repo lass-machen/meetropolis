@@ -102,7 +102,7 @@ export async function removeMemberFromTenant(
   const avatarUuid = await readCustomAvatarUuid(prisma, userId);
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
   const accountDeleted = await prisma.$transaction(async (tx) => {
-    // Serialize concurrent removals of the same user (S1-R7): without the row
+    // Serialize concurrent removals of the same user: without the row
     // lock, two removals of the last two memberships each still see the
     // other's membership, and both keep an account that ends up memberless.
     await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
@@ -134,7 +134,7 @@ export async function removeMemberFromTenant(
  */
 /**
  * A tenant with large maps deletes tens of thousands of map chunks in this
- * transaction; the Prisma default of 5 s is not enough (Q-ACC-19c large-map
+ * transaction; the Prisma default of 5 s is not enough (timeout-case large-map
  * test).
  */
 const TENANT_DELETION_TIMEOUT_MS = 120_000;
@@ -169,7 +169,7 @@ export async function deleteTenantWithMembers(
 
   const deletedUserIds = await prisma.$transaction(
     async (tx) => {
-      // Same row lock as removeMemberFromTenant (S1-R7), in id order so that
+      // Same row lock as removeMemberFromTenant in id order so that
       // two deletions cannot deadlock each other.
       if (memberIds.length > 0) {
         await tx.$queryRaw`SELECT id FROM "User" WHERE id IN (${Prisma.join(memberIds)}) ORDER BY id FOR UPDATE`;

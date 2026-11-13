@@ -18,40 +18,40 @@ export interface AvatarDraft {
   save: () => void;
   saving: boolean;
   status: string | null;
-  /** Das gespeicherte Rezept wird gerade geladen; Speichern ist gesperrt. */
+  /** The saved recipe is loading; saving is disabled. */
   loading: boolean;
-  /** Fehler des Ladevorgangs; ohne gespeichertes Rezept bleibt der Editor unbrauchbar. */
+  /** Load error; without a saved recipe the editor remains unusable. */
   loadError: Error | null;
 }
 
-/** Der übernommene Entwurf; das Katalog-Objekt bindet ihn an seinen Katalog. */
+/** The adopted draft; the catalog object binds it to its catalog. */
 interface DraftConfig {
   catalog: SpriteCatalog;
   config: AvatarConfig;
 }
 
-/** Ladeergebnis; es gilt für den Katalog und die API-Basis des Ladevorgangs. */
+/** Load result; it applies to the catalog and the API base of the load. */
 interface LoadResult {
   catalog: SpriteCatalog;
   apiBase: string;
   error: Error | null;
 }
 
-/** Ladefehler mit sicherem HTTP-Status: ohne Payload und ohne Secrets. */
+/** Load error with a safe HTTP status: no payload and no secrets. */
 class AvatarLoadError extends Error {
   readonly status: number;
 
   constructor(status: number) {
-    super(`Avatar-Entwurf konnte nicht geladen werden (HTTP ${status}).`);
+    super(`Avatar draft could not be loaded (HTTP ${status}).`);
     this.name = 'AvatarLoadError';
     this.status = status;
   }
 }
 
 /**
- * Lädt das gespeicherte Rezept. 404 heißt: es gibt noch keinen gespeicherten
- * Avatar. Andere HTTP-, JSON- und Netzwerkfehler werden als Error
- * weitergereicht, damit sie sichtbar bleiben.
+ * Loads the saved recipe. 404 means there is no saved
+ * avatar. Other HTTP, JSON and network errors are thrown as Error
+ * passed on so that they remain visible.
  */
 async function fetchStoredRecipe(
   catalog: SpriteCatalog,
@@ -67,9 +67,9 @@ async function fetchStoredRecipe(
 }
 
 /**
- * Lädt das gespeicherte Rezept und meldet Ladezustand und Fehler. Das Ergebnis
- * wird nur übernommen, wenn seit Beginn des Ladevorgangs niemand bearbeitet
- * hat; abgebrochene und überholte Ladevorgänge ändern keinen Zustand mehr.
+ * Loads the saved recipe and reports load state and errors. The result
+ * is only adopted if nobody has edited since the load started
+ * has; aborted and superseded loads no longer change any state.
  */
 function useStoredRecipe(
   catalog: SpriteCatalog | null,
@@ -78,7 +78,7 @@ function useStoredRecipe(
   adopt: (config: AvatarConfig) => void,
 ): { loading: boolean; error: Error | null } {
   const [result, setResult] = React.useState<LoadResult | null>(null);
-  /** Zähler der Ladevorgänge: überholte Antworten werden verworfen. */
+  /** Load counter: superseded responses are discarded. */
   const loadCounter = React.useRef(0);
 
   React.useEffect(() => {
@@ -86,7 +86,7 @@ function useStoredRecipe(
     const controller = new AbortController();
     const loadId = ++loadCounter.current;
     const editsAtStart = editCounter.current;
-    // Abgebrochene und überholte Ladevorgänge dürfen keinen Zustand mehr ändern.
+    // Aborted and superseded loads must no longer change any state.
     const stale = () => controller.signal.aborted || loadId !== loadCounter.current;
 
     void (async () => {
@@ -98,7 +98,7 @@ function useStoredRecipe(
       } catch (err) {
         if (stale()) return;
         const error = err instanceof Error ? err : new Error(String(err));
-        logger.warn('[AvatarEditor] Entwurf konnte nicht geladen werden:', error.message);
+        logger.warn('[AvatarEditor] Draft could not be loaded:', error.message);
         setResult({ catalog, apiBase, error });
       }
     })();
@@ -113,16 +113,16 @@ function useStoredRecipe(
 }
 
 /**
- * Der Arbeitsentwurf des Editors: sofort ein gültiger Basisentwurf aus dem
- * Katalog, danach das echte gespeicherte Rezept. Gespeichert wird, indem der
- * Server das Blatt einmal komponiert (Antwort: avatarId + Manifest).
+ * The editor working draft: immediately a valid base draft from the
+ * catalog, then the real saved recipe. Saving happens by the
+ * server composes the sheet once (response: avatarId + manifest).
  */
 export function useAvatarDraft(catalog: SpriteCatalog | null, onSaved: AvatarSavedHandler): AvatarDraft {
   const apiBase = getApiBaseFromWindow();
   const [saving, setSaving] = React.useState(false);
   const [status, setStatus] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState<DraftConfig | null>(null);
-  /** Monotoner Zähler der Nutzeränderungen; nur setConfig erhöht ihn. */
+  /** Monotonic counter of user changes; only setConfig increments it. */
   const editCounter = React.useRef(0);
 
   const adopt = React.useCallback(
@@ -143,7 +143,7 @@ export function useAvatarDraft(catalog: SpriteCatalog | null, onSaved: AvatarSav
       if (!catalog) return;
       editCounter.current += 1;
       setDraft({ catalog, config: next });
-      // Eine neue Änderung macht den zuvor gemeldeten Speicherstand ungültig.
+      // A new change invalidates the previously reported saved state.
       setStatus(null);
     },
     [catalog],
@@ -169,7 +169,7 @@ export function useAvatarDraft(catalog: SpriteCatalog | null, onSaved: AvatarSav
         }
         const data = (await res.json()) as ComposeResponse;
         onSaved(data.avatarId, data.manifest);
-        // Nur melden, wenn seit dem Speichern nichts geändert wurde.
+        // Only report if nothing has changed since saving.
         if (editCounter.current === editsAtSave) setStatus('Avatar gespeichert.');
       } catch (err) {
         logger.warn('[AvatarEditor] save failed', err);

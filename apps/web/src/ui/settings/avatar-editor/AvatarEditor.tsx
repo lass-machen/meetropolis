@@ -29,10 +29,10 @@ export function AvatarEditor({ onSaved }: { onSaved: AvatarSavedHandler }) {
   } = useAvatarDraft(catalog, onSaved);
   const [tab, setTab] = React.useState(EDITOR_TABS[0].key);
 
-  // Der Basisentwurf folgt sofort aus dem Katalog; `config` ist nur null,
-  // solange der Katalog selbst fehlt. Ein Fehler beim Laden des gespeicherten
-  // Rezepts macht den Editor unbrauchbar: Es gibt keinen ehrlichen
-  // Ersatzentwurf zum Speichern.
+  // The base draft follows immediately from the catalog; `config` is only null,
+  // as long as the catalog itself is missing. An error while loading the saved
+  // recipe leaves the editor unusable: there is no honest
+  // fallback draft to save with.
   if (error !== null || loadError !== null) return <div style={styles.info}>Editor nicht verfügbar.</div>;
   if (loading || !catalog || !config) return <div style={styles.info}>Lade Editor…</div>;
 

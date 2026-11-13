@@ -11,7 +11,7 @@ import { getJwtSecret } from '../utils/authHelpers.js';
 import { hashSessionToken, validateSessionToken } from '../utils/sessionAuth.js';
 
 /**
- * Regression tests for member removal and account deletion (Q-ACC-1..3)
+ * Regression tests for member removal and account deletion
  * against a REAL PostgreSQL database with all migrations applied.
  *
  * No Prisma double on purpose: the defect lived in foreign-key rules
@@ -48,14 +48,14 @@ function makeApp() {
 }
 
 async function createTenant(): Promise<string> {
-  const slug = `qacc-${crypto.randomUUID()}`;
+  const slug = `case-${crypto.randomUUID()}`;
   const tenant = await prisma.tenant.create({ data: { slug, name: slug } });
   tenantIds.push(tenant.id);
   return tenant.id;
 }
 
 async function createUser(memberships: Array<{ tenantId: string; role: Role }>): Promise<string> {
-  const user = await prisma.user.create({ data: { email: `qacc-${crypto.randomUUID()}@example.test` } });
+  const user = await prisma.user.create({ data: { email: `case-${crypto.randomUUID()}@example.test` } });
   userIds.push(user.id);
   for (const m of memberships) {
     await prisma.membership.create({ data: { userId: user.id, tenantId: m.tenantId, role: m.role } });

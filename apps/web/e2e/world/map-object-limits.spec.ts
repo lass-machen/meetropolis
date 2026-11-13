@@ -1,10 +1,10 @@
 /**
- * Regressionstest für die Fußabdruck-Grenzen der Kartenobjekte (Q-WE/A26).
- * Der Test legt den benötigten Asset-Pack über die echte Produktions-API
- * (POST /asset-packs/upload) aus dem gebündelten Atelier-v1-Asset des Repos
- * an, liest das gespeicherte Objekt über GET /asset-packs/:uuid zurück und
- * räumt Karte und Pack über dieselbe API wieder weg. Es gibt bewusst keine
- * Abhängigkeit von vorinstallierten Default-Packs.
+ * Regression test for the footprint limits of map objects.
+ * The test creates the required asset pack via the real production API
+ * (POST /asset-packs/upload) from the bundled Atelier-v1 asset of the repo,
+ * reads the stored object back via GET /asset-packs/:uuid and
+ * removes map and pack again via the same API. There is deliberately no
+ * dependency on preinstalled default packs.
  */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -42,10 +42,10 @@ const it = SHOULD_RUN ? test : test.skip;
 const API_URL = process.env.E2E_API_URL ?? '';
 
 /**
- * Echte, gebündelte Quellen aus dem Repo:
- * - das Manifest des mitgelieferten Atelier-v1-Packs,
- * - das dazugehörige PNG-Bild im Web-Public-Verzeichnis.
- * Beides wird unverändert gelesen; es werden keine Test-PNGs erzeugt.
+ * Real, bundled sources from the repo:
+ * - the manifest of the bundled Atelier-v1 pack,
+ * - the corresponding PNG image in the web public directory.
+ * Both are read unchanged; no test PNGs are generated.
  */
 const SOURCE_MANIFEST = 'apps/server/prisma/seed-data/asset-packs/atelier-v1/holz.json';
 const SOURCE_ASSET_ROOT = 'apps/web/public/assets';
@@ -75,7 +75,7 @@ function repoRoot(testInfo: TestInfo): string {
   return path.resolve(path.dirname(testInfo.file), '..', '..', '..', '..');
 }
 
-/** Liest das echte Pack-Objekt samt Bildpfad aus dem gebündelten Manifest. */
+/** Reads the real pack object including image path from the bundled manifest. */
 async function loadSourceObject(
   root: string,
 ): Promise<{ item: Record<string, unknown>; objectId: string; assetPath: string; author: string }> {
@@ -100,7 +100,7 @@ async function loadSourceObject(
   return { item, objectId: SOURCE_OBJECT_ID, assetPath: dataUrl.replace(/^\/assets\//, ''), author };
 }
 
-/** Importiert den echten Pack über POST /asset-packs/upload. */
+/** Imports the real pack via POST /asset-packs/upload. */
 async function uploadTestPack(request: APIRequestContext, root: string): Promise<UploadedPack> {
   const source = await loadSourceObject(root);
   const assetBytes = await readFile(path.join(root, SOURCE_ASSET_ROOT, source.assetPath));
@@ -108,7 +108,7 @@ async function uploadTestPack(request: APIRequestContext, root: string): Promise
   const config = {
     uuid,
     name: `mtest-object-limits-pack-${uuid.slice(0, 8)}`,
-    description: 'Temporärer E2E-Testpack aus dem gebündelten Atelier-v1-Asset.',
+    description: 'Temporary E2E test pack from the bundled Atelier-v1 asset.',
     author: source.author,
     version: '1.0.0',
     terrain: [],
@@ -141,7 +141,7 @@ async function uploadTestPack(request: APIRequestContext, root: string): Promise
   return { packId, uuid: uploadedUuid, objectId: source.objectId };
 }
 
-/** Liest das angelegte Pack-Objekt tatsächlich über GET /asset-packs/:uuid zurück. */
+/** Actually reads the created pack object back via GET /asset-packs/:uuid. */
 async function readBackPackObject(request: APIRequestContext, uuid: string, objectId: string): Promise<TestPack> {
   const response = await request.get(`${API_URL}/asset-packs/${uuid}`);
   if (!response.ok()) {
@@ -208,14 +208,14 @@ async function listObjects(request: APIRequestContext, mapId: string): Promise<u
   return body;
 }
 
-/** Löscht die eigene Karte; die Objektzeilen fallen per Cascade mit weg. */
+/** Deletes the own map; the object rows are removed by cascade. */
 async function deleteMap(request: APIRequestContext, mapId: string): Promise<string[]> {
   const response = await request.delete(`${API_URL}/admin/maps/${mapId}`);
   if (response.ok()) return [];
   return [`map ${mapId} cleanup failed: HTTP ${response.status()} ${await response.text()}`];
 }
 
-/** Löscht ausschließlich das selbst angelegte Pack. */
+/** Deletes only the self-created pack. */
 async function deleteAssetPack(request: APIRequestContext, packId: number): Promise<string[]> {
   const response = await request.delete(`${API_URL}/asset-packs/${packId}`);
   if (response.ok()) return [];
@@ -227,7 +227,7 @@ interface Created {
   packId?: number;
 }
 
-/** Löscht ausschließlich die selbst angelegten IDs: zuerst die Karte, dann das Pack. */
+/** Deletes only the self-created IDs: first the map, then the pack. */
 async function cleanupCreated(request: APIRequestContext, created: Created): Promise<string[]> {
   const errors: string[] = [];
   if (created.mapId) errors.push(...(await deleteMap(request, created.mapId)));
@@ -236,10 +236,10 @@ async function cleanupCreated(request: APIRequestContext, created: Created): Pro
 }
 
 /**
- * Legt Pack und Karte über die echte API an, führt den Testkörper aus und
- * räumt beides danach über dieselbe API wieder weg. Cleanup-Fehler werden
- * NICHT verschluckt: sie erscheinen als eigener Fehler oder als Zusatz zur
- * ursprünglichen Fehlermeldung.
+ * Creates pack and map via the real API, runs the test body and
+ * removes both afterwards via the same API. Cleanup errors are
+ * not swallowed: they appear as their own error or as an addition to the
+ * original error message.
  */
 async function withPackAndMap(
   request: APIRequestContext,
@@ -397,8 +397,8 @@ it('accepts 65 small objects in one bulk payload', async ({ request }, testInfo)
 });
 
 /**
- * Grenzfall: exakt 4096 Fußabdruck-Kacheln (64 × 64 bei 16-px-Kacheln) müssen
- * noch angenommen werden — erst 4097 Kacheln sind zu groß.
+ * Boundary case: exactly 4096 footprint tiles (64 × 64 at 16 px tiles) must
+ * still be accepted — only 4097 tiles are too large.
  */
 it('accepts a single object with exactly 4096 tiles', async ({ request }, testInfo) => {
   await login(request);
@@ -427,7 +427,7 @@ it('accepts a single object with exactly 4096 tiles', async ({ request }, testIn
 
 /**
  * Grenzfall: exakt 65536 Summen-Kacheln im Bulk (64 Objekte à 32 × 32 Kacheln)
- * müssen noch angenommen werden — erst darüber greift die Summenbegrenzung.
+ * several such objects must still be accepted — only above that does the total limit apply.
  */
 it('accepts a bulk payload with exactly 65536 total tiles', async ({ request }, testInfo) => {
   await login(request);
@@ -454,9 +454,9 @@ it('accepts a bulk payload with exactly 65536 total tiles', async ({ request }, 
 });
 
 /**
- * Grenzfall: Ein einziges zu großes Objekt (4097 Kacheln) lehnt den gesamten
- * Bulk ab, obwohl die Gesamtsumme weit unter 65536 bleibt — und es darf
- * keine Teilschreibung geben, die Objektliste bleibt unverändert.
+ * Boundary case: a single object that is too large (4097 tiles) rejects the entire
+ * bulk, although the total stays far below 65536 — and there
+ * must be no partial write; the object list remains unchanged.
  */
 it('rejects a bulk payload with one oversized object and writes nothing', async ({ request }, testInfo) => {
   await login(request);

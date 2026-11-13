@@ -21,8 +21,8 @@ const chair: PackItem = {
 const table: PackItem = { ...chair, itemId: 'table', key: 'pack-a:table', dataUrl: 'data:image/png;base64,table' };
 const sofa: PackItem = { ...chair, itemId: 'sofa', key: 'pack-a:sofa', dataUrl: 'data:image/png;base64,sofa' };
 
-// Testform: Pending-Create mit zwingender clientAssetId. Das Produktionsfeld
-// in MapObjectRecord ist optional, damit geladene Serverrecords ohne Feld gültig bleiben.
+// Test shape: pending create with a required clientAssetId. The production field
+// optional in MapObjectRecord so that loaded server records without it stay valid.
 type PendingCreateRecord = MapObjectRecord & { clientAssetId: string };
 
 // Mirrors stampPendingAsset in editorPendingPlacement.ts: the asset and the
@@ -150,9 +150,9 @@ describe('objectReducer: ADD_PENDING_OBJECT_DELETE', () => {
     expect(placed.pendingChanges.objectsToAdd).toHaveLength(4);
     expect(placed.assets).toHaveLength(4);
 
-    // Jede Instanz muss über clientAssetId exakt ihr Asset mit passender
-    // Kachelposition finden (TILE_SIZE 16). Eine vertauschte
-    // x/y-Schleifenreihenfolge zwischen Reducer und Helfer fällt hier auf.
+    // Each instance must match its asset exactly via clientAssetId, with matching
+    // tile position (TILE_SIZE 16). A swapped
+    // x/y loop order between reducer and helper shows up here.
     const TILE_SIZE = 16;
     for (const obj of placed.mapObjects) {
       const linked = placed.assets.find((a) => a.id === obj.clientAssetId);
@@ -161,7 +161,7 @@ describe('objectReducer: ADD_PENDING_OBJECT_DELETE', () => {
       expect(linked.y).toBe(obj.tileY * TILE_SIZE);
     }
 
-    // Obere rechte Instanz (4,4) löschen: absichtlich nicht die in jeder
+    // Delete the upper right instance (4,4): deliberately not the one in every
     // Reihenfolge stabile Ecke, sondern per Kachel nachgeschlagen.
     const topRight = placed.mapObjects.find((o) => o.tileX === 4 && o.tileY === 4);
     if (!topRight) throw new Error('expected an instance at tile (4,4)');
@@ -180,15 +180,15 @@ describe('objectReducer: ADD_PENDING_OBJECT_DELETE', () => {
     }
   });
 
-  it('vergibt über Stempel, 2x2-Drag und Stempel eindeutige, pro Instanz um eins fallende Negativ-IDs', () => {
+  it('assigns unique negative IDs that decrease by one per instance across stamp, 2x2 drag and stamp', () => {
     // Erster produktiver Stempel.
     EditorService.dispatch({ type: 'SELECT_ASSET', asset: chair });
     const beforeFirst = EditorService.getState();
     if (!beforeFirst.pendingAsset) throw new Error('SELECT_ASSET must provide pendingAsset');
     stampPendingAsset(2, 3, beforeFirst.pendingAsset);
 
-    // Produktiver 2x2-Drag auf Kacheln mit Zeilensprung (ty fließt in die
-    // alte ID-Formel ein, die Uhr wird nicht gemockt).
+    // Production 2x2 drag on tiles with a row break (ty flows into the
+    // old ID formula, the clock is not mocked).
     const grass: PackItem = {
       ...chair,
       itemId: 'grass',
@@ -253,9 +253,9 @@ describe('objectReducer: ADD_PENDING_OBJECT_DELETE', () => {
     expect(nextId).toBe(lastBeforeReset - 1);
   });
 
-  it('hält bei 1000 ms Versatz Drag-A-, Drag-B- und Stempel-Instanz eindeutig unterscheidbar', () => {
-    // Zeitsimulation, keine Produktattrappe: friert nur die Uhr ein, alle
-    // Helfer und der EditorService bleiben produktiv.
+  it('keeps drag A, drag B and stamp instances uniquely distinguishable at a 1000 ms offset', () => {
+    // Time simulation, not a production stub: only freezes the clock, all
+    // helpers and the EditorService stay production code.
     vi.useFakeTimers();
     try {
       const terrain: PackItem = {
@@ -267,7 +267,7 @@ describe('objectReducer: ADD_PENDING_OBJECT_DELETE', () => {
       };
       const t = new Date('2026-01-15T12:00:00.000Z').getTime();
 
-      // Drag A: nur Tile (0,1) beim festen Zeitpunkt t.
+      // Drag A: only tile (0,1) at the fixed time t.
       vi.setSystemTime(t);
       EditorService.dispatch({ type: 'SELECT_ASSET', asset: terrain });
       EditorService.dispatch({ type: 'START_ASSET_DRAG', tileX: 0, tileY: 1 });
@@ -277,7 +277,7 @@ describe('objectReducer: ADD_PENDING_OBJECT_DELETE', () => {
       }
       completePendingTerrainDrag(0, 1, setupA.pendingAsset, setupA.dragState);
 
-      // Drag B: nur Tile (0,0) bei exakt t + 1000 ms.
+      // Drag B: only tile (0,0) at exactly t + 1000 ms.
       vi.setSystemTime(t + 1000);
       EditorService.dispatch({ type: 'SELECT_ASSET', asset: terrain });
       EditorService.dispatch({ type: 'START_ASSET_DRAG', tileX: 0, tileY: 0 });
@@ -287,8 +287,8 @@ describe('objectReducer: ADD_PENDING_OBJECT_DELETE', () => {
       }
       completePendingTerrainDrag(0, 0, setupB.pendingAsset, setupB.dragState);
 
-      // Stempel bei t + 1000 ms. Die Legacyformeln -Date.now() und
-      // -(Date.now()+ty*1000+tx) kollidieren hier deterministisch.
+      // Stamp at t + 1000 ms. The legacy formulas -Date.now() and
+      // -(Date.now()+ty*1000+tx) collide here deterministically.
       EditorService.dispatch({ type: 'SELECT_ASSET', asset: chair });
       const beforeStamp = EditorService.getState();
       if (!beforeStamp.pendingAsset) throw new Error('SELECT_ASSET must provide pendingAsset');
@@ -303,7 +303,7 @@ describe('objectReducer: ADD_PENDING_OBJECT_DELETE', () => {
       }
       expect(new Set(ids).size).toBe(ids.length);
 
-      // Gezielte Löschung genau einer Instanz ohne Verlust der anderen.
+      // Targeted deletion of exactly one instance without losing the others.
       const [deleted, ...kept] = ids;
       if (typeof deleted !== 'number') throw new Error('expected numeric temp id');
       EditorService.dispatch({ type: 'ADD_PENDING_OBJECT_DELETE', objectId: deleted });

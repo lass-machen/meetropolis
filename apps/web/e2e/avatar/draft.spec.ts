@@ -14,24 +14,24 @@ import {
   statusRegion,
 } from './helpers';
 
-/** Vier echte Regressionen des Avatar-Entwurfs: verspätetes Laden, Netzwerkausfall,
- * Status nach Änderung und Bearbeitung während des Speicherns. Keine API-Mocks. */
+/** Four real regressions of the avatar draft: delayed loading, network failure,
+ * Status after a change and editing during saving. No API mocks. */
 test.describe('Avatar-Entwurf @avatar', () => {
-  test('verspätetes Laden überschreibt die neue Frisur nicht', async ({ freshTenant, loginAs, stack, request }) => {
+  test('delayed loading does not overwrite the new hairstyle', async ({ freshTenant, loginAs, stack, request }) => {
     const { context, page } = await loginAs(freshTenant.users.owner);
     await requireAvatarEditorEnabled({ request, apiUrl: stack.apiUrl, tenantSlug: freshTenant.slug });
 
     const storedHair = 'buzz';
     const chosenHair = 'bob';
 
-    // Die gespeicherte Frisur muss sich von der späteren Auswahl unterscheiden.
+    // The saved hairstyle must differ from the later selection.
     const composed = await composeAvatar({
       context,
       apiUrl: stack.apiUrl,
       tenantSlug: freshTenant.slug,
       hair: storedHair,
     });
-    expect(composed.status, 'der gespeicherte Avatar muss erzeugbar sein').toBe(200);
+    expect(composed.status, 'the saved avatar must be creatable').toBe(200);
 
     const gate = createGate();
     await page.route('**/me/avatar/custom', async (route) => {
@@ -47,16 +47,16 @@ test.describe('Avatar-Entwurf @avatar', () => {
       await chosen.click();
       await expect(chosen).toHaveAttribute('aria-pressed', 'true');
 
-      // Die verzögerte Antwort kommt erst nach der neuen Auswahl an.
+      // The delayed response arrives only after the new selection.
       const answered = page.waitForResponse((response) => response.url().includes('/me/avatar/custom'));
       const downloaded = page.waitForEvent('requestfinished', (req) => req.url().includes('/me/avatar/custom'));
       gate.release();
       const response = await answered;
-      expect(response.status(), 'der verzögerte Abruf muss den gespeicherten Avatar liefern').toBe(200);
+      expect(response.status(), 'the delayed fetch must return the saved avatar').toBe(200);
       await downloaded;
       await settle(page);
 
-      // Die Auswahl bleibt bestehen, obwohl die alte gespeicherte Antwort ankommt.
+      // The selection stays in place even though the old saved response arrives.
       await expect(chosen).toHaveAttribute('aria-pressed', 'true');
       await expect(hairOption(page, storedHair)).toHaveAttribute('aria-pressed', 'false');
     } finally {
@@ -65,7 +65,7 @@ test.describe('Avatar-Entwurf @avatar', () => {
     }
   });
 
-  test('echter Transportausfall hinterlässt keinen speicherbaren Ersatzentwurf', async ({
+  test('a real transport failure leaves no saveable replacement draft', async ({
     freshTenant,
     loginAs,
     stack,
@@ -83,17 +83,17 @@ test.describe('Avatar-Entwurf @avatar', () => {
     try {
       await openEditor(page);
 
-      // Der angehaltene Request wird nach dem Offline-Schalten weitergeleitet.
-      // requestfailed belegt den echten Transportausfall.
+      // The held request is forwarded after switching offline.
+      // requestfailed confirms the real transport failure.
       const failed = page.waitForEvent('requestfailed', (req) => req.url().includes('/me/avatar/custom'));
       await context.setOffline(true);
       gate.release();
       const failure = await failed;
-      expect(failure.failure(), 'der angehaltene Request muss am Transport scheitern').not.toBeNull();
+      expect(failure.failure(), 'the held request must fail at the transport level').not.toBeNull();
 
-      // Der Editor meldet seine Nichtverfügbarkeit und bietet keinen Ersatzentwurf zum Speichern an.
+      // The editor reports its unavailability and offers no replacement draft to save.
       await expect(page.getByText('Editor nicht verfügbar')).toBeVisible({ timeout: 15_000 });
-      expect(await saveButton(page).count(), 'kein speicherbarer Ersatzentwurf').toBe(0);
+      expect(await saveButton(page).count(), 'no saveable replacement draft').toBe(0);
     } finally {
       gate.release();
       await page.unroute('**/me/avatar/custom');
@@ -101,7 +101,7 @@ test.describe('Avatar-Entwurf @avatar', () => {
     }
   });
 
-  test('eine Änderung entfernt den zuvor gespeicherten Status', async ({
+  test('a change removes the previously saved status', async ({
     freshTenant,
     loginAs,
     stack,
@@ -111,17 +111,17 @@ test.describe('Avatar-Entwurf @avatar', () => {
     await requireAvatarEditorEnabled({ request, apiUrl: stack.apiUrl, tenantSlug: freshTenant.slug });
     await openEditor(page);
 
-    // Der Körper-Tab ist der geprüfte Anfangszustand des Editors. Die Anker
-    // sind bestehende Testanker: sys-tabs__tab--active (Tabs.tsx:23) und
-    // av-ed__grid--* (SlotPicker.tsx:55 sowie 100–103). Die Tabs tragen weder
-    // role=tab noch aria-selected, deshalb wird die Klasse geprüft und keine
-    // Produkt-A11y geändert. Reihenfolge skin/face/hair/hair_color und die
-    // Farbfelder stehen in editorLayout.ts:22 und 30; der Helper hält beide
-    // fest, statt sie aus dem Layout zu importieren.
+    // The body tab is the verified initial state of the editor. The anchors
+    // are existing test anchors: sys-tabs__tab--active (Tabs.tsx:23) and
+    // av-ed__grid--* (SlotPicker.tsx:55 as well as 100–103). The tabs carry neither
+    // role=tab still aria-selected, so the class is checked and no
+    // product A11y change. Order skin/face/hair/hair_color and the
+    // color fields are in editorLayout.ts:22 and 30; the helper keeps both
+    // hard-coded instead of importing them from the layout.
     await expectInitialBodyTab(page);
 
-    // Vor dem ersten Speichern steht die leere Statusregion schon im DOM: Sie
-    // belegt keinen Platz und bleibt für Hilfstechnologie erreichbar.
+    // Before the first save, the empty status region is already in the DOM: it
+    // occupies no space and stays reachable for assistive technology.
     await expectEmptyStatusRegion(page, testInfo);
 
     const answered = page.waitForResponse(
@@ -129,19 +129,19 @@ test.describe('Avatar-Entwurf @avatar', () => {
     );
     await saveButton(page).click();
     const response = await answered;
-    expect(response.status(), 'das Speichern muss tatsächlich erfolgreich sein').toBe(200);
+    expect(response.status(), 'the save must actually succeed').toBe(200);
     const body = (await response.json()) as { avatarId?: string };
-    expect(body.avatarId, 'die Compose-Antwort muss die neue Avatar-ID enthalten').toMatch(/^custom:/);
+    expect(body.avatarId, 'the compose response must contain the new avatar ID').toMatch(/^custom:/);
 
     const status = statusRegion(page);
     await expect(status).toBeVisible();
 
-    // Eine neue Änderung macht den zuvor gespeicherten Status ungültig.
+    // A new change invalidates the previously saved status.
     await hairOption(page, 'bob').click();
     await expect(status).toHaveText('');
   });
 
-  test('Bearbeitung während des Speicherns bekommt keinen gespeicherten Status', async ({
+  test('editing during saving gets no saved status', async ({
     freshTenant,
     loginAs,
     stack,
@@ -163,18 +163,18 @@ test.describe('Avatar-Entwurf @avatar', () => {
       );
       await saveButton(page).click();
 
-      // Der Entwurf ändert sich, während der echte Speicherrequest noch angehalten ist.
+      // The draft changes while the real save request is still held.
       await hairOption(page, 'bob').click();
 
       gate.release();
       const response = await answered;
-      expect(response.status(), 'das Speichern muss tatsächlich erfolgreich sein').toBe(200);
+      expect(response.status(), 'the save must actually succeed').toBe(200);
 
-      // Der aktivierte Speicherknopf belegt die Verarbeitung der Antwort;
-      // der Hook beendet saving erst nach seiner Statusänderung.
+      // The enabled save button confirms that the response is being processed;
+      // the hook ends saving only after its status change.
       await expect(saveButton(page)).toBeEnabled({ timeout: 30_000 });
 
-      // Der inzwischen bearbeitete Entwurf darf nicht als gespeichert erscheinen.
+      // The meanwhile edited draft must not appear as saved.
       await expect(statusRegion(page)).toHaveText('');
     } finally {
       gate.release();

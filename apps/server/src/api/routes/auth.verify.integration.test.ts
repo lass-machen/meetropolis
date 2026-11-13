@@ -89,7 +89,7 @@ async function setupCase(env: Partial<Record<EnvKey, string | undefined>>): Prom
   return { app, userId: user.id };
 }
 
-describe('Q-ACC-11 verification token surfacing', () => {
+describe('verification token surfacing', () => {
   it('withholds the token when a configured provider cannot deliver', async () => {
     const { app, userId } = await setupCase({
       NODE_ENV: 'production',

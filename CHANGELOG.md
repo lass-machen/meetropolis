@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deadline. Upgrade the host and enterprise module together; mismatched
   versions reject deletion before any database DELETE statement with
   `tenant_deletion_contract_required`. Without a valid internal plan the
-  deletion is rejected with `retention_journal_unavailable` (HTTP 409) until P4.
+  deletion is rejected with `retention_journal_unavailable` (HTTP 409).
 - **Breaking (self-hosting):** NPC media now resolve from one directory. Without `NPC_MEDIA_DIR` the server uses `/data/npc-media`, the same default as the npc service; before, uploads defaulted to `<server working directory>/../../npc-media` and static serving to a directory next to the build output. If you did not set `NPC_MEDIA_DIR`, set it to your existing media directory or move its contents to `/data/npc-media`. When the directory cannot be created, the server logs `npc_media.dir_unavailable` at startup.
 - **Breaking (self-hosting):** Node.js 24.15 or newer below 25 is now required (`engines.node`). `npm ci --engine-strict` refuses older Node versions; `.nvmrc` stays `24` and resolves to the latest 24.x.
 - **Breaking (self-hosting):** invitation, guest, email-verification, password-reset and welcome links are built only from `PUBLIC_BASE_URL`. The fallbacks to relative links, `BILLING_PUBLIC_URL` and the request origin or host are gone, and loopback bases need `PUBLIC_BASE_URL_ALLOW_LOOPBACK=true`. A missing or unusable value is logged at startup, and link requests fail with `public_base_url_missing`. The web client copies invitation links from the server instead of building them from the window origin.
@@ -46,10 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not support. Removing a member no longer asks twice, and logging out all
   other devices reports its result inline instead of with `alert()`. ESLint
   now rejects native `confirm`, `alert` and `prompt` in `apps/web`.
-- Server: HTTP-Logfelder und Metriklabels enthalten Routen-Templates
-  statt konkreter Pfade; frühe `http.request`-Logs enthalten kein Pfadfeld,
-  endgültig ungematchte Requests melden `<unmatched>`. Dies ändert die
-  Werte für Dashboards und Log-Parser.
 - World server: joining the world always requires a valid session, also
   with `ZONE_PRIVACY_AUTH_ENFORCE` unset. A join without a session token
   (desktop builds that predate the join token) is refused with 4401

@@ -4,7 +4,7 @@ import { createPrismaClient } from '../db.js';
 import { removeMemberFromTenant } from './accountDeletion.js';
 
 /**
- * S1-R7: two admins of different tenants remove the same user's last two
+ * Two admins of different tenants remove the same user's last two
  * memberships at the same time. Each removal has to see the other's result,
  * otherwise both keep the account and it is left without any membership.
  * Runs against a REAL PostgreSQL database; a deferred trigger holds each
@@ -21,15 +21,15 @@ const tenantIds: string[] = [];
 const userIds: string[] = [];
 
 async function createTenant(): Promise<string> {
-  const slug = `qacc-${crypto.randomUUID()}`;
+  const slug = `case-${crypto.randomUUID()}`;
   const tenant = await prisma.tenant.create({ data: { slug, name: slug } });
   tenantIds.push(tenant.id);
   return tenant.id;
 }
 
 async function dropSlowDeleteTrigger(): Promise<void> {
-  await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS qacc_r7_slow_delete ON "Membership"');
-  await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS qacc_r7_slow_delete()');
+  await prisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS slow_membership_delete ON "Membership"');
+  await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS slow_membership_delete()');
 }
 
 afterAll(async () => {
@@ -40,23 +40,23 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('S1-R7 parallel removal of the last memberships (real database)', () => {
+describe('parallel removal of the last memberships (real database)', () => {
   it('deletes the account when two tenants remove the user at the same time', async () => {
     const tenantA = await createTenant();
     const tenantB = await createTenant();
-    const user = await prisma.user.create({ data: { email: `qacc-${crypto.randomUUID()}@example.test` } });
+    const user = await prisma.user.create({ data: { email: `case-${crypto.randomUUID()}@example.test` } });
     userIds.push(user.id);
     await prisma.membership.create({ data: { userId: user.id, tenantId: tenantA, role: 'member' } });
     await prisma.membership.create({ data: { userId: user.id, tenantId: tenantB, role: 'member' } });
 
     await prisma.$executeRawUnsafe(`
-      CREATE OR REPLACE FUNCTION qacc_r7_slow_delete() RETURNS trigger AS $$
+      CREATE OR REPLACE FUNCTION slow_membership_delete() RETURNS trigger AS $$
       BEGIN
         IF OLD."userId" = '${user.id}' THEN PERFORM pg_sleep(1); END IF;
         RETURN OLD;
       END $$ LANGUAGE plpgsql`);
     await prisma.$executeRawUnsafe(
-      'CREATE CONSTRAINT TRIGGER qacc_r7_slow_delete AFTER DELETE ON "Membership" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION qacc_r7_slow_delete()',
+      'CREATE CONSTRAINT TRIGGER slow_membership_delete AFTER DELETE ON "Membership" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION slow_membership_delete()',
     );
 
     try {

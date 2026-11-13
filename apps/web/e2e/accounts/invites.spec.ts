@@ -13,7 +13,7 @@ import { mailProofFixture } from './mailProof.support';
 
 test.use({ locale: 'de-DE' });
 
-const PASSWORD = 'Qacc-E2E-Password-1';
+const PASSWORD = 'Acct-E2E-Password-1';
 const APP_URL = /#\/app(?:$|\?)/;
 
 function uniqueEmail(): string {

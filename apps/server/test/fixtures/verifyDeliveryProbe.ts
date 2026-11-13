@@ -11,7 +11,7 @@ const port = await new Promise<number>((resolve, reject) => {
     const address = server.address();
     if (!address || typeof address === 'string') {
       server.close();
-      reject(new Error('Kein Testport'));
+      reject(new Error('No test port'));
       return;
     }
     server.close((error) => (error ? reject(error) : resolve(address.port)));

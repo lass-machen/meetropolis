@@ -29,9 +29,9 @@ function pixels(image: RgbaImage, row: number, col: number, mirrored = false): U
   return result;
 }
 
-// Geometrische Regeln aus knowledge/quality/asset/p3a-direction-layer-rules.md.
-// Kein Snapshot-Update kann einen verbotenen Nasen- oder Zopfbereich freigeben.
-describe('Richtungs- und Ebenenregeln der kompakten Avatare', () => {
+// Geometry rules for the direction and layer behavior of compact avatars.
+// No snapshot update can allow a forbidden nose or braid area.
+describe('direction and layer rules of the compact avatars', () => {
   for (const hat of [null, 'cap']) {
     const state = hat ? 'covered' : 'uncovered';
     it(`${state}: der hinten gebundene Pferdeschwanz bleibt vorn hinter dem Kopf`, () => {
@@ -50,7 +50,7 @@ describe('Richtungs- und Ebenenregeln der kompakten Avatare', () => {
         expect(rear[y].slice(0, 13).replaceAll('.', '') + rear[y].slice(19).replaceAll('.', '')).toBe('');
       }
     });
-    it(`${state}: die Profilnase durchbricht nicht die benachbarte Wangenkontur`, () => {
+    it(`${state}: the profile nose does not break the adjacent cheek outline`, () => {
       const config = { ...base, hat };
       const resolved = resolveSpriteCatalog(catalog, config);
       const head = getGrid(resolved, 'bodies.body.side', config);
@@ -60,7 +60,7 @@ describe('Richtungs- und Ebenenregeln der kompakten Avatare', () => {
     });
   }
 
-  it('zeichnet Gesicht, Bart und Brille nur auf der sichtbaren Kopfseite', () => {
+  it('draws face, beard and glasses only on the visible side of the head', () => {
     const resolved = resolveSpriteCatalog(catalog, base);
     const rearSlots = resolved.compose.part_layout.rear.map((part) => part.slot);
     expect(rearSlots.some((slot) => /^(face|beard|glasses)_/.test(slot))).toBe(false);
@@ -77,12 +77,12 @@ describe('Richtungs- und Ebenenregeln der kompakten Avatare', () => {
   });
 
   it.each(catalog.compose.config_fields.skin.values)(
-    '%s: hält alle Haar-Hut-Kombinationen im Raster und spiegelt jeden Stand-/Walk-Frame exakt',
+    '%s: keeps all hair-hat combinations on the grid and mirrors every idle/walk frame exactly',
     (skin) => {
       for (const hair of catalog.compose.config_fields.hair.values)
         for (const hat of [null, ...catalog.compose.config_fields.hat.values]) {
           const image = composeSheet(catalog, { ...base, skin, hair, hat });
-          const label = `${skin}/${hair}/${hat ?? 'kein Hut'}`;
+          const label = `${skin}/${hair}/${hat ?? 'no hat'}`;
           expect([image.width, image.height], label).toEqual([128, 256]);
           for (let phase = 0; phase < 5; phase++) {
             const row = phase === 0 ? 1 : 5;

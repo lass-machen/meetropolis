@@ -4,21 +4,21 @@ import { describe, expect, it } from 'vitest';
 import { AvatarStatus } from './AvatarStatus';
 
 /**
- * Die Statusregion muss schon ohne Meldung im DOM stehen (ARIA22: der Container
- * muss vor der Meldung existieren), damit eine spätere Meldung überhaupt
- * angekündigt werden kann.
+ * The status region must already be in the DOM without a message (the container
+ * must exist before the message), so that a later message can be announced at all
+ * be announced.
  */
 describe('AvatarStatus', () => {
-  it('hält die Statusregion ohne Meldung vorhanden und leer', () => {
+  it('keeps the status region present and empty without a message', () => {
     render(<AvatarStatus status={null} />);
 
     const region = screen.getByRole('status');
     expect(region).toBeEmptyDOMElement();
     expect(region).toHaveAttribute('aria-atomic', 'true');
 
-    // Die leere Region wird nicht versteckt: display:none, hidden,
-    // visibility:hidden und aria-hidden würden sie aus dem
-    // Accessibility-Baum nehmen. Stattdessen steht sie absolut, damit sie
+    // The empty region is not hidden: display:none, hidden,
+    // visibility:hidden and aria-hidden would remove it from the
+    // remove them from the accessibility tree. Instead, it is absolutely positioned so that it
     // keinen Platz im Flexfluss belegt.
     expect(region).not.toHaveAttribute('hidden');
     expect(region).not.toHaveAttribute('aria-hidden');
@@ -27,7 +27,7 @@ describe('AvatarStatus', () => {
     expect(region).toHaveStyle({ position: 'absolute' });
   });
 
-  it('nimmt Meldung und Textwechsel im selben Knoten auf und leert ihn wieder', () => {
+  it('accepts message and text change in the same node and clears it again', () => {
     const { rerender } = render(<AvatarStatus status={null} />);
     const region = screen.getByRole('status');
 
@@ -35,7 +35,7 @@ describe('AvatarStatus', () => {
     expect(screen.getByRole('status')).toBe(region);
     expect(region).toHaveTextContent('Avatar gespeichert.');
 
-    // Mit Text steht die Region wieder im Flexfluss.
+    // With text, the region is back in the flex flow.
     expect(region).not.toHaveStyle({ position: 'absolute' });
 
     rerender(<AvatarStatus status="Speichern fehlgeschlagen." />);

@@ -1,41 +1,41 @@
 /**
- * Zwei-Client-E2E für den offenen Quellbefund Q-WE-7 (Zonen-Synchronisation).
+ * Two-client E2E for the open finding (zone synchronization).
  *
- * Die drei Fälle nutzen ausschließlich echte Wege: authentifizierte Owner-
- * und Admin-Konten aus dem echten Seed, echte Browser-Clients über die
- * loginAs-Fixtur, echte PUT-/GET-Aufrufe gegen /maps/:id/editor-state und echte
- * UI-Steuerelemente des Editors. Es gibt keine Route-Mocks, keine
- * Test-Hook-Injektion und keine erfundenen Nutzer oder Tokens.
+ * The three cases use only real paths: authenticated owner-
+ * and admin accounts from the real seed, real browser clients via the
+ * loginAs fixture, real PUT/GET calls against /maps/:id/editor-state and real
+ * UI controls of the editor. There are no route mocks, no
+ * test hook injection and no invented users or tokens.
  *
- * Belegte Selektoren (alle aus dem Produktcode, nicht erfunden):
- * - Menüknopf mit aria-label „Menü“/„Menu“
+ * Verified selectors (all from the product code, not invented):
+ * - menu button with aria-label „Menü“/„Menu“
  *   (apps/web/src/ui/app/TopRightMenu.tsx:427, locales de/en common.json:5).
- * - Menüeintrag „Map-Editor öffnen“/„Open map editor“
+ * - menu item „Map-Editor öffnen“/„Open map editor“
  *   (TopRightMenu.tsx:310-316, common.json:10).
  * - Editorfenster „Map-Editor“ (apps/web/src/features/editor/EditorWindow.tsx:206)
- *   mit hartkodierten Reitern „Allgemein“ und „Zonen“ (EditorWindow.tsx:106-114).
- * - Zonenliste „Zonen-Verwaltung“/„Zone management“ mit Eingaben
+ *   with hard-coded tabs „Allgemein“ and „Zonen“ (EditorWindow.tsx:106-114).
+ * - zone list „Zonen-Verwaltung“/„Zone management“ with inputs
  *   `input[id^="zone-name-"]` (apps/web/src/ui/editor/ZoneEditor.tsx:31,217)
- *   und Leerzustand „Noch keine Zonen …“/„No zones yet …“ (ZoneEditor.tsx:313).
- * - Hintergrund-Farbwahl auf dem Allgemein-Reiter
- *   (apps/web/src/ui/editor/EditorPanel.tsx:172-188) und Fußzeilen-Speichern
- *   „Speichern“/„Save“ (ui/editor/EditorPanel.tsx:428-447). Der Speichern-Knopf
- *   ruft über
- *   EditorWindow → WorldShell (WorldShell.tsx:209) saveAllToServerImpl auf, das
- *   PUT /maps/:id/editor-state mit replaceZones:true sendet
+ *   and empty state „Noch keine Zonen …“/„No zones yet …“ (ZoneEditor.tsx:313).
+ * - background color picker on the General tab
+ *   (apps/web/src/ui/editor/EditorPanel.tsx:172-188) and footer save
+ *   „Speichern“/„Save“ (ui/editor/EditorPanel.tsx:428-447). The Save button
+ *   calls via
+ *   EditorWindow → WorldShell (WorldShell.tsx:209) calls saveAllToServerImpl, which
+ *   sends PUT /maps/:id/editor-state with replaceZones:true
  *   (apps/web/src/app/routes/WorldApp.tsx:313-351).
  *
- * Belegte API-Verträge (aus den Routen abgeleitet, IDs nicht vorausgesetzt):
- * - GET /maps/:id/editor-state liefert { zones: [{ name, polygon, … }],
+ * Verified API contracts (derived from the routes, IDs not assumed):
+ * - GET /maps/:id/editor-state returns { zones: [{ name, polygon, … }],
  *   backgroundColor, spawn } (apps/server/src/api/routes/maps.editor.zones.ts:34-72).
  * - PUT /maps/:id/editor-state akzeptiert { zones, replaceZones, backgroundColor }
- *   (maps.editor.zones.ts:74-83) und ersetzt bei zones:[] oder
- *   replaceZones:true den gesamten Zonenstand (maps.editor.zones.ts:116-148).
+ *   (maps.editor.zones.ts:74-83) and replaces on zones:[] or
+ *   replaceZones:true replaces the entire zone state (maps.editor.zones.ts:116-148).
  *
- * Ausführung nur gegen den isolierten Stapel: E2E_RUN=true, MT_PROJECT=mtest-N
- * sowie Origin localhost mit den Ports aus MT_PORT_API/MT_PORT_WEB für API- und
- * Basis-URL (Namen und localhost-Form aus scripts/teststack.sh:378-390). Ohne
- * E2E_RUN wird die Datei sicher übersprungen; für die drei Fälle gibt es keine
+ * Run only against the isolated stack: E2E_RUN=true, MT_PROJECT=mtest-N
+ * as well as origin localhost with the ports from MT_PORT_API/MT_PORT_WEB for API and
+ * base URL (names and localhost form from the test stack script). Without
+ * E2E_RUN, the file is safely skipped; for the three cases there is no
  * weiteren Skips.
  */
 import { randomUUID } from 'node:crypto';
@@ -49,7 +49,7 @@ import { getSeedTenant, passwordFor, waitForParticipant } from '../fixtures/help
 
 const SHOULD_RUN = process.env.E2E_RUN === 'true';
 
-test.skip(!SHOULD_RUN, 'E2E_RUN=true erforderlich: diese Spec läuft nur gegen den isolierten Teststack.');
+test.skip(!SHOULD_RUN, 'E2E_RUN=true required: this spec only runs against the isolated test stack.');
 
 const LIVE_SYNC_TIMEOUT_MS = 20_000;
 const UI_TIMEOUT_MS = 30_000;
@@ -76,13 +76,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Verlangt den isolierten Stapel und lehnt produktive Ziele geschlossen ab. */
+/** Requires the isolated stack and rejects production targets outright. */
 function requireIsolatedStack(stack: StackEnv): void {
   const project = process.env.MT_PROJECT ?? '';
   if (!/^mtest-\d+$/.test(project)) {
-    throw new Error(`MT_PROJECT muss mtest-<Nummer> sein, gefunden: ${project || '<leer>'}.`);
+    throw new Error(`MT_PROJECT must be mtest-<number>, found: ${project || '<empty>'}.`);
   }
-  // Portnamen und localhost-Form stammen aus scripts/teststack.sh:378-390.
+  // Port names and localhost form come from the test stack script.
   const apiPort = process.env.MT_PORT_API ?? '';
   const webPort = process.env.MT_PORT_WEB ?? '';
   const targets: Array<[string, string, string, string]> = [
@@ -90,26 +90,26 @@ function requireIsolatedStack(stack: StackEnv): void {
     ['E2E_BASE_URL', stack.baseUrl, 'MT_PORT_WEB', webPort],
   ];
   for (const [name, value, portName, expectedPort] of targets) {
-    if (expectedPort === '') throw new Error(`${portName} fehlt: kein Soll-Port bekannt.`);
+    if (expectedPort === '') throw new Error(`${portName} is missing: no expected port known.`);
     let url: URL;
     try {
       url = new URL(value);
     } catch {
-      throw new Error(`${name} ist keine gültige URL.`);
+      throw new Error(`${name} is not a valid URL.`);
     }
-    if (url.protocol !== 'http:') throw new Error(`${name} muss Loopback-http verwenden.`);
-    if (url.hostname !== 'localhost') throw new Error(`${name} muss Origin localhost haben.`);
-    if (url.port === '') throw new Error(`${name} braucht einen expliziten Port (kein Standard-Fallback).`);
+    if (url.protocol !== 'http:') throw new Error(`${name} must use loopback http.`);
+    if (url.hostname !== 'localhost') throw new Error(`${name} must have origin localhost.`);
+    if (url.port === '') throw new Error(`${name} needs an explicit port (no default fallback).`);
     const numeric = Number(url.port);
-    if (!Number.isInteger(numeric) || numeric <= 0) throw new Error(`${name} hat keinen gültigen Port.`);
+    if (!Number.isInteger(numeric) || numeric <= 0) throw new Error(`${name} has no valid port.`);
     if (numeric === 80 || numeric === 443) throw new Error(`${name} darf keinen Standard-Fallback-Port nutzen.`);
     if (url.port !== expectedPort) {
-      throw new Error(`${name}-Port ${url.port} entspricht nicht ${portName}=${expectedPort}.`);
+      throw new Error(`${name}-Port ${url.port} does not match ${portName}=${expectedPort}.`);
     }
   }
 }
 
-/** Holt Owner und Admin aus dem echten Seed; beide sind laut seed.setup.ts mit Passwort angelegt. */
+/** Fetches owner and admin from the real seed; both are created with a password per seed.setup.ts. */
 function requireOwnerAndAdmin(seed: SeedData): {
   owner: TestUser;
   admin: TestUser;
@@ -120,7 +120,7 @@ function requireOwnerAndAdmin(seed: SeedData): {
   const owner = tenant.users.owner;
   const admin = tenant.users.admin;
   if (!owner?.password || !admin?.password) {
-    throw new Error('Der Seed liefert keinen Owner und Admin mit Passwort (siehe support/seed.setup.ts).');
+    throw new Error('The seed provides no owner and admin with a password (see support/seed.setup.ts).');
   }
   return { owner, admin, mapId: tenant.mapId, tenantSlug: tenant.slug };
 }
@@ -142,7 +142,7 @@ function asPoints(value: unknown): ZonePoint[] {
   return points;
 }
 
-/** Liest Geometrie aus moderner (points) wie legacy (polygon / polygon.points) Form. */
+/** Reads geometry from the modern (points) and legacy (polygon / polygon.points) shape. */
 function zonePoints(zone: Record<string, unknown>): ZonePoint[] {
   const direct = asPoints(zone.points ?? zone.polygon);
   if (direct.length > 0) return direct;
@@ -155,8 +155,8 @@ function zoneNames(body: unknown): string[] {
 }
 
 /**
- * Baut einen datensparsamen Schnappschuss: nur Zonennamen, Geometrie und
- * Hintergrund. Keine IDs, keine Kundendaten, keine Auth-Spuren.
+ * Builds a data-minimal snapshot: only zone names, geometry and
+ * background. No IDs, no customer data, no auth traces.
  */
 function snapshotState(state: Record<string, unknown>): {
   zones: Array<{ name: string; geometry: ZonePoint[] }>;
@@ -180,7 +180,7 @@ async function getEditorState(
   const response = await request.get(`${apiUrl}/maps/${encodeURIComponent(mapId)}/editor-state?t=${Date.now()}`);
   if (!response.ok()) throw new Error(`GET editor-state scheiterte: HTTP ${response.status()}.`);
   const body: unknown = await response.json();
-  if (!isRecord(body)) throw new Error('GET editor-state lieferte kein JSON-Objekt.');
+  if (!isRecord(body)) throw new Error('GET editor-state did not return a JSON object.');
   return body;
 }
 
@@ -198,7 +198,7 @@ async function putEditorState(
   }
 }
 
-/** Merkt sich Zonen und Hintergrund des Seed-Maps für die Wiederherstellung im finally. */
+/** Remembers zones and background of the seed map for restoration in finally. */
 async function readBaseline(request: APIRequestContext, apiUrl: string, mapId: string): Promise<Baseline> {
   const state = await getEditorState(request, apiUrl, mapId);
   const zones = Array.isArray(state.zones) ? state.zones.filter(isRecord) : [];
@@ -216,7 +216,7 @@ async function readBaseline(request: APIRequestContext, apiUrl: string, mapId: s
   };
 }
 
-/** Stellt ausschließlich den eigenen Ausgangsstand wieder her; Fehler bleiben sichtbar. */
+/** Restores only the own initial state; errors remain visible. */
 async function restoreBaseline(
   request: APIRequestContext,
   apiUrl: string,
@@ -236,8 +236,8 @@ async function restoreBaseline(
 }
 
 /**
- * Führt den Testkörper aus und stellt danach den Ausgangsstand wieder her.
- * Fehler aus Körper und Aufräumen werden verbunden, nie verschluckt.
+ * Runs the test body and then restores the initial state.
+ * Errors from body and cleanup are combined, never swallowed.
  */
 async function withBaseline(
   request: APIRequestContext,
@@ -250,19 +250,19 @@ async function withBaseline(
   try {
     await body();
   } catch (error) {
-    bodyError = error instanceof Error ? error : new Error('Testkörper scheiterte ohne Fehlerobjekt.');
+    bodyError = error instanceof Error ? error : new Error('test body failed without an error object.');
   }
   const restoreErrors = await restoreBaseline(request, apiUrl, mapId, baseline);
   if (bodyError) {
     if (restoreErrors.length > 0) {
-      throw new Error(`${bodyError.message} | Aufräumen: ${restoreErrors.join('; ')}`);
+      throw new Error(`${bodyError.message} | Cleanup: ${restoreErrors.join('; ')}`);
     }
     throw bodyError;
   }
-  if (restoreErrors.length > 0) throw new Error(`Aufräumen scheiterte: ${restoreErrors.join('; ')}`);
+  if (restoreErrors.length > 0) throw new Error(`Cleanup failed: ${restoreErrors.join('; ')}`);
 }
 
-/** Meldet Owner und Admin als zwei echte, getrennte Browser-Clients an. */
+/** Logs in owner and admin as two real, separate browser clients. */
 async function openClients(
   loginAs: (user: TestUser) => Promise<{ context: BrowserContext; page: Page }>,
   owner: TestUser,
@@ -276,7 +276,7 @@ async function openClients(
   ];
 }
 
-/** Öffnet den Editor über das echte Menü und wechselt auf den Zonen-Reiter. */
+/** Opens the editor via the real menu and switches to the zones tab. */
 async function openZonesTab(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(Menü|Menu)$/ }).click();
   await page.getByRole('menuitem', { name: /Map-Editor öffnen|Open map editor/ }).click();
@@ -285,7 +285,7 @@ async function openZonesTab(page: Page): Promise<void> {
   await expect(page.getByText(/Zonen-Verwaltung|Zone management/)).toBeVisible({ timeout: UI_TIMEOUT_MS });
 }
 
-/** Prüft die sichtbaren Zonennamen der Editorliste in Reihenfolge. */
+/** Checks the visible zone names of the editor list in order. */
 async function expectZoneListNames(page: Page, names: string[]): Promise<void> {
   const inputs = page.locator('input[id^="zone-name-"]');
   await expect(inputs).toHaveCount(names.length, { timeout: UI_TIMEOUT_MS });
@@ -300,14 +300,14 @@ async function expectZoneListEmpty(page: Page): Promise<void> {
 }
 
 /**
- * Fall 1 (Q-WE-7, Live-Aktualisierung): B speichert einen neuen Zonenstand
- * über seinen authentifizierten Request-Kontext, während A offen bleibt. Der
- * Test lauscht auf Seite A auf echte GET-editor-state-Antworten und verlangt,
- * dass mindestens eine den B-Stand enthält und die sichtbare Editorliste den
- * neuen Namen übernimmt. Eine Behauptung über pixelgenaue Overlay- oder
- * AV-Wirkung erfolgt bewusst nicht.
+ * Case 1 (live update): B saves a new zone state
+ * via its authenticated request context while A stays open. The
+ * Test listens on page A for real GET editor-state responses and requires,
+ * that at least one contains the B state and the visible editor list the
+ * takes over the new name. An assertion about pixel-exact overlay or
+ * AV effect is deliberately not asserted.
  */
-test('Fall 1: offene Zonenliste übernimmt fremden Zonenstand live', async ({ stack, seed, loginAs, request }) => {
+test('Case 1: open zone list picks up the foreign zone state live', async ({ stack, seed, loginAs, request }) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack);
   const { owner, admin, mapId, tenantSlug } = requireOwnerAndAdmin(seed);
@@ -334,8 +334,8 @@ test('Fall 1: offene Zonenliste übernimmt fremden Zonenstand live', async ({ st
       replaceZones: true,
     });
     const [clientA, clientB] = await openClients(loginAs, owner, admin);
-    // Gegenseitige Anwesenheit belegt zwei echte Clients im selben Raum;
-    // die eindeutigen Zonennamen belegen zusätzlich den gemeinsamen Seed-Map.
+    // Mutual presence proves two real clients in the same room;
+    // the unique zone names additionally verify the shared seed map.
     await waitForParticipant(clientA.page, clientB.user);
     await waitForParticipant(clientB.page, clientA.user);
     await openZonesTab(clientA.page);
@@ -356,7 +356,7 @@ test('Fall 1: offene Zonenliste übernimmt fremden Zonenstand live', async ({ st
     };
     clientA.page.on('response', onResponse);
     try {
-      // B speichert den neuen Stand über seinen authentifizierten Kontext (kein Canvas-Eingriff).
+      // B saves the new state via its authenticated context (no canvas intervention).
       await putEditorState(clientB.context.request, stack.apiUrl, mapId, {
         zones: [{ name: nameB, points: rectB }],
         replaceZones: true,
@@ -364,7 +364,7 @@ test('Fall 1: offene Zonenliste übernimmt fremden Zonenstand live', async ({ st
       await expect
         .poll(() => seenBodies.some((body) => zoneNames(body).includes(nameB)), {
           timeout: LIVE_SYNC_TIMEOUT_MS,
-          message: 'Q-WE-7/Fall 1: Seite A lud den B-Stand nie per GET editor-state nach (keine Live-Aktualisierung).',
+          message: 'Case 1: page A never reloaded the B state via GET editor-state (no live update).',
         })
         .toBe(true);
     } finally {
@@ -375,16 +375,16 @@ test('Fall 1: offene Zonenliste übernimmt fremden Zonenstand live', async ({ st
 });
 
 /**
- * Fall 2 (Q-WE-7, Überschreibschutz): A bleibt vom Anfangsstand A an
- * durchgehend offen. B speichert Stand B; A belegt den gespeicherten B-Stand
- * danach per frischem GET über seinen eigenen authentifizierten Kontext
- * (Name und Geometrie exakt), ohne den Editor neu zu laden. Erst danach
- * ändert A nur die Hintergrundfarbe über den echten Farb-Input und klickt
- * Speichern. Der abschließende frische GET muss B-Namen und B-Geometrie sowie
- * die neue Hintergrundfarbe enthalten. Beide Schnappschüsse liegen als
- * Testartefakt bei, der letzte vor den Assertions.
+ * Case 2 (overwrite protection): A stays on the initial state A
+ * open throughout. B saves state B; A verifies the saved B state
+ * afterwards via a fresh GET through its own authenticated context
+ * (name and geometry exact), without reloading the editor. Only afterwards
+ * A changes only the background color via the real color input and clicks
+ * Save. The final fresh GET must contain B names and B geometry as well as
+ * the new background color. Both snapshots are kept as
+ * test artifacts, the last one before the assertions.
  */
-test('Fall 2: Hintergrund-Speichern erhält fremden Zonenstand', async ({ stack, seed, loginAs, request }, testInfo) => {
+test('Case 2: background save keeps the foreign zone state', async ({ stack, seed, loginAs, request }, testInfo) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack);
   const { owner, admin, mapId, tenantSlug } = requireOwnerAndAdmin(seed);
@@ -411,8 +411,8 @@ test('Fall 2: Hintergrund-Speichern erhält fremden Zonenstand', async ({ stack,
       replaceZones: true,
     });
     const [clientA, clientB] = await openClients(loginAs, owner, admin);
-    // Gegenseitige Anwesenheit belegt zwei echte Clients im selben Raum;
-    // die eindeutigen Zonennamen belegen zusätzlich den gemeinsamen Seed-Map.
+    // Mutual presence proves two real clients in the same room;
+    // the unique zone names additionally verify the shared seed map.
     await waitForParticipant(clientA.page, clientB.user);
     await waitForParticipant(clientB.page, clientA.user);
     await openZonesTab(clientA.page);
@@ -420,24 +420,24 @@ test('Fall 2: Hintergrund-Speichern erhält fremden Zonenstand', async ({ stack,
     await expectZoneListNames(clientA.page, [nameA]);
     await expectZoneListNames(clientB.page, [nameA]);
 
-    // B speichert den neuen Stand über seinen authentifizierten Kontext.
+    // B saves the new state via its authenticated context.
     await putEditorState(clientB.context.request, stack.apiUrl, mapId, {
       zones: [{ name: nameB, points: rectB }],
       replaceZones: true,
     });
 
-    // A bleibt offen und belegt den gespeicherten B-Stand per frischem GET.
+    // A stays open and verifies the stored B state via a fresh GET.
     const stored = await getEditorState(clientA.context.request, stack.apiUrl, mapId);
     const storedZones = Array.isArray(stored.zones) ? stored.zones.filter(isRecord) : [];
     const storedB = storedZones.find((zone) => zone.name === nameB);
-    expect(storedB, 'Der Server muss den B-Stand gespeichert haben.').toBeTruthy();
-    expect(storedB ? zonePoints(storedB) : [], 'Der gespeicherte B-Stand muss die B-Geometrie tragen.').toEqual(rectB);
+    expect(storedB, 'The server must have stored the B state.').toBeTruthy();
+    expect(storedB ? zonePoints(storedB) : [], 'The stored B state must carry the B geometry.').toEqual(rectB);
     await testInfo.attach('gespeicherter-b-stand', {
       body: JSON.stringify(snapshotState(stored), null, 2),
       contentType: 'application/json',
     });
 
-    // A ändert nur die Hintergrundfarbe über den echten Farb-Input.
+    // A changes only the background color via the real color input.
     const currentBg = typeof stored.backgroundColor === 'string' ? stored.backgroundColor : null;
     const newBg = currentBg?.toLowerCase() === '#334455' ? '#445566' : '#334455';
     await clientA.page.getByRole('button', { name: 'Allgemein', exact: true }).click();
@@ -446,7 +446,7 @@ test('Fall 2: Hintergrund-Speichern erhält fremden Zonenstand', async ({ stack,
     await colorInputs.first().fill(newBg);
     await expect(clientA.page.getByText(newBg, { exact: true })).toBeVisible({ timeout: UI_TIMEOUT_MS });
 
-    // A speichert über den echten Fußzeilen-Knopf und wartet die echte PUT-Antwort ab.
+    // A saves via the real footer button and waits for the real PUT response.
     const savePut = clientA.page.waitForResponse(
       (response) => response.request().method() === 'PUT' && response.url().includes(`/maps/${mapId}/editor-state`),
       { timeout: UI_TIMEOUT_MS },
@@ -462,18 +462,18 @@ test('Fall 2: Hintergrund-Speichern erhält fremden Zonenstand', async ({ stack,
     });
     const freshZones = Array.isArray(fresh.zones) ? fresh.zones.filter(isRecord) : [];
     const kept = freshZones.find((zone) => zone.name === nameB);
-    expect(kept, 'Der B-Stand muss nach As Hintergrund-Speichern erhalten bleiben.').toBeTruthy();
-    expect(kept ? zonePoints(kept) : [], 'Die B-Geometrie muss unverändert bleiben.').toEqual(rectB);
-    expect(fresh.backgroundColor, 'Die neue Hintergrundfarbe muss gespeichert sein.').toBe(newBg);
+    expect(kept, 'The B state must be preserved after A's background save.').toBeTruthy();
+    expect(kept ? zonePoints(kept) : [], 'The B geometry must remain unchanged.').toEqual(rectB);
+    expect(fresh.backgroundColor, 'The new background color must be saved.').toBe(newBg);
   });
 });
 
 /**
- * Fall 3 (Q-WE-7, letzte Zone live löschen): B ersetzt den Stand durch
- * zones:[]. Der frische Server-GET muss leer sein, und die sichtbaren
- * Zonenlisten beider durchgehend offener Clients müssen danach leer werden.
- * Kein Reload und kein sonstiges Remount ersetzt hier die
- * Live-Synchronisation. Pixel- oder AV-Wirkung wird nicht behauptet.
+ * Case 3 (delete last zone live): B replaces the state with
+ * zones:[]. The fresh server GET must be empty, and the visible
+ * zone lists of both continuously open clients must be empty afterwards.
+ * No reload and no other remount replaces the
+ * live synchronization. Pixel or AV effect is not claimed.
  */
 test('Fall 3: geleerte Zonenliste erreicht beide offene Clients live', async ({ stack, seed, loginAs, request }) => {
   test.setTimeout(180_000);
@@ -495,8 +495,8 @@ test('Fall 3: geleerte Zonenliste erreicht beide offene Clients live', async ({ 
       replaceZones: true,
     });
     const [clientA, clientB] = await openClients(loginAs, owner, admin);
-    // Gegenseitige Anwesenheit belegt zwei echte Clients im selben Raum;
-    // die eindeutigen Zonennamen belegen zusätzlich den gemeinsamen Seed-Map.
+    // Mutual presence proves two real clients in the same room;
+    // the unique zone names additionally verify the shared seed map.
     await waitForParticipant(clientA.page, clientB.user);
     await waitForParticipant(clientB.page, clientA.user);
     await openZonesTab(clientA.page);
@@ -507,9 +507,9 @@ test('Fall 3: geleerte Zonenliste erreicht beide offene Clients live', async ({ 
 
     const fresh = await getEditorState(request, stack.apiUrl, mapId);
     const freshZones = Array.isArray(fresh.zones) ? fresh.zones : [];
-    expect(freshZones, 'Der Server muss nach zones:[] keine Zonen mehr liefern.').toHaveLength(0);
+    expect(freshZones, 'The server must return no zones after zones:[].').toHaveLength(0);
 
-    // Beide Clients bleiben offen: die Live-Löschung muss ihre sichtbaren Listen leeren.
+    // Both clients stay open: the live deletion must empty their visible lists.
     await expectZoneListEmpty(clientA.page);
     await expectZoneListEmpty(clientB.page);
   });

@@ -28,10 +28,10 @@ if (!process.env.DATABASE_URL) {
   throw new Error('tenantIsolation.integration.test.ts needs DATABASE_URL pointing at a migrated test database');
 }
 
-const TENANT_SLUG = `qacc-iso-${crypto.randomUUID()}`;
+const TENANT_SLUG = `case-iso-${crypto.randomUUID()}`;
 process.env.DEFAULT_TENANT_SLUG = TENANT_SLUG;
 
-// registration starts the email verification only with a public base URL (Q-LINK)
+// registration starts the email verification only with a public base URL
 process.env.PUBLIC_BASE_URL = 'http://localhost:42000';
 process.env.PUBLIC_BASE_URL_ALLOW_LOOPBACK = 'true';
 
@@ -49,7 +49,7 @@ let adminToken: string;
 let outsiderToken: string;
 
 async function createUser(role: Role | null): Promise<{ id: string; token: string }> {
-  const user = await prisma.user.create({ data: { email: `qacc-${crypto.randomUUID()}@example.test` } });
+  const user = await prisma.user.create({ data: { email: `case-${crypto.randomUUID()}@example.test` } });
   userIds.push(user.id);
   if (role) await prisma.membership.create({ data: { userId: user.id, tenantId, role } });
   const token = jwt.sign({ sub: user.id, tid: tenantId, jti: crypto.randomUUID() }, getJwtSecret(), {
@@ -168,7 +168,7 @@ describe('flows that must keep working without a membership (real stack)', () =>
 
   it('lets a member log in while the browser still carries a non-member session', async () => {
     const email = `login-${crypto.randomUUID()}@example.test`;
-    const password = 'Qacc-Login-Password-1';
+    const password = 'Acct-Login-Password-1';
     const user = await prisma.user.create({ data: { email, passwordHash: await bcrypt.hash(password, 4) } });
     userIds.push(user.id);
     await prisma.membership.create({ data: { userId: user.id, tenantId, role: 'member' } });
@@ -183,7 +183,7 @@ describe('flows that must keep working without a membership (real stack)', () =>
     const res = await request(app)
       .post('/auth/register')
       .set(as(outsiderToken))
-      .send({ code, email, password: 'Qacc-Test-Password-1' });
+      .send({ code, email, password: 'Acct-Test-Password-1' });
     expect(res.status).toBe(409);
     expect(res.body.code).toBe('EMAIL_VERIFICATION_REQUIRED');
     expect(res.body.delivery).toBe('sent');
@@ -201,7 +201,7 @@ describe('flows that must keep working without a membership (real stack)', () =>
 
   it('lets a member accept a bound invite when X-Tenant selects another tenant', async () => {
     const tenantB = await prisma.tenant.create({
-      data: { slug: `qacc-invite-target-${crypto.randomUUID()}`, name: 'Invite Target' },
+      data: { slug: `case-invite-target-${crypto.randomUUID()}`, name: 'Invite Target' },
     });
     additionalTenantIds.push(tenantB.id);
     const member = await prisma.user.findUniqueOrThrow({ where: { id: memberId }, select: { email: true } });

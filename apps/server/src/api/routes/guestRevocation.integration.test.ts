@@ -16,7 +16,7 @@ vi.mock('../../tenancyLoader.js', () => ({
 }));
 
 /**
- * Q-ACC-19a: revoking a guest's last membership must delete the account.
+ * guest-cleanup: revoking a guest's last membership must delete the account.
  *
  * The revoke path in guests.ts deletes guest tokens, sessions and the
  * membership, but never the user row itself — unlike the shared removal
@@ -55,7 +55,7 @@ function makeApp() {
 }
 
 async function createTenant(): Promise<{ id: string; slug: string }> {
-  const slug = `qacc-guest-${crypto.randomUUID()}`;
+  const slug = `guest-case-${crypto.randomUUID()}`;
   const tenant = await prisma.tenant.create({ data: { slug, name: slug } });
   tenantIds.push(tenant.id);
   tenantsById.set(tenant.id, { id: tenant.id, slug: tenant.slug, name: tenant.name });
@@ -63,7 +63,7 @@ async function createTenant(): Promise<{ id: string; slug: string }> {
 }
 
 async function createUser(memberships: Array<{ tenantId: string; role: Role }>): Promise<string> {
-  const user = await prisma.user.create({ data: { email: `qacc-guest-${crypto.randomUUID()}@example.test` } });
+  const user = await prisma.user.create({ data: { email: `guest-case-${crypto.randomUUID()}@example.test` } });
   userIds.push(user.id);
   for (const m of memberships) {
     await prisma.membership.create({ data: { userId: user.id, tenantId: m.tenantId, role: m.role } });
@@ -101,7 +101,7 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe('Q-ACC-19a DELETE /guests/:membershipId — revoking the last membership deletes the account', () => {
+describe('guest-cleanup DELETE /guests/:membershipId — revoking the last membership deletes the account', () => {
   it('deletes user and sessions when the revoked guest membership was the last one', async () => {
     const tenant = await createTenant();
     const owner = await createUser([{ tenantId: tenant.id, role: 'owner' }]);

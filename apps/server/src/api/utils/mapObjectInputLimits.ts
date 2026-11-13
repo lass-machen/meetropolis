@@ -1,19 +1,19 @@
 /**
- * Eingangsgrenzen für Kartenobjekt-Fußabdrücke (Q-WE/A26).
+ * Input limits for map object footprints.
  *
- * Begrenzt nur neue Maß- und Skalier-Eingaben an den beiden POST-Einstiegs-
- * punkten (Einzel- und Bulk-Anlage). Bestandswelten, Seeds, automatische
- * Migrationen und Backfills laden und berechnen weiter ohne diese Grenzen;
- * `computeFootprintTiles` in collisionHelpers.ts bleibt unverändert.
+ * Limits only new size and scale inputs at the two POST entry-
+ * points (single and bulk creation). Existing worlds, seeds, automatic
+ * migrations and backfills keep loading and computing without these limits;
+ * `computeFootprintTiles` in collisionHelpers.ts remains unchanged.
  *
- * Rechenvertrag (exakt zum aktuellen Raster): Effektive Pixelmaße sind
- * `width * (scaleFactor ?? 1)` bzw. `height * (scaleFactor ?? 1)`; die
- * Kachelzahlen sind `ceil(effektive Breite / map.tileWidth)` und
- * `ceil(effektive Höhe / map.tileHeight)` mit den echten Map-Maßen aus
- * `getMapDimensions` (niemals fest verdrahtete 16). Die volle Fläche zählt
- * immer — auch bei `collide: false` und unabhängig von
- * `collisionBaseHeight`. Overflow, NaN, Infinity und unsichere Zahlen werden
- * abgelehnt; Produkt und Bulk-Summe sind vor Überlauf geschützt.
+ * Calculation contract (exact for the current grid): effective pixel sizes are
+ * `width * (scaleFactor ?? 1)` or `height * (scaleFactor ?? 1)`; the
+ * Tile counts are `ceil(effective width / map.tileWidth)` and
+ * `ceil(effective height / map.tileHeight)` with the real map dimensions from
+ * `getMapDimensions` (never a hard-coded 16). The full area always counts
+ * always, also with `collide: false` and independent of
+ * `collisionBaseHeight`. Overflow, NaN, Infinity and unsafe numbers are
+ * rejected; product and bulk sum are protected against overflow.
  */
 
 export const MAX_OBJECT_FOOTPRINT_TILES = 4096;
@@ -70,15 +70,15 @@ function footprintTiles(input: FootprintInput, dims: MapTileDimensions): Footpri
   return { ok: true, tiles };
 }
 
-/** Prüft ein einzelnes Objekt gegen die 4096-Kacheln-Grenze. */
+/** Checks a single object against the 4096-tile limit. */
 export function checkSingleFootprint(input: FootprintInput, dims: MapTileDimensions): FootprintCheck {
   return footprintTiles(input, dims);
 }
 
 /**
- * Prüft die gesamte Bulk-Liste vor jeder Schreibung: Jedes Objekt muss die
- * Einzelgrenze einhalten und die Summe darf 65536 Kacheln nicht übersteigen.
- * Der Aufrufer darf bei `ok: false` nichts schreiben (keine Teilwrites).
+ * Checks the entire bulk list before any write: each object must meet the
+ * single-object limit, and the sum must not exceed 65536 tiles.
+ * The caller must write nothing on `ok: false` (no partial writes).
  */
 export function checkBulkFootprints(inputs: FootprintInput[], dims: MapTileDimensions): FootprintCheck {
   let total = 0;

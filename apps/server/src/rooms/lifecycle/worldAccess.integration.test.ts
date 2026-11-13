@@ -32,7 +32,7 @@ const userIds: string[] = [];
 let tenantId: string;
 let tenantSlug: string;
 
-async function createTenant(slug = `qacc-${crypto.randomUUID()}`): Promise<string> {
+async function createTenant(slug = `case-${crypto.randomUUID()}`): Promise<string> {
   const tenant = await prisma.tenant.create({ data: { slug, name: slug } });
   tenantIds.push(tenant.id);
   return tenant.id;
@@ -41,7 +41,7 @@ async function createTenant(slug = `qacc-${crypto.randomUUID()}`): Promise<strin
 async function createUser(
   memberships: Array<{ tenantId: string; role: Role; expiresAt?: Date }>,
 ): Promise<{ id: string; token: string; sessionId: string }> {
-  const user = await prisma.user.create({ data: { email: `qacc-${crypto.randomUUID()}@example.test` } });
+  const user = await prisma.user.create({ data: { email: `case-${crypto.randomUUID()}@example.test` } });
   userIds.push(user.id);
   for (const m of memberships) await prisma.membership.create({ data: { userId: user.id, ...m } });
   // The session is scoped to the world's tenant, whatever the memberships say.
@@ -107,7 +107,7 @@ async function runOneSweep(room: WorldRoom): Promise<void> {
 }
 
 beforeAll(async () => {
-  tenantSlug = `qacc-${crypto.randomUUID()}`;
+  tenantSlug = `case-${crypto.randomUUID()}`;
   tenantId = await createTenant(tenantSlug);
 });
 

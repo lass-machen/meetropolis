@@ -1,8 +1,8 @@
 # Stilrichtung Pixelatelier — Entwurfsvorschlag
 
-Entwurf für ruhige Avatar-Figuren im virtuellen Büro. Reiner statischer
-Entwurf: Der produktive Katalog (`packages/shared/sprite/catalog.json`) und
-die Produkt-Sprites bleiben unverändert.
+Draft for calm avatar figures in the virtual office. Pure static
+Draft: the production catalog (`packages/shared/sprite/catalog.json`) and
+the product sprites remain unchanged.
 
 ## Bauen
 
@@ -13,68 +13,68 @@ node --experimental-strip-types tools/asset-lab/style-study/generate.ts --previe
 ```
 
 `--preview-dir` zeigt auf einen beliebigen lokalen Zielordner. Der Befehl
-schreibt nur `style.html` und `out/style/*.png` darunter. Beide bleiben
-lokal (gitignored) und werden nie committet. Der Befehl prüft beim Bau
-die Abnahme: 4 Figuren × 4 Ansichten, 32×32-Raster, gültige Palette und
+writes only `style.html` and `out/style/*.png` below it. Both remain
+local (gitignored) and never committed. The command checks during the build
+the acceptance check: 4 figures × 4 views, 32×32 grid, valid palette and
 Symbole, deckende Pixel nur in y4…y29, echte Oberkante y4, getrennte
-Sohlen vorne/hinten, Bodenpixel in y29, keine abgeschnittenen Pixel, dazu
-die Standlinie im Maßstabsstreifen ohne Lücke. Bei Fehlern endet er mit
+soles front/back, floor pixels in y29, no clipped pixels, plus
+the baseline in the scale strip without a gap. On errors it ends with
 Exit-Code 1.
 
-Voraussetzung ist nur Node 24.9. `pngjs` und `tsx` kommen aus bereits
-vorhandenen `node_modules`, es wird nichts installiert: Der Generator
-löst `tsx` relativ zur Skript- und Repo-Struktur auf (erst
-`tools/asset-lab/style-study/node_modules/.bin/tsx` über den dokumentierten
+The only prerequisite is Node 24.9. `pngjs` and `tsx` come from already
+existing `node_modules`, nothing is installed: the generator
+resolves `tsx` relative to the script and repo structure (first
+`tools/asset-lab/style-study/node_modules/.bin/tsx` via the documented
 gitignored Symlink, dann `node_modules/.bin/tsx` am Repo-Root, sonst `tsx`
-aus PATH). `tsx` rendert nur die Vorher-Frames mit dem unveränderten
-Shared-Composer; alle Prüfung und alle Nachher-Raster laufen unter plain
+from PATH). `tsx` only renders the before frames with the unchanged
+shared composer; all checks and all after grids run under plain
 Node.
 
 ## Richtung
 
-- Produkt: Stilentscheidung für Avatare im virtuellen Büro.
+- Product: style decision for avatars in the virtual office.
 - Charakter: ruhig, liebevoll, leicht verspielt.
-- Welt: Pixelatelier — warmes Papier, ruhige Flächen, Handwerk am Raster.
-- Momente: die Figuren selbst und ihr Maßstab neben echten Möbeln.
-- Signatur: die feste Standlinie im Maßstabsstreifen.
+- World: pixel atelier, warm paper, calm surfaces, craft on the grid.
+- Moments: the figures themselves and their scale next to real furniture.
+- Signature: the fixed baseline in the scale strip.
 
 ## Rezepte
 
 Vier feste Rezepte, alle mit Hose, Kapuzenpulli blau, dunkler Hose,
-braunen Schuhen und ruhigem Gesicht:
+brown shoes and a calm face:
 
 1. Figur 1: helle Haut, Seitenscheitel, braun
 2. Figur 2: mittlere Haut, Bob, rot
-3. Figur 3: getönte Haut (tan), Locken, schwarz
+3. Figure 3: tinted skin (tan), curls, black
 4. Figur 4: dunkle Haut, Pferdeschwanz, schwarz
 
-Jede Figur liegt in vorne, links, rechts und hinten vor, jeweils vorher
-und nachher.
+Each figure is shown from front, left, right and back, each before
+and after.
 
-## Vorher und Nachher
+## Before and after
 
 Vorher (`before.ts`): echte Geometrie aus dem Shared-Composer des
-unveränderten Katalogs (statische Idle-Startframes aus Spalte 0,
-Zeilen 0…3). Keine Python-Altgraphik.
+unchanged catalog (static idle start frames from column 0,
+rows 0…3). No legacy Python graphics.
 
 Nachher (`grids/` + `figures.ts`): neue handgesetzte Quellraster aus
-Körper (`body.ts`), Gesicht (`face.ts`) und vier neuen Frisur-Rastern
+body (`body.ts`), face (`face.ts`) and four new hairstyle grids
 (`hair-*.ts`). Die Rastersyntax nutzt einzelne Buchstabensymbole, die
 `palette.ts` Farben zuordnet.
 
 Gestaltung: 32×32-Canvas, Figur in y4…y29, Bodenlinie y30, Mitte x15.5.
-Wenig massive Kontur, lesbarer kurzer Körper, 2px hohe dunkle Augen,
-kleiner Mund, kleine Profilnasen, hinten keine Gesichtspixel. Eine
+Little heavy outline, readable short body, 2px tall dark eyes,
+small mouth, small profile noses, no face pixels at the back. One
 Lichtquelle von links oben, auch im rechten Profil. Drei abgestimmte
-Werte je Material, zusammenhängende Flächen, kein Dithering.
+values per material, contiguous areas, no dithering.
 
-## Farbreihe und Maßstab
+## Color series and scale
 
-Die acht Hauttöne stammen aus der lokalen Vorschau
+The eight skin tones come from the local preview
 `knowledge/quality/asset/preview` (Datei `build.ts`, `SKIN_TONES`):
-hell, mittel, getönt und dunkel als Bestandstöne an den Figuren; fair,
-oliv, tief und tiefst nur als Farbreihe.
+light, medium, tinted and dark as existing tones on the figures; fair,
+olive, deep and deepest only as a color series.
 
-Der Maßstabsstreifen zeigt 16px-Weltraster, Figur und zwei unveränderte
-Bestandsmöbel (Schreibtisch 64×48, Stuhl 24×32, beide Thema Holz aus
+The scale strip shows the 16px world grid, figure and two unchanged
+existing furniture (desk 64×48, chair 24×32, both wood theme from
 `tools/asset-lab/src/assets.ts`). Es gilt 1 Spritepixel = 1 Weltpixel.

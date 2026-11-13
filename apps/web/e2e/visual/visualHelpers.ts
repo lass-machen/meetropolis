@@ -14,7 +14,7 @@ export const THEMES: readonly Theme[] = ['light', 'dark'];
 export type AxeGate = 'report' | 'enforce';
 
 /**
- * P0 only reports serious and critical findings, the run stays green. From P3
+ * Phase 0 only reports serious and critical findings, the run stays green. From phase 3
  * on this is the hard gate: switch the constant to 'enforce'.
  */
 export const AXE_GATE: AxeGate = 'report';
@@ -84,7 +84,7 @@ export async function openForgotSurface(page: Page, theme: Theme): Promise<void>
 }
 
 /** Id of the style element that freezes the moving parts of the page. */
-const STABILIZE_STYLE_ID = 'q-ux-visual-stabilize';
+const STABILIZE_STYLE_ID = 'visual-stabilize-style';
 
 const STABILIZE_CSS =
   '*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }';
@@ -137,7 +137,7 @@ async function waitForImages(page: Page): Promise<void> {
       .map((image) => image.currentSrc || image.getAttribute('src') || ''),
   );
   if (broken.length > 0) {
-    throw new Error(`Bildquelle nicht ladbar: ${broken.join(', ')}`);
+    throw new Error(`Image source not loadable: ${broken.join(', ')}`);
   }
 }
 
@@ -183,7 +183,7 @@ export async function runAxe(page: Page, testInfo: TestInfo, gate: AxeGate = AXE
   await page.addScriptTag({ content: axe.source });
   const results = await page.evaluate(async () => {
     const api = (window as AxeWindow).axe;
-    if (!api) throw new Error('axe-core wurde nicht in die Seite injiziert.');
+    if (!api) throw new Error('axe-core was not injected into the page.');
     return api.run();
   });
   await testInfo.attach('axe-results.json', {
@@ -207,7 +207,7 @@ export async function runAxe(page: Page, testInfo: TestInfo, gate: AxeGate = AXE
 }
 
 /**
- * The suite boundary. The Q-TEST root config finds every spec file as well,
+ * The suite boundary. The root test config finds every spec file as well,
  * and an EE or Brand build must not write into the OSS baseline folder. Both
  * guards say what to do instead of failing the run.
  *
@@ -235,7 +235,7 @@ export function guardOssVisualSuite(target: OssVisualGuardTarget = test): void {
 
   target.beforeEach(({ stack }) => {
     if (stack.edition !== 'oss') {
-      target.skip(true, 'OSS-Visuals: im EE-Slot entstehen keine EE-/Brand-Baselines.');
+      target.skip(true, 'OSS-Visuals: no EE/brand baselines are created in the EE slot.');
     }
   });
 }

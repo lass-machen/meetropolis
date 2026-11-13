@@ -37,7 +37,7 @@ export type VisualActorFixtures = {
 
 /**
  * The address of the account is derived from the test, not from the run: the
- * same test always gets the same address, so P0 and P1 stay comparable. No
+ * same test always gets the same address, so phase 0 and phase 1 stay comparable. No
  * absolute path, no line number, no worker index, no time, no UUID.
  */
 export function visualActorEmail(testInfo: TestInfo): string {
@@ -67,10 +67,10 @@ export const test = base.extend<VisualActorOptions & VisualActorFixtures>({
   ): Promise<void> => {
     const tenantSlug = seed.operator.tenantSlug;
     if (tenantSlug !== DEFAULT_TENANT_SLUG) {
-      throw new Error(`Der Seed-Operator gehört nicht zum Default-Mandanten (${tenantSlug}).`);
+      throw new Error(`The seed operator does not belong to the default tenant (${tenantSlug}).`);
     }
     const tenantId = seed.tenants.default?.tenantId;
-    if (!tenantId) throw new Error('Die Seed-Datei kennt keine Default-Mandanten-ID.');
+    if (!tenantId) throw new Error('The seed file has no default tenant ID.');
 
     const email = visualActorEmail(testInfo);
     const password = stack.userPassword;
@@ -89,7 +89,7 @@ export const test = base.extend<VisualActorOptions & VisualActorFixtures>({
       const ownerApi = new MeetropolisApi(ownerRequest, stack.apiUrl, tenantSlug);
       const owner = await ownerApi.login(seed.operator.email, passwordFor(seed.operator));
       if (owner.role !== 'owner' || owner.tenantSlug !== tenantSlug) {
-        throw new Error(`Der Seed-Operator ist kein Owner des Default-Mandanten (${owner.role}).`);
+        throw new Error(`The seed operator is not an owner of the default tenant (${owner.role}).`);
       }
 
       // From here on the rows of this address can only be ours: the check
@@ -207,7 +207,7 @@ guardOssVisualSuite(test);
 async function completeOnboardingRequest(context: BrowserContext, stack: TestStackEnv): Promise<void> {
   const response = await context.request.post(`${stack.apiUrl}/auth/onboarding/complete`, { data: {} });
   if (!response.ok()) {
-    throw new Error(`Onboarding konnte nicht abgeschlossen werden: HTTP ${response.status()}.`);
+    throw new Error(`Onboarding could not be completed: HTTP ${response.status()}.`);
   }
 }
 
@@ -226,7 +226,7 @@ async function assertNamespaceFree(db: Client, scope: { email: string; tenantId:
   if (users > 0 || invites > 0) {
     throw new Error(
       `Der visuelle Actor ${scope.email} existiert bereits (User ${users}, Invite ${invites}). ` +
-        'Fail closed: bestehende Rows werden nicht gelöscht.',
+        'Fail closed: existing rows are not deleted.',
     );
   }
 }
@@ -238,7 +238,7 @@ async function assertTenantScope(db: Client, scope: { tenantId: string; tenantSl
     scope.tenantSlug,
   ]);
   if (rows.rows.length !== 1) {
-    throw new Error(`Die Mandanten-ID ${scope.tenantId} gehört nicht zum Slug ${scope.tenantSlug}.`);
+    throw new Error(`The tenant ID ${scope.tenantId} does not belong to the slug ${scope.tenantSlug}.`);
   }
 }
 
@@ -274,7 +274,7 @@ type OwnerLogoutReport = {
  * This SQL is deliberately schema- and table-coupled and exists only for the
  * disposable database of a test slot: a spec has no product endpoint yet that
  * would delete its own account. As soon as the product API can delete a user
- * (Q-ACC, user deletion), this helper moves over to that endpoint and the
+ * (user deletion), this helper moves over to that endpoint and the
  * direct table access disappears.
  *
  * Nothing is deleted when the provisioning never started: rows that already
@@ -359,7 +359,7 @@ async function cleanupVisualActor(
   };
   const errors: string[] = [];
   if (scope.provisioningStarted && (remaining.users > 0 || remaining.invites > 0 || remaining.sessions > 0)) {
-    errors.push(`Cleanup unvollständig: ${JSON.stringify(remaining)}.`);
+    errors.push(`Cleanup incomplete: ${JSON.stringify(remaining)}.`);
   }
   return { email: scope.email, userId, deleted, remaining, errors };
 }
@@ -379,7 +379,7 @@ function transportErrorName(error: unknown): string {
  * gets a fixed message.
  */
 function cleanupErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unbekannter Fehler beim Cleanup des visuellen Actors.';
+  return error instanceof Error ? error.message : 'Unknown error during cleanup of the visual actor.';
 }
 
 function asError(error: unknown): Error {

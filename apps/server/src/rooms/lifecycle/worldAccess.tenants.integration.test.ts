@@ -198,7 +198,7 @@ describe('verified client tenant wins over the room slug (real database)', () =>
     vi.stubEnv('DEFAULT_TENANT_SLUG', missingSlug);
     const gone = await createUser([{ tenantId: tenantAId, role: 'member' }], tenantAId);
     const goneJoin = await joinWorld(gone.id, gone.token);
-    expect(goneJoin.error, 'Fall 2: Beitritt ohne Tenant muss gelingen').toBeUndefined();
+    expect(goneJoin.error, 'Case 2: join without tenant must succeed').toBeUndefined();
     // Direct membership removal, without any revocation event.
     await prisma.membership.deleteMany({ where: { userId: gone.id } });
 
@@ -206,7 +206,7 @@ describe('verified client tenant wins over the room slug (real database)', () =>
     // while ZONE_PRIVACY_TENANT_ENFORCE is false).
     const mixed = await createUser([{ tenantId: tenantAId, role: 'member' }], tenantAId);
     const mixedJoin = await joinWorld(mixed.id, mixed.token, tenantMSlug);
-    expect(mixedJoin.error, 'Fall 1: Mischraum-Beitritt muss gelingen').toBeUndefined();
+    expect(mixedJoin.error, 'Case 1: mixed-room join must succeed').toBeUndefined();
 
     // One shared wait for both cases: at least one full pre-fix 60 s sweep.
     await new Promise((resolve) => setTimeout(resolve, 65_000));
@@ -218,10 +218,10 @@ describe('verified client tenant wins over the room slug (real database)', () =>
     );
     expect(
       mixedJoin.left,
-      `Fall 1: Mischraum-Client muss verbunden bleiben, Fehler=${JSON.stringify(mixedJoin.errorMessages)}`,
+      `Case 1: mixed-room client must stay connected, error=${JSON.stringify(mixedJoin.errorMessages)}`,
     ).toBe(false);
     await waitFor(() => goneJoin.left, 5_000);
-    expect(goneJoin.left, 'Fall 2: Client ohne Metadaten-Tenant muss getrennt sein').toBe(true);
+    expect(goneJoin.left, 'Case 2: client without metadata tenant must be disconnected').toBe(true);
 
     await leaveQuietly(mixedJoin);
     await leaveQuietly(goneJoin);
@@ -241,7 +241,7 @@ describe('verified client tenant wins over the room slug (real database)', () =>
 
     // Fall 3: the revocation in A must end the session in M's room at once.
     await waitFor(() => revokedJoin.left, 3_000);
-    expect(revokedJoin.left, 'Fall 3: entzogener Client muss getrennt sein').toBe(true);
+    expect(revokedJoin.left, 'Case 3: revoked client must be disconnected').toBe(true);
     // Fall 5 (Gegenprobe): the other member of A in the same room stays.
     expect(stayingJoin.left, 'Fall 5: zweites Mitglied von A bleibt verbunden').toBe(false);
 
@@ -256,13 +256,13 @@ describe('verified client tenant wins over the room slug (real database)', () =>
     try {
       const operator = await createUser([{ tenantId: internalId, role: 'owner' }], tenantAId);
       const operatorJoin = await joinWorld(operator.id, operator.token, tenantASlug);
-      expect(operatorJoin.error, 'Fall 4: Betreiber-Beitritt muss gelingen').toBeUndefined();
+      expect(operatorJoin.error, 'Case 4: operator join must succeed').toBeUndefined();
 
       // Fall 4: account deletion publishes no slug of A, yet A's room must end
       // the operator session at once.
       await deleteAccount(prisma, operator.id);
       await waitFor(() => operatorJoin.left, 3_000);
-      expect(operatorJoin.left, 'Fall 4: Betreiber muss nach Kontoloeschung getrennt sein').toBe(true);
+      expect(operatorJoin.left, 'Case 4: operator must be disconnected after account deletion').toBe(true);
 
       await leaveQuietly(operatorJoin);
     } finally {

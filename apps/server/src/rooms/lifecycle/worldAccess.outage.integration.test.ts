@@ -249,7 +249,7 @@ describe('world access survives publish and database faults (real database)', ()
       (await createUser([{ tenantId, role: 'member' }], tenantId)).token,
       tenantSlug,
     );
-    expect(joined.error, 'Fall 1: Beitritt muss gelingen').toBeUndefined();
+    expect(joined.error, 'Case 1: join must succeed').toBeUndefined();
     const presence = server.gameServer.presence;
     if (!presence) throw new Error(`${FILE} Fall 1: matchmake server has no presence`);
     const publishSpy = vi.spyOn(presence, 'publish').mockRejectedValue(new Error('s1r6 presence down'));
@@ -260,7 +260,7 @@ describe('world access survives publish and database faults (real database)', ()
     } finally {
       publishSpy.mockRestore();
     }
-    expect(joined.left, 'Fall 1: Client muss trotz Publish-Fehler getrennt sein').toBe(true);
+    expect(joined.left, 'Case 1: client must be disconnected despite publish error').toBe(true);
 
     await leaveQuietly(joined);
   }, 30_000);
@@ -271,7 +271,7 @@ describe('world access survives publish and database faults (real database)', ()
       (await createUser([{ tenantId, role: 'member' }], tenantId)).token,
       tenantSlug,
     );
-    expect(joined.error, 'Fall 2: Beitritt muss gelingen').toBeUndefined();
+    expect(joined.error, 'Case 2: join must succeed').toBeUndefined();
     try {
       await dockerPause();
       // Lease (4 s) + 3 s headroom; before the fix nothing fires here.
@@ -279,7 +279,7 @@ describe('world access survives publish and database faults (real database)', ()
     } finally {
       await dockerUnpause();
     }
-    expect(joined.left, 'Fall 2: Client muss bei unerreichbarer DB getrennt sein').toBe(true);
+    expect(joined.left, 'Case 2: client must be disconnected when the DB is unreachable').toBe(true);
     expect(
       joined.errorMessages,
       `Fall 2: 4503 access_unverified erwartet, erhalten=${JSON.stringify(joined.errorMessages)}`,
@@ -294,7 +294,7 @@ describe('world access survives publish and database faults (real database)', ()
       (await createUser([{ tenantId, role: 'member' }], tenantId)).token,
       tenantSlug,
     );
-    expect(joined.error, 'Fall 3: Beitritt muss gelingen').toBeUndefined();
+    expect(joined.error, 'Case 3: join must succeed').toBeUndefined();
     try {
       await dockerPause();
       await new Promise((resolve) => setTimeout(resolve, 1_500));
@@ -302,7 +302,7 @@ describe('world access survives publish and database faults (real database)', ()
       await dockerUnpause();
     }
     await new Promise((resolve) => setTimeout(resolve, 6_000));
-    expect(joined.left, 'Fall 3: Client muss nach kurzem Schluckauf verbunden bleiben').toBe(false);
+    expect(joined.left, 'Case 3: client must stay connected after a brief hiccup').toBe(false);
 
     await leaveQuietly(joined);
   }, 60_000);
@@ -314,16 +314,16 @@ describe('world access survives publish and database faults (real database)', ()
       (await createUser([{ tenantId, role: 'guest', expiresAt: new Date(expiresAtMs) }], tenantId)).token,
       tenantSlug,
     );
-    expect(joined.error, 'Fall 4: Gast-Beitritt muss gelingen').toBeUndefined();
+    expect(joined.error, 'Case 4: guest join must succeed').toBeUndefined();
     await waitFor(() => joined.left, Math.max(expiresAtMs - Date.now() + 1_000, 2_000));
-    expect(joined.left, 'Fall 4: Gast muss zum Ablauf getrennt sein').toBe(true);
+    expect(joined.left, 'Case 4: guest must be disconnected at expiry').toBe(true);
     expect(
       joined.errorMessages,
       `Fall 4: 4006 guest_expired erwartet, erhalten=${JSON.stringify(joined.errorMessages)}`,
     ).toContainEqual({ code: 4006, message: 'guest_expired' });
     expect(
       joined.leftAt,
-      `Fall 4: Trennung nicht vor expiresAt, leftAt=${String(joined.leftAt)} expiresAt=${String(expiresAtMs)}`,
+      `Case 4: disconnect not before expiresAt, leftAt=${String(joined.leftAt)} expiresAt=${String(expiresAtMs)}`,
     ).toBeGreaterThanOrEqual(expiresAtMs - 750);
 
     await leaveQuietly(joined);
@@ -332,18 +332,18 @@ describe('world access survives publish and database faults (real database)', ()
   it('case 5: a deleted session ends the world session with 4401 session_revoked', async () => {
     const user = await createUser([{ tenantId, role: 'member' }], tenantId);
     const joined = await joinWorld('s1r6-case5', user.token, tenantSlug);
-    expect(joined.error, 'Fall 5: Beitritt muss gelingen').toBeUndefined();
+    expect(joined.error, 'Case 5: join must succeed').toBeUndefined();
     const userId = userIds[userIds.length - 1];
     // Only the session row goes: the membership stays, so the session check —
     // not a missing membership — has to end the world session.
     await revokeSessionsForUser(prisma, userId);
     expect(
       await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId, userId } } }),
-      'Fall 5: Mitgliedschaft muss bestehen bleiben',
+      'Case 5: membership must remain in place',
     ).not.toBeNull();
     // Next sweep (1 s) + headroom; before the fix the lease keeps renewing.
     await waitFor(() => joined.left, 8_000);
-    expect(joined.left, 'Fall 5: Client muss nach Sitzungsende getrennt sein').toBe(true);
+    expect(joined.left, 'Case 5: client must be disconnected after session end').toBe(true);
     expect(
       joined.errorMessages,
       `Fall 5: 4401 session_revoked erwartet, erhalten=${JSON.stringify(joined.errorMessages)}`,

@@ -112,7 +112,7 @@ function collectFileDiagnostics(fileResult, relativePath) {
   }
 
   for (const problem of fileResult.invalidOptionWarnings ?? []) {
-    diagnostics.push(`${relativePath}: ungültige Option: ${problem.text}`);
+    diagnostics.push(`${relativePath}: invalid option: ${problem.text}`);
   }
 
   for (const problem of fileResult.deprecations ?? []) {
@@ -153,7 +153,7 @@ async function lintCssFile(stylelint, { relativePath, absolutePath, source }) {
       return {
         errors: [
           `${relativePath}:${warning.line}:${warning.column} ` +
-            'Der Hex-Wert an der gemeldeten Position ist nicht lesbar.',
+            'The hex value at the reported position is not readable.',
         ],
       };
     }
@@ -185,41 +185,41 @@ function parseBaseline(raw, baselinePath) {
   try {
     payload = JSON.parse(raw);
   } catch (error) {
-    throw new Error(`Baseline ${baselinePath} ist kein gültiges JSON: ${error.message}`);
+    throw new Error(`Baseline ${baselinePath} is not valid JSON: ${error.message}`);
   }
 
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    throw new Error(`Baseline ${baselinePath} hat kein gültiges Format.`);
+    throw new Error(`Baseline ${baselinePath} has an invalid format.`);
   }
 
   if (payload.version !== BASELINE_VERSION) {
-    throw new Error(`Baseline ${baselinePath} hat Version ${payload.version}, erwartet wird ${BASELINE_VERSION}.`);
+    throw new Error(`Baseline ${baselinePath} has version ${payload.version}, expected ${BASELINE_VERSION}.`);
   }
 
   if (!payload.files || typeof payload.files !== 'object' || Array.isArray(payload.files)) {
-    throw new Error(`Baseline ${baselinePath} enthält keinen gültigen "files"-Bereich.`);
+    throw new Error(`Baseline ${baselinePath} has no valid "files" section.`);
   }
 
   const files = new Map();
 
   for (const [file, counts] of Object.entries(payload.files)) {
     if (!isRelativePosixPath(file)) {
-      throw new Error(`Baseline ${baselinePath} enthält den ungültigen Pfad "${file}".`);
+      throw new Error(`Baseline ${baselinePath} contains the invalid path "${file}".`);
     }
 
     if (!counts || typeof counts !== 'object' || Array.isArray(counts)) {
-      throw new Error(`Baseline ${baselinePath}: "${file}" enthält keine gültige Zählung.`);
+      throw new Error(`Baseline ${baselinePath}: "${file}" has no valid count.`);
     }
 
     const entries = new Map();
 
     for (const [hex, count] of Object.entries(counts)) {
       if (!BASELINE_HEX_PATTERN.test(hex)) {
-        throw new Error(`Baseline ${baselinePath}: "${hex}" in "${file}" ist kein kleingeschriebener Hex-Wert.`);
+        throw new Error(`Baseline ${baselinePath}: "${hex}" in "${file}" is not a lowercase hex value.`);
       }
 
       if (!Number.isInteger(count) || count < 0) {
-        throw new Error(`Baseline ${baselinePath}: "${hex}" in "${file}" hat keine gültige Anzahl.`);
+        throw new Error(`Baseline ${baselinePath}: "${hex}" in "${file}" has no valid count.`);
       }
 
       entries.set(hex, count);
@@ -281,7 +281,7 @@ async function runStyleStats({ root = ROOT, baselinePath = BASELINE_PATH, files,
   try {
     rawBaseline = fs.readFileSync(baselinePath, 'utf8');
   } catch (error) {
-    return failedRun([`Baseline ${baselinePath} kann nicht gelesen werden: ${error.message}`]);
+    return failedRun([`Baseline ${baselinePath} cannot be read: ${error.message}`]);
   }
 
   let baseline;
@@ -317,7 +317,7 @@ async function runStyleStats({ root = ROOT, baselinePath = BASELINE_PATH, files,
     try {
       source = fs.readFileSync(target.absolutePath, 'utf8');
     } catch (error) {
-      errors.push(`${target.relativePath}: Datei nicht lesbar (${error.message}).`);
+      errors.push(`${target.relativePath}: file not readable (${error.message}).`);
       continue;
     }
 
@@ -371,8 +371,8 @@ async function runStyleStats({ root = ROOT, baselinePath = BASELINE_PATH, files,
 function formatSummary(result) {
   const stand = result.baselineUpdatedAt ? ` (Stand ${result.baselineUpdatedAt})` : '';
   const lines = [
-    `style-stats: ${result.checkedFiles} CSS-Dateien geprüft, ` +
-      `${result.hexTotal} Hex-Werte außerhalb der Token-Datei.`,
+    `style-stats: ${result.checkedFiles} CSS files checked, ` +
+      `${result.hexTotal} hex values outside the token file.`,
     `Baseline:   ${result.baselineTotal} Hex-Werte in ${result.baselineFiles} Dateien${stand}.`,
   ];
 
@@ -411,12 +411,12 @@ async function main() {
 
     for (const regression of result.regressions) console.error(formatRegression(regression));
 
-    console.error('\nstyle-stats: Ersetze die Hex-Werte durch Design-Tokens oder verringere ihre Anzahl.');
+    console.error('\nstyle-stats: Replace the hex values with design tokens or reduce their number.');
     process.exitCode = 1;
     return;
   }
 
-  console.log('\nstyle-stats: keine Regressionen.');
+  console.log('\nstyle-stats: no regressions.');
 }
 
 if (require.main === module) {

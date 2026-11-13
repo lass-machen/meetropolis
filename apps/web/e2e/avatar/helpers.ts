@@ -4,36 +4,36 @@ import type { APIRequestContext, BrowserContext, Page, TestInfo } from '@playwri
 
 import { expect } from '../fixtures';
 
-/** Gemeinsame Hilfen für echte Avatar-E2E: eigene Testmandanten und Sitzungen.
- * Requests werden nur verzögert und weitergeleitet, nie vom Test beantwortet. */
+/** Shared helpers for real avatar E2E: own test tenants and sessions.
+ * Requests are only delayed and forwarded, never answered by the test. */
 
-/** Die Konfigurationsfelder des echten Sprite-Katalogs. */
+/** The configuration fields of the real sprite catalog. */
 const fields = catalog.compose.config_fields;
 
-/** Frisuren in der vom Editor verwendeten Katalogreihenfolge. */
+/** Hairstyles in the catalog order used by the editor. */
 export function hairValues(): string[] {
   return fields.hair.values;
 }
 
-/** Positionszugriff über die stabile Teil-ID. Der Pflichtslot hat keine „keine“-Option;
- * seine Beschriftungen verwenden derzeit unübersetzte, verschönerte Katalogwerte. */
+/** Position access via the stable part ID. The mandatory slot has no "none" option;
+ * its labels currently use untranslated, polished catalog values. */
 export function hairIndex(value: string): number {
   const index = hairValues().indexOf(value);
   if (index < 0) throw new Error(`Frisur „${value}“ fehlt im Katalog.`);
   return index;
 }
 
-/** Die zugängliche Frisurgruppe bei fest eingestellter deutscher Locale. */
+/** The accessible hairstyle group with a fixed German locale. */
 export function hairGrid(page: Page) {
   return page.getByRole('group', { name: 'Frisur' });
 }
 
-/** Die Frisuroption zum unveränderten Katalogwert. */
+/** The hairstyle option for the unchanged catalog value. */
 export function hairOption(page: Page, value: string) {
   return hairGrid(page).getByRole('button').nth(hairIndex(value));
 }
 
-/** Gültiges Rezept aus den Katalogdefaults mit der gewünschten Frisur. */
+/** Valid recipe from the catalog defaults with the desired hairstyle. */
 export function composeBody(hair: string): Record<string, string> {
   return {
     skin: fields.skin.values[0],
@@ -48,7 +48,7 @@ export function composeBody(hair: string): Record<string, string> {
   };
 }
 
-/** Erzeugt einen gespeicherten Avatar über die echte Compose-API. */
+/** Creates a saved avatar via the real compose API. */
 export async function composeAvatar(args: {
   context: BrowserContext;
   apiUrl: string;
@@ -62,7 +62,7 @@ export async function composeAvatar(args: {
   return { status: response.status(), body: await response.json() };
 }
 
-/** Prüft die echte Feature-Verfügbarkeit vor dem UI-Ablauf; kein Config-Mock. */
+/** Checks real feature availability before the UI flow; no config mock. */
 export async function requireAvatarEditorEnabled(args: {
   request: APIRequestContext;
   apiUrl: string;
@@ -71,26 +71,26 @@ export async function requireAvatarEditorEnabled(args: {
   const response = await args.request.get(`${args.apiUrl.replace(/\/+$/, '')}/public/config`, {
     headers: { 'x-tenant': args.tenantSlug },
   });
-  expect(response.ok(), 'GET /public/config muss erfolgreich antworten').toBe(true);
+  expect(response.ok(), 'GET /public/config must respond successfully').toBe(true);
   const body = (await response.json()) as { avatarEditorEnabled?: boolean };
-  expect(body.avatarEditorEnabled, 'Der Teststack muss mit --avatar-editor gestartet werden.').toBe(true);
+  expect(body.avatarEditorEnabled, 'The test stack must be started with --avatar-editor.').toBe(true);
 }
 
-/** Der Speicherknopf des Editors, angesprochen über seine zugängliche
- *  Bezeichnung in der fest eingestellten deutschen Locale. */
+/** The editor's save button, addressed via its accessible
+ *  label in the fixed German locale. */
 export function saveButton(page: Page) {
   return page.getByRole('button', { name: 'Avatar speichern', exact: true });
 }
 
-/** Die Statusregion in der Vorschau. Sie bleibt auch ohne Meldung im DOM,
- *  deshalb wird ihr Inhalt geprüft und nicht ihre Anzahl. */
+/** The status region in the preview. It stays in the DOM even without a message,
+ *  so its content is checked and not its count. */
 export function statusRegion(page: Page) {
   return page.locator('.av-ed__preview').getByRole('status');
 }
 
-/** Prüft die leere Statusregion vor dem ersten Speichern: Sie muss vorhanden
- *  sein, keinen Platz im Layout belegen und für Hilfstechnologie erreichbar
- *  bleiben (nicht ausgeblendet, nicht aria-hidden). */
+/** Checks the empty status region before the first save: it must exist,
+ *  take no layout space, and stay reachable for assistive technology,
+ *  and be neither hidden nor aria-hidden. */
 export async function expectEmptyStatusRegion(page: Page, testInfo: TestInfo): Promise<void> {
   const region = statusRegion(page);
   await expect(region).toHaveCount(1);
@@ -109,15 +109,15 @@ export async function expectEmptyStatusRegion(page: Page, testInfo: TestInfo): P
     contentType: 'application/json',
   });
   expect(layout.height, 'die leere Statusregion darf keinen Platz belegen').toBe(0);
-  expect(layout.display, 'die leere Statusregion darf nicht ausgeblendet sein').not.toBe('none');
-  expect(layout.visibility, 'die leere Statusregion darf nicht unsichtbar sein').not.toBe('hidden');
-  expect(layout.ariaHidden, 'die leere Statusregion darf nicht aria-hidden sein').toBeNull();
+  expect(layout.display, 'the empty status region must not be hidden').not.toBe('none');
+  expect(layout.visibility, 'the empty status region must not be invisible').not.toBe('hidden');
+  expect(layout.ariaHidden, 'the empty status region must not be aria-hidden').toBeNull();
 }
 
-/** Die vier Pflicht-Gruppen des Körper-Tabs in geprüfter Reihenfolge: Feldname
- *  und Rasterklasse. Reihenfolge und Klassen sind der fest verdrahtete
- *  Vertrag und werden bewusst nicht aus dem Editor-Layout importiert — sonst
- *  vergleichte der Test das Produkt nur noch mit sich selbst. */
+/** The four mandatory groups of the body tab in verified order: field name
+ *  and grid class. Order and classes are the hard-wired
+ *  contract and are deliberately not imported from the editor layout — otherwise
+ *  the test would only compare the product with itself. */
 const BODY_TAB_GROUPS = [
   { field: 'skin', gridClass: 'av-ed__grid--swatch' },
   { field: 'face', gridClass: 'av-ed__grid--sprite' },
@@ -125,13 +125,13 @@ const BODY_TAB_GROUPS = [
   { field: 'hair_color', gridClass: 'av-ed__grid--swatch' },
 ] as const;
 
-/** Prüft den Anfangszustand des frisch geöffneten Editors: drei Kategorie-Tabs,
- *  davon der erste aktiv, sichtbare Slots und die vier Pflicht-Gruppen des
- *  Körper-Tabs in fester Reihenfolge. Sprachunabhängig: geprüft werden nur
- *  Klassen, Rollen und Zahlen aus dem echten Katalog, keine übersetzten
+/** Checks the initial state of the freshly opened editor: three category tabs,
+ *  of which the first is active, visible slots and the four mandatory groups of the
+ *  body tabs in fixed order. Language-independent: only
+ *  classes, roles and numbers from the real catalog are checked, not translated
  *  Beschriftungen. */
 export async function expectInitialBodyTab(page: Page): Promise<void> {
-  // Der Editorrahmen ist der Elterncontainer von .av-ed; dort liegen die Tabs.
+  // The editor frame is the parent container of .av-ed; the tabs live there.
   const editor = page.locator('.av-ed').locator('xpath=..');
   const tabs = editor.locator('.sys-tabs__tab');
   await expect(tabs, 'der Editor hat genau drei Kategorie-Tabs').toHaveCount(3);
@@ -141,10 +141,10 @@ export async function expectInitialBodyTab(page: Page): Promise<void> {
   await expect(tabs.first(), 'der erste Kategorie-Tab ist aktiv').toHaveClass(/sys-tabs__tab--active/);
 
   const slots = editor.locator('.av-ed__slots');
-  await expect(slots, 'die Slots des Körper-Tabs sind sichtbar').toBeVisible();
+  await expect(slots, 'the slots of the body tab are visible').toBeVisible();
 
   const groups = slots.getByRole('group');
-  await expect(groups, 'der Körper-Tab zeigt genau vier Pflicht-Gruppen').toHaveCount(BODY_TAB_GROUPS.length);
+  await expect(groups, 'the body tab shows exactly four mandatory groups').toHaveCount(BODY_TAB_GROUPS.length);
 
   for (const [index, group] of BODY_TAB_GROUPS.entries()) {
     const element = groups.nth(index);
@@ -152,7 +152,7 @@ export async function expectInitialBodyTab(page: Page): Promise<void> {
       new RegExp(`av-ed__grid ${group.gridClass}`),
     );
     expect(fields[group.field].required, `${group.field} ist ein Pflichtfeld`).toBe(true);
-    // Ohne „keine“-Option: die Gruppe zeigt genau die Katalogwerte des Feldes.
+    // Without a "none" option: the group shows exactly the field's catalog values.
     const options = fields[group.field].values.length;
     await expect(element.getByRole('button'), `${group.field} zeigt genau ${options} Katalogoptionen`).toHaveCount(
       options,
@@ -160,8 +160,8 @@ export async function expectInitialBodyTab(page: Page): Promise<void> {
   }
 }
 
-/** Öffnet den Editor im Onboarding. Der Fixture-Context existiert bereits; deshalb
- *  wird die deutsche Locale vor dem Neuladen ausdrücklich gesetzt. */
+/** Opens the editor in onboarding. The fixture context already exists, so
+ *  explicitly sets the German locale before the reload. */
 export async function openEditor(page: Page): Promise<void> {
   await page.addInitScript(() => window.localStorage.setItem('i18nextLng', 'de'));
   await page.reload();
@@ -171,7 +171,7 @@ export async function openEditor(page: Page): Promise<void> {
   await expect(saveButton(page)).toBeVisible({ timeout: 30_000 });
 }
 
-/** Hält einen Request bis zur ausdrücklichen Freigabe durch den Test an. */
+/** Holds a request until the test explicitly releases it. */
 export function createGate(): { promise: Promise<void>; release: () => void } {
   let release: () => void = () => {};
   const promise = new Promise<void>((resolve) => {
@@ -180,8 +180,8 @@ export function createGate(): { promise: Promise<void>; release: () => void } {
   return { promise, release };
 }
 
-/** Begrenztes UI-Verarbeitungsfenster nach abgeschlossenem Download, damit die
- * negative Prüfung nicht vor der verspäteten Zustandsänderung grün wird. */
+/** Bounded UI processing window after the download completes, so that the
+ * the negative check does not turn green before the delayed state change. */
 export async function settle(page: Page): Promise<void> {
   await page.waitForTimeout(500);
 }

@@ -21,7 +21,7 @@ if (mode === 'closed_smtp') {
       const address = server.address();
       if (!address || typeof address === 'string') {
         server.close();
-        reject(new Error('Kein Probe-Port'));
+        reject(new Error('No probe port'));
         return;
       }
       server.close((error) => (error ? reject(error) : resolve(address.port)));
