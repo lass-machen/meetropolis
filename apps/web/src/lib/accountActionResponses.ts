@@ -1,5 +1,7 @@
 function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 export function readAccountError(value: unknown) {
@@ -30,9 +32,13 @@ export function needsEmailVerification(error: unknown): error is AccountActionEr
   );
 }
 
-export function readMailSent(value: unknown): boolean { return record(value)?.sent === true; }
+export function readMailSent(value: unknown): boolean {
+  return record(value)?.sent === true;
+}
 
-export function readProofResult(value: unknown) {
+export function readProofResult(
+  value: unknown,
+): { purpose: 'invite' | 'verify' | 'email_change'; tenantSlug: string | null } | null {
   const body = record(value);
   const purpose = body?.purpose;
   if (body?.ok !== true || (purpose !== 'invite' && purpose !== 'verify' && purpose !== 'email_change')) return null;
