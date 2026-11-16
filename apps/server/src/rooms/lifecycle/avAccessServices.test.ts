@@ -2,15 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
   const calls: string[] = [];
-  const reconcilerStop = vi.fn(async () => {
+  const reconcilerStop = vi.fn(() => {
     calls.push('reconciler.stop');
+    return Promise.resolve();
   });
   return {
     calls,
     reconcilerStop,
     startAvAccessReconciler: vi.fn(() => ({ runRound: vi.fn(), stop: reconcilerStop })),
-    stopAvPendingRevocations: vi.fn(async () => {
+    stopAvPendingRevocations: vi.fn(() => {
       calls.push('backlog.stop');
+      return Promise.resolve();
     }),
   };
 });

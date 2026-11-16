@@ -13,9 +13,12 @@ import { enqueueAvRevocation } from '../rooms/lifecycle/avPendingRevocations.js'
  * - AV: the user is removed from the tenant's LiveKit calls, whose
  *   connection the world disconnect does not end.
  */
-export async function revokeTenantAccess(tenantSlug: string, userId: string): Promise<void> {
-  broadcastAccessRevoked(userId);
-  enqueueAvRevocation(`${tenantSlug}:world`, userId);
+export function revokeTenantAccess(tenantSlug: string, userId: string): Promise<void> {
+  return new Promise<void>((resolve) => {
+    broadcastAccessRevoked(userId);
+    enqueueAvRevocation(`${tenantSlug}:world`, userId);
+    resolve();
+  });
 }
 
 /**
@@ -23,9 +26,12 @@ export async function revokeTenantAccess(tenantSlug: string, userId: string): Pr
  * one per-user world event (even with no membership left) plus the AV removal
  * per tenant slug. Call it only after the change is committed; it never throws.
  */
-export async function revokeAccountAccess(userId: string, tenantSlugs: Iterable<string>): Promise<void> {
-  broadcastAccessRevoked(userId);
-  for (const tenantSlug of tenantSlugs) {
-    enqueueAvRevocation(`${tenantSlug}:world`, userId);
-  }
+export function revokeAccountAccess(userId: string, tenantSlugs: Iterable<string>): Promise<void> {
+  return new Promise<void>((resolve) => {
+    broadcastAccessRevoked(userId);
+    for (const tenantSlug of tenantSlugs) {
+      enqueueAvRevocation(`${tenantSlug}:world`, userId);
+    }
+    resolve();
+  });
 }

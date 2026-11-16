@@ -325,11 +325,7 @@ async function registerEnterpriseAdminRoutes(app: express.Express) {
     getTelemetryPublicConfig: telemetry ? () => telemetry.getPublicConfigBlock() : undefined,
   });
 
-  adminEnterprise.setupPricingPlanRoutes(app, {
-    prisma,
-    logger,
-    requireSuperAdmin,
-  });
+  adminEnterprise.setupPricingPlanRoutes(app, { prisma, logger, requireSuperAdmin });
 
   adminEnterprise.setupTenantUserRoutes(app, {
     prisma,

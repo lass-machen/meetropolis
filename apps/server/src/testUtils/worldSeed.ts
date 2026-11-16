@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import type { PrismaClient, Role } from '../generated/prisma/index.js';
 import { getJwtSecret } from '../api/utils/authHelpers.js';
-import { hashSessionToken } from '../api/utils/sessionAuth.js';
+import { hashSessionToken, revokeSessionsForUser } from '../api/utils/sessionAuth.js';
 
 /**
  * Shared seeding helpers for database-backed integration tests. They bundle
@@ -78,8 +78,7 @@ export async function seedMember(
   opts?: SeedMemberOptions,
 ): Promise<SeededMember> {
   const email = opts?.email ?? randomEmail();
-  const passwordHash =
-    opts?.password !== undefined ? await bcrypt.hash(opts.password, SEED_BCRYPT_COST) : undefined;
+  const passwordHash = opts?.password !== undefined ? await bcrypt.hash(opts.password, SEED_BCRYPT_COST) : undefined;
   const user = await prisma.user.create({
     data: {
       ...(opts?.userId !== undefined ? { id: opts.userId } : {}),
@@ -121,7 +120,7 @@ export async function cleanupTenants(prisma: PrismaClient, tenantIds: string[]):
   const survivorIds = new Set(survivors.map((member) => member.userId));
   const orphanedIds = memberIds.filter((id) => !survivorIds.has(id));
   if (orphanedIds.length > 0) {
-    await prisma.session.deleteMany({ where: { userId: { in: orphanedIds } } });
+    for (const userId of orphanedIds) await revokeSessionsForUser(prisma, userId);
     await prisma.user.deleteMany({ where: { id: { in: orphanedIds } } });
   }
   await prisma.tenant.deleteMany({ where: { id: { in: tenantIds } } });

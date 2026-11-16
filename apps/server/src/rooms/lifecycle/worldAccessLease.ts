@@ -93,22 +93,26 @@ function disconnectLeaseEntry(room: WorldRoom, entry: WorldAccessEntry, code: nu
  * be verified and disconnects with 4503 `access_unverified`. AV calls end
  * in both cases.
  */
-export async function expireWorldAccessLeases(room: WorldRoom): Promise<void> {
-  const now = Date.now();
-  const expired = room.worldAccess.joined().filter((e) => e.leaseUntil !== null && e.leaseUntil <= now);
-  for (const entry of expired) {
-    if (entry.accessExpiresAt !== null && entry.accessExpiresAt <= now) {
-      disconnectLeaseEntry(room, entry, GUEST_EXPIRED_CODE, 'guest_expired');
-    } else {
-      disconnectLeaseEntry(room, entry, WORLD_ACCESS_UNVERIFIED_CODE, 'access_unverified');
+export function expireWorldAccessLeases(room: WorldRoom): Promise<void> {
+  // The executor keeps a synchronous throw a rejection for the timer's catch/finally.
+  return new Promise<void>((resolve) => {
+    const now = Date.now();
+    const expired = room.worldAccess.joined().filter((e) => e.leaseUntil !== null && e.leaseUntil <= now);
+    for (const entry of expired) {
+      if (entry.accessExpiresAt !== null && entry.accessExpiresAt <= now) {
+        disconnectLeaseEntry(room, entry, GUEST_EXPIRED_CODE, 'guest_expired');
+      } else {
+        disconnectLeaseEntry(room, entry, WORLD_ACCESS_UNVERIFIED_CODE, 'access_unverified');
+      }
+      // Forget the entry at once, even when no client was found: otherwise it
+      // stays joined until onLeave, the timer re-plans with no delay and the
+      // disconnect repeats in a loop.
+      room.worldAccess.forget(entry.sessionId);
+      // Confirmed AV removal through the process-wide backlog (see worldAccess.ts).
+      enqueueAvRevocation(`${entry.tenantSlug}:world`, entry.userId);
     }
-    // Forget the entry at once, even when no client was found: otherwise it
-    // stays joined until onLeave, the timer re-plans with no delay and the
-    // disconnect repeats in a loop.
-    room.worldAccess.forget(entry.sessionId);
-    // Confirmed AV removal through the process-wide backlog (see worldAccess.ts).
-    enqueueAvRevocation(`${entry.tenantSlug}:world`, entry.userId);
-  }
+    resolve();
+  });
 }
 
 /**

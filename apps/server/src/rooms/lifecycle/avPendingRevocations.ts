@@ -58,7 +58,7 @@ interface BacklogState {
 }
 
 function backoffFor(backoffs: number[], steadyMs: number, failures: number): number {
-  if (failures < backoffs.length) return backoffs[failures] as number;
+  if (failures < backoffs.length) return backoffs[failures];
   return steadyMs;
 }
 

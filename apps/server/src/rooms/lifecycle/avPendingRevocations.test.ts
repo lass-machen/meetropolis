@@ -141,7 +141,7 @@ describe('av pending revocations', () => {
     expect(tracked.calls.length).toBe(8);
   });
 
-  it('rejects new entries past the cap and keeps the rest', async () => {
+  it('rejects new entries past the cap and keeps the rest', () => {
     const tracked = failing();
     const backlog = createAvPendingRevocations({ remove: tracked.remove, maxEntries: 2 });
     created.push(backlog);
