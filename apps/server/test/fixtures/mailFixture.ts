@@ -10,10 +10,12 @@ export function createMailFixture() {
     const base = process.env.MAILPIT_URL;
     if (!base || !['127.0.0.1', 'localhost'].includes(new URL(base).hostname))
       throw new Error('The assigned local Mailpit service is missing.');
-    if (!['127.0.0.1', 'localhost'].includes(process.env.SMTP_HOST ?? ''))
+    if (!['127.0.0.1', 'localhost'].includes(process.env.MAILPIT_SMTP_HOST ?? ''))
       throw new Error('Actual local SMTP delivery is not configured.');
-    const port = Number(process.env.SMTP_PORT);
+    const port = Number(process.env.MAILPIT_SMTP_PORT);
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('The assigned SMTP port is missing.');
+    process.env.SMTP_HOST = process.env.MAILPIT_SMTP_HOST;
+    process.env.SMTP_PORT = process.env.MAILPIT_SMTP_PORT;
     context = await apiRequest.newContext();
     mailpit = createMailpitClient(context, base);
     return mailpit;
