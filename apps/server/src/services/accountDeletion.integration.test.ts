@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createPrismaClient } from '../db.js';
-import { removeMemberFromTenant } from './accountDeletion.js';
+import { deleteAccount, deleteTenantWithMembers, removeMemberFromTenant } from './accountDeletion.js';
 
 /**
  * Two admins of different tenants remove the same user's last two
@@ -34,6 +34,8 @@ async function dropSlowDeleteTrigger(): Promise<void> {
 
 afterAll(async () => {
   await dropSlowDeleteTrigger();
+  await prisma.authEvent.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.authEvent.deleteMany({ where: { tenantId: { in: tenantIds } } });
   await prisma.membership.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   await prisma.tenant.deleteMany({ where: { id: { in: tenantIds } } });
@@ -71,5 +73,55 @@ describe('parallel removal of the last memberships (real database)', () => {
     } finally {
       await dropSlowDeleteTrigger();
     }
+  });
+});
+
+describe('account deletion removes the auth events (real database)', () => {
+  it('deletes the auth events of the deleted account and keeps foreign rows', async () => {
+    const tenantId = await createTenant();
+    const user = await prisma.user.create({ data: { email: `authdel-${crypto.randomUUID()}@example.test` } });
+    userIds.push(user.id);
+    await prisma.membership.create({ data: { userId: user.id, tenantId, role: 'member' } });
+    const foreign = await prisma.user.create({ data: { email: `authdel-${crypto.randomUUID()}@example.test` } });
+    userIds.push(foreign.id);
+
+    await prisma.authEvent.create({ data: { type: 'login', success: true, userId: user.id, tenantId } });
+    await prisma.authEvent.create({ data: { type: 'logout', success: true, userId: user.id, tenantId } });
+    await prisma.authEvent.create({ data: { type: 'login', success: true, userId: foreign.id, tenantId } });
+
+    await deleteAccount(prisma, user.id);
+
+    expect(await prisma.authEvent.count({ where: { userId: user.id } })).toBe(0);
+    expect(await prisma.user.count({ where: { id: user.id } })).toBe(0);
+    expect(await prisma.authEvent.count({ where: { userId: foreign.id } })).toBe(1);
+  });
+});
+
+describe('tenant deletion removes the tenant auth events (real database)', () => {
+  it('drops rows of the tenant and of the orphaned account, keeps the other-tenant row', async () => {
+    const tenantA = await createTenant();
+    const tenantB = await createTenant();
+    const orphan = await prisma.user.create({ data: { email: `orphan-${crypto.randomUUID()}@example.test` } });
+    userIds.push(orphan.id);
+    const multi = await prisma.user.create({ data: { email: `multi-${crypto.randomUUID()}@example.test` } });
+    userIds.push(multi.id);
+    await prisma.membership.create({ data: { userId: orphan.id, tenantId: tenantA, role: 'member' } });
+    await prisma.membership.create({ data: { userId: multi.id, tenantId: tenantA, role: 'member' } });
+    await prisma.membership.create({ data: { userId: multi.id, tenantId: tenantB, role: 'member' } });
+
+    await prisma.authEvent.create({ data: { type: 'login', success: true, userId: orphan.id, tenantId: tenantA } });
+    await prisma.authEvent.create({ data: { type: 'login', success: true, userId: multi.id, tenantId: tenantA } });
+    await prisma.authEvent.create({ data: { type: 'login', success: true, userId: multi.id, tenantId: tenantB } });
+
+    const result = await deleteTenantWithMembers(prisma, tenantA);
+
+    expect(result.deletedAccounts).toBe(1);
+    expect(await prisma.authEvent.count({ where: { tenantId: tenantA } })).toBe(0);
+    expect(await prisma.authEvent.count({ where: { userId: orphan.id } })).toBe(0);
+    expect(await prisma.user.count({ where: { id: orphan.id } })).toBe(0);
+    expect(await prisma.user.count({ where: { id: multi.id } })).toBe(1);
+    const kept = await prisma.authEvent.findMany({ where: { userId: multi.id } });
+    expect(kept).toHaveLength(1);
+    expect(kept[0]?.tenantId).toBe(tenantB);
   });
 });
