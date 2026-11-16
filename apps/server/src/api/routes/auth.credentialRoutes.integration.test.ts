@@ -14,6 +14,7 @@ import { guestExpiryMiddleware } from '../middleware/guestExpiry.js';
 import { createTenantAccessMiddleware } from '../middleware/tenantAccess.js';
 import { getJwtSecret } from '../utils/authHelpers.js';
 import { createSessionAuthMiddleware, hashSessionToken } from '../utils/sessionAuth.js';
+import { issuePasswordResetToken } from '../utils/passwordResetTokens.js';
 import { registerAuthRoutes } from './auth.js';
 
 if (!process.env.DATABASE_URL) {
@@ -136,6 +137,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.authEvent.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.session.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.membership.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
@@ -172,6 +174,23 @@ describe('credential login routes with a foreign session (real database)', () =>
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  it('records a password_reset auth event when a reset token is redeemed', async () => {
+    const email = `credential-reset-${crypto.randomUUID()}@example.test`;
+    const account = await prisma.user.create({
+      data: { email, name: 'Reset User', passwordHash: await bcrypt.hash(password, 10) },
+    });
+    userIds.push(account.id);
+    const { token } = await issuePasswordResetToken(prisma, account.id);
+
+    const res = await request(app).post('/auth/reset').send({ token, password: 'reset-new-password-1' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    const events = await prisma.authEvent.findMany({ where: { userId: account.id } });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: 'password_reset', success: true, tenantId: null });
   });
 
   it('logs exactly one tenant denial when a foreign session reads /auth/me', async () => {

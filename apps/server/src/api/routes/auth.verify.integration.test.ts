@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { createPrismaClient } from '../../db.js';
+import { hashEmailProof } from '../utils/emailProof.js';
 
 vi.mock('../../logger.js', () => ({
   logger: {
@@ -53,6 +54,7 @@ function setEnv(values: Partial<Record<EnvKey, string | undefined>>): void {
 afterEach(async () => {
   const currentUserIds = userIds.splice(0);
   if (currentUserIds.length) {
+    await prisma.authEvent.deleteMany({ where: { userId: { in: currentUserIds } } });
     await prisma.emailVerification.deleteMany({ where: { userId: { in: currentUserIds } } });
     await prisma.session.deleteMany({ where: { userId: { in: currentUserIds } } });
     await prisma.user.deleteMany({ where: { id: { in: currentUserIds } } });
@@ -71,7 +73,7 @@ async function setupCase(env: Partial<Record<EnvKey, string | undefined>>): Prom
 }> {
   setEnv(env);
   vi.resetModules();
-  const { handleVerifyRequest } = await import('./auth.verify.js');
+  const { handleVerifyRequest, handleVerifyToken } = await import('./auth.verify.js');
   const { setAuthResolution } = await import('../utils/authState.js');
   const app = express();
   app.use(express.json());
@@ -83,6 +85,7 @@ async function setupCase(env: Partial<Record<EnvKey, string | undefined>>): Prom
     next();
   });
   app.post('/auth/verify/request', (req, res) => handleVerifyRequest(prisma, req, res));
+  app.post('/auth/verify', (req, res) => handleVerifyToken(prisma, req, res));
   const suffix = crypto.randomUUID();
   const user = await prisma.user.create({ data: { email: `verify-${suffix}@example.test` } });
   userIds.push(user.id);
@@ -159,5 +162,31 @@ describe('verification token surfacing', () => {
     expect(body.token).toBeUndefined();
     expect(body.verifyUrl).toBeUndefined();
     expect(JSON.stringify(response.body)).not.toMatch(/token/i);
+  });
+});
+
+describe('consumed verification token', () => {
+  it('records an email_verification auth event for the verified account', async () => {
+    const { app, userId } = await setupCase({});
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const rawToken = `verify-${crypto.randomUUID()}`;
+    await prisma.emailVerification.create({
+      data: {
+        token: hashEmailProof(rawToken),
+        userId,
+        email: user.email,
+        sourceEmail: user.email,
+        purpose: 'verify',
+        readyAt: new Date(),
+        expiresAt: new Date(Date.now() + 3_600_000),
+      },
+    });
+
+    const response = await request(app).post('/auth/verify').set('x-user', userId).send({ token: rawToken });
+
+    expect(response.status).toBe(200);
+    const events = await prisma.authEvent.findMany({ where: { userId, type: 'email_verification' } });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ success: true, tenantId: null });
   });
 });

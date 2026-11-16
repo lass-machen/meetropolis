@@ -308,6 +308,7 @@ afterEach(async () => {
     });
   }
   if (currentUserIds.length) {
+    await prisma.authEvent.deleteMany({ where: { userId: { in: currentUserIds } } });
     await prisma.emailVerification.deleteMany({ where: { userId: { in: currentUserIds } } });
     await prisma.session.deleteMany({ where: { userId: { in: currentUserIds } } });
     await prisma.user.deleteMany({ where: { id: { in: currentUserIds } } });
@@ -620,6 +621,21 @@ describe('bound invites for existing accounts', () => {
     expect(membership).toMatchObject({ role: 'admin' });
     expect(used).toMatchObject({ usedAt: expect.any(Date), usedById: account.id });
     expect(response.headers['set-cookie']).toEqual(expect.arrayContaining([expect.stringContaining('auth_token=')]));
+  });
+
+  it('records an invite_accept auth event for the accepting account and tenant', async () => {
+    const fixture = await createFixture();
+    const email = `event-${crypto.randomUUID()}@example.test`;
+    const account = await createAccount(email, 'Event Invitee');
+    const invite = await createActiveInvite(fixture, email, 'member');
+    await prisma.user.update({ where: { id: account.id }, data: { emailVerifiedAt: new Date() } });
+
+    const response = await acceptInvite(fixture, invite.code, account.id);
+
+    expect(response.status).toBe(200);
+    const events = await prisma.authEvent.findMany({ where: { userId: account.id } });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: 'invite_accept', success: true, tenantId: fixture.tenantId });
   });
 
   it('consumes an invite for an existing member without changing that member role', async () => {
