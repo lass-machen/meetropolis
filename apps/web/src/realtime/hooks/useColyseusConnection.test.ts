@@ -602,7 +602,9 @@ describe('AV suspension on terminal connection errors', () => {
     ['guest expired', [4006, 'guest_expired'], overlayMocks.showGuestExpiredOverlay],
     ['session taken over', [4007, 'session_taken_over'], overlayMocks.showSessionTakenOverOverlay],
     ['auth rejected', [4401, 'unauthorized'], overlayMocks.showAuthExpiredOverlay],
+    ['auth rejected over matchmake', [401, 'tenant_mismatch'], overlayMocks.showAuthExpiredOverlay],
     ['client too old', [4426, 'client_too_old'], overlayMocks.showClientTooOldOverlay],
+    ['client too old over matchmake', [426, 'version_too_old'], overlayMocks.showClientTooOldOverlay],
     ['billing', [4004], overlayMocks.showLimitErrorOverlay],
     ['limit', [4002, 'tenant_limit_reached'], overlayMocks.showLimitErrorOverlay],
   ];

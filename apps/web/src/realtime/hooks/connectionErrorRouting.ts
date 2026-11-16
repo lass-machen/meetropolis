@@ -49,10 +49,12 @@ function classifyTerminalError({ code, reason, text }: ConnectionErrorInfo): Ter
   // H4 hardening: onAuth() rejected the join outright (expired/invalid token, or
   // a bad service token for npc-* identities). Re-login is the only way forward;
   // see rooms/lifecycle/onAuth.ts AUTH_REJECTED_CODE.
-  if (code === 4401 || text === 'unauthorized') return 'auth_rejected';
+  // Matchmaking answers the same refusal with the HTTP status 401.
+  if (code === 4401 || code === 401 || text === 'unauthorized') return 'auth_rejected';
   // H4 hardening: this build's zonePrivacyVersion is below the server's
   // minimum. See rooms/lifecycle/onAuth.ts CLIENT_TOO_OLD_CODE.
-  if (code === 4426 || text === 'client_too_old') return 'client_too_old';
+  // Matchmaking answers it with the HTTP status 426.
+  if (code === 4426 || code === 426 || text === 'client_too_old') return 'client_too_old';
   // Colyseus itself closes clients with 4001 (SERVER_SHUTDOWN), 4002 (WITH_ERROR)
   // and 4003 (FAILED_TO_RECONNECT), e.g. on a graceful shutdown during a deploy.
   // For those codes only the server text identifies a limit or billing error;
