@@ -36,12 +36,18 @@ export function readMailSent(value: unknown): boolean {
   return record(value)?.sent === true;
 }
 
+export type ProofPurpose = 'invite' | 'verify' | 'email_change';
+
+function isProofPurpose(value: unknown): value is ProofPurpose {
+  return value === 'invite' || value === 'verify' || value === 'email_change';
+}
+
 export function readProofResult(
   value: unknown,
 ): { purpose: 'invite' | 'verify' | 'email_change'; tenantSlug: string | null } | null {
   const body = record(value);
   const purpose = body?.purpose;
-  if (body?.ok !== true || (purpose !== 'invite' && purpose !== 'verify' && purpose !== 'email_change')) return null;
+  if (body?.ok !== true || !isProofPurpose(purpose)) return null;
   return { purpose, tenantSlug: typeof body.tenantSlug === 'string' ? body.tenantSlug : null };
 }
 
