@@ -138,6 +138,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.authEvent.deleteMany({ where: { userId: { in: userIds } } });
+  await prisma.passwordReset.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.session.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.membership.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
