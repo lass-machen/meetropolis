@@ -4,13 +4,24 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
-import { requireAuth, requireVerificationAuth, getTenantFromReq, requireMembership, normalizeEmailForStorage } from '../utils/authHelpers.js';
+import {
+  requireAuth,
+  requireVerificationAuth,
+  getTenantFromReq,
+  requireMembership,
+  normalizeEmailForStorage,
+} from '../utils/authHelpers.js';
 import { buildPublicWebLink, requirePublicWebBase } from '../utils/publicLinks.js';
 import { establishSession, revokeSessionByToken } from '../utils/sessionAuth.js';
 import { displayNameSchema, invalidNameBodyFor } from '../utils/displayName.js';
 import { deliveringEmailModule } from '../utils/emailProof.js';
 import { manualConfirmationEnabled } from '../utils/manualConfirmation.js';
-import { beginInviteVerification, pendingInviteForUser, verificationPending, verificationBindingRequired } from '../utils/inviteVerification.js';
+import {
+  beginInviteVerification,
+  pendingInviteForUser,
+  verificationPending,
+  verificationBindingRequired,
+} from '../utils/inviteVerification.js';
 import { isInternalOwner as checkInternalOwner } from '../utils/tenantMembership.js';
 import { hasBillingModule } from '../../billingLoader.js';
 import { hasAdminEnterpriseModule } from '../../adminLoader.js';
@@ -127,7 +138,10 @@ export async function handleAuthRegister(
     return;
   }
   if (!(await deliveringEmailModule()) && !manualConfirmationEnabled()) {
-    res.status(503).json({ code: 'EMAIL_DELIVERY_UNAVAILABLE', error: 'This invitation requires email confirmation. Configure a delivery provider or contact an administrator.' });
+    res.status(503).json({
+      code: 'EMAIL_DELIVERY_UNAVAILABLE',
+      error: 'This invitation requires email confirmation. Configure a delivery provider or contact an administrator.',
+    });
     return;
   }
   if (!requirePublicWebBase(res, 'auth.register')) return;
@@ -147,7 +161,10 @@ export async function handleAuthRegister(
     });
   } catch (e: unknown) {
     if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') {
-      res.status(409).json({ code: 'ACCOUNT_LOGIN_REQUIRED', error: 'An account already exists for this email address. Sign in to accept the invitation.' });
+      res.status(409).json({
+        code: 'ACCOUNT_LOGIN_REQUIRED',
+        error: 'An account already exists for this email address. Sign in to accept the invitation.',
+      });
       return;
     }
     if (e instanceof inviteLifecycle.InviteUnavailableError) {
@@ -254,12 +271,24 @@ async function respondPendingInviteLogin(
   requestedTenant: { id: string } | null | undefined,
 ): Promise<boolean> {
   const pendingInvite = await pendingInviteForUser(prisma, userId, requestedTenant?.id);
-  const marked = requestedTenant ? await prisma.membership.findUnique({
-    where: { tenantId_userId: { tenantId: requestedTenant.id, userId: userId } },
-  }) : null;
+  const marked = requestedTenant
+    ? await prisma.membership.findUnique({
+        where: { tenantId_userId: { tenantId: requestedTenant.id, userId: userId } },
+      })
+    : null;
   if (marked?.inviteVerificationRequired || pendingInvite) {
-    if (!pendingInvite) { verificationBindingRequired(res); return true; }
-    await establishSession({ prisma, req, res, userId: userId, tenantId: pendingInvite.tenantId, verificationOnly: true });
+    if (!pendingInvite) {
+      verificationBindingRequired(res);
+      return true;
+    }
+    await establishSession({
+      prisma,
+      req,
+      res,
+      userId: userId,
+      tenantId: pendingInvite.tenantId,
+      verificationOnly: true,
+    });
     verificationPending(res, await beginInviteVerification(prisma, userId, pendingInvite.id));
     return true;
   }
@@ -279,8 +308,18 @@ async function resolveLoginTenantOrRespond(
     // An existing account without membership needs a session to accept an invitation.
     // The 409 response does not grant tenant access.
     if (tenantResolution.error === 'not_member_of_tenant' && requestedTenant) {
-      await establishSession({ prisma, req, res, userId: userId, tenantId: requestedTenant.id, verificationOnly: true });
-      res.status(409).json({ code: 'INVITE_ACCEPT_REQUIRED', error: 'Open your invitation link to continue with this account. Request a new invitation if it has expired.' });
+      await establishSession({
+        prisma,
+        req,
+        res,
+        userId: userId,
+        tenantId: requestedTenant.id,
+        verificationOnly: true,
+      });
+      res.status(409).json({
+        code: 'INVITE_ACCEPT_REQUIRED',
+        error: 'Open your invitation link to continue with this account. Request a new invitation if it has expired.',
+      });
       return null;
     }
     res.status(tenantResolution.status).json({ error: tenantResolution.error });
@@ -504,7 +543,5 @@ export async function handleAuthMe(prisma: PrismaClient, req: express.Request, r
   }
   const isInternalOwner = await checkInternalOwner(prisma, auth.userId);
   const capabilities = await loadMeCapabilities();
-  res.json(
-    meResponseBody(user, tenant, member, isInternalOwner, capabilities),
-  );
+  res.json(meResponseBody(user, tenant, member, isInternalOwner, capabilities));
 }
