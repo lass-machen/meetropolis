@@ -36,7 +36,9 @@ export const OSS_EXPORT_SPECS: readonly ModelExportSpec[] = [
     delegate: 'membership',
     file: 'db/Membership.json',
     fields: ['id', 'tenantId', 'userId', 'role', 'expiresAt', 'createdAt', 'updatedAt', 'inviteVerificationRequired'],
-    omitted: {},
+    omitted: {
+      lastLoginAt: 'login metadata, covered by the personal export via GET /users/me/export',
+    },
     orderBy: ['id'],
     where: (tenantId: string) => ({ tenantId }),
   },
@@ -51,6 +53,7 @@ export const OSS_EXPORT_SPECS: readonly ModelExportSpec[] = [
       emailVerifiedAt: 'account verification metadata, not part of the tenant export',
       updatedAt: 'internal modification timestamp, not part of the tenant export',
       onboardingCompleted: 'account onboarding flag, not part of the tenant export',
+      lastLoginAt: 'login metadata, covered by the personal export via GET /users/me/export',
     },
     orderBy: ['id'],
     where: (tenantId: string) => ({ memberships: { some: { tenantId } } }),
@@ -359,6 +362,10 @@ export const OSS_EXCLUDED_MODELS: readonly ExcludedModel[] = [
   {
     model: 'Session',
     reason: 'account-wide access material, covered by the personal export via GET /users/me/export',
+  },
+  {
+    model: 'AuthEvent',
+    reason: 'account-wide security log kept for 30 days, covered by the personal export via GET /users/me/export',
   },
   {
     model: 'GuestToken',

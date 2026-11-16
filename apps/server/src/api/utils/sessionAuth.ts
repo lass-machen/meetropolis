@@ -364,11 +364,11 @@ export async function revokeSessionByToken(prisma: PrismaClient, rawToken: strin
   invalidateSessionToken(tokenHash);
 }
 
-function readUserAgent(req: express.Request): string | null {
+export function readUserAgent(req: express.Request): string | null {
   return req.headers['user-agent'] || null;
 }
 
-function readClientIp(req: express.Request): string | null {
+export function readClientIp(req: express.Request): string | null {
   return req.ip || req.headers['x-forwarded-for']?.toString().split(',')[0] || null;
 }
 

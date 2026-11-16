@@ -76,6 +76,7 @@ model Membership {
   updatedAt  DateTime    @updatedAt
   guestToken GuestToken?
   inviteVerificationRequired Boolean @default(false)
+  lastLoginAt DateTime?
 
   @@unique([tenantId, userId])
 }
@@ -101,6 +102,7 @@ model User {
   updatedAt           DateTime            @updatedAt
   onboardingCompleted Boolean             @default(false)
   locale              String              @default("de")
+  lastLoginAt         DateTime?
   presences           Presence[]
   passwordResets      PasswordReset[]
   emailVerifications  EmailVerification[]
@@ -177,6 +179,21 @@ model Session {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model AuthEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  tenantId  String?
+  type      String
+  success   Boolean
+  ipAddress String?
+  userAgent String?
+  emailHmac String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 model Map {
