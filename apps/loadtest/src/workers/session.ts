@@ -37,7 +37,8 @@ export function redactSecrets(text: string): string {
 }
 
 export async function readResponseJson(response: Response): Promise<unknown> {
-  return (await response.json()) as unknown;
+  const body: unknown = await response.json();
+  return body;
 }
 
 export function parseAccounts(raw: string): LoadtestAccount[] {
