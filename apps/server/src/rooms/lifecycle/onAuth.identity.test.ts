@@ -9,6 +9,10 @@ const log = vi.hoisted(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), er
 vi.mock('../../logger.js', () => ({ logger: log }));
 
 const validateTenantSessionFreshMock = vi.fn();
+const verifyAuthJwtMock = vi.fn();
+vi.mock('../../api/utils/authHelpers.js', () => ({
+  verifyAuthJwt: (...args: unknown[]) => verifyAuthJwtMock(...args),
+}));
 vi.mock('../../api/utils/sessionAuth.js', () => ({
   validateTenantSessionFresh: (...args: unknown[]) => validateTenantSessionFreshMock(...args),
 }));
@@ -34,6 +38,8 @@ const tokenless: AuthContext = { headers: new Headers(), ip: '127.0.0.1' };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  verifyAuthJwtMock.mockReset();
+  verifyAuthJwtMock.mockReturnValue({ userId: 'user-real', tenantId: 'tenant-1' });
   process.env = { ...ORIGINAL_ENV };
   process.env.NODE_ENV = 'test';
   delete process.env.ZONE_PRIVACY_AUTH_ENFORCE;

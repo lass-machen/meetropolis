@@ -360,7 +360,7 @@ describe('authenticateWorldJoin: room-tenant enforcement decoupled from H4 flag 
   const fakePrisma = {
     tenant: { findUnique: vi.fn(() => Promise.resolve({ id: 'tenant-a-id', slug: 'auth-a' })) },
     membership: { findUnique: vi.fn(() => Promise.resolve({ expiresAt: null })) },
-  npc: { findUnique: vi.fn(() => Promise.resolve({ id: 'npc-id', identity: 'bob' })) },
+    npc: { findUnique: vi.fn(() => Promise.resolve({ id: 'npc-id', identity: 'bob' })) },
   } as unknown as Parameters<typeof authenticateWorldJoin>[2];
 
   beforeEach(() => {
@@ -431,7 +431,7 @@ describe('authenticateWorldJoin: unresolvable tenant slug fails closed', () => {
   it('rejects with tenant_unresolved when the tenant row is gone', async () => {
     const noTenant = {
       ...prisma,
-      tenant: { findUnique: vi.fn(() => Promise.resolve({ id: 'tenant-1', slug: 'tenant-1' })) },
+      tenant: { findUnique: vi.fn(() => Promise.resolve(null)) },
     } as unknown as WorldJoinPrisma;
     const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=jwt-abc' });

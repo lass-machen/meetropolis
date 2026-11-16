@@ -11,6 +11,10 @@ const log = vi.hoisted(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), er
 vi.mock('../../logger.js', () => ({ logger: log }));
 
 const validateTenantSessionFreshMock = vi.fn();
+const verifyAuthJwtMock = vi.fn();
+vi.mock('../../api/utils/authHelpers.js', () => ({
+  verifyAuthJwt: (...args: unknown[]) => verifyAuthJwtMock(...args),
+}));
 vi.mock('../../api/utils/sessionAuth.js', () => ({
   validateTenantSessionFresh: (...args: unknown[]) => validateTenantSessionFreshMock(...args),
 }));
@@ -56,6 +60,8 @@ beforeEach(() => {
   delete process.env.ZONE_PRIVACY_AUTH_ENFORCE;
   delete process.env.ZONE_PRIVACY_TENANT_ENFORCE;
   validateTenantSessionFreshMock.mockReset();
+  verifyAuthJwtMock.mockReset();
+  verifyAuthJwtMock.mockReturnValue({ userId: 'user-1', tenantId: 'tenant-a-id' });
 });
 
 afterEach(() => {
@@ -134,11 +140,11 @@ describe('onAuth logs stay bounded', () => {
       userId: 'user-1',
       tenantId: 'tenant-a-id',
     });
-    // The mismatch is only admitted, and so only logged, while the room match is explicitly off.
+    // Both the admitted tenant mismatch and the outdated version are logged before the join is refused.
     process.env.ZONE_PRIVACY_TENANT_ENFORCE = 'false';
-    const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: 0 };
 
-    await authenticateWorldJoin(options, context(), prisma);
+    await expect(authenticateWorldJoin(options, context(), prisma)).rejects.toThrow('client_too_old');
 
     expect(logged()).toContain('spoof-b');
     expect(logged()).toContain('"zonePrivacyVersion":0');
