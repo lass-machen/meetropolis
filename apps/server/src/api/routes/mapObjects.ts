@@ -42,8 +42,7 @@ const createObjectSchema = z.object({
   dataUrl: z.string().min(1),
   // Depth-layering (Strang B/C). Optional so pre-change clients keep working;
   // absent -> the schema defaults (collisionBaseHeight 0 = full foot,
-  // renderLayer 'sorted'). A per-object editor override can later reuse these
-  // without a schema change (groundwork only; no update-path override yet).
+  // renderLayer 'sorted'). PATCH reuses the same nonnegative int bounds.
   collisionBaseHeight: z.number().int().nonnegative().optional(),
   renderLayer: z.enum(['floor', 'sorted', 'overhead']).optional(),
 });
@@ -55,6 +54,7 @@ const updateObjectSchema = z.object({
   flipX: z.boolean().optional(),
   flipY: z.boolean().optional(),
   zIndex: z.number().int().optional(),
+  collisionBaseHeight: z.number().int().nonnegative().optional(),
 });
 
 const bulkCreateSchema = z.object({
@@ -266,6 +266,8 @@ async function handleUpdateObject(prisma: PrismaClient, req: express.Request, re
       const positionChanged =
         (updateData.tileX !== undefined && updateData.tileX !== existing.tileX) ||
         (updateData.tileY !== undefined && updateData.tileY !== existing.tileY);
+      const collisionBaseHeightChanged =
+        updateData.collisionBaseHeight !== undefined && updateData.collisionBaseHeight !== existing.collisionBaseHeight;
       const newTileX = updateData.tileX ?? existing.tileX;
       const newTileY = updateData.tileY ?? existing.tileY;
       const updated = await tx.mapObject.update({
@@ -277,7 +279,7 @@ async function handleUpdateObject(prisma: PrismaClient, req: express.Request, re
         },
       });
       const collisionUpdates =
-        existing.collide && positionChanged
+        existing.collide && (positionChanged || collisionBaseHeightChanged)
           ? await reconcileObjectCollision(tx, map.id, dims, [existing, updated])
           : [];
       return { updated, collisionUpdates };

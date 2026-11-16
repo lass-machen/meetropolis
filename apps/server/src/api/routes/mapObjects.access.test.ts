@@ -413,3 +413,49 @@ describe('API tokens reach exactly as far as their owning user', () => {
     expect(prisma.mapObject.create).not.toHaveBeenCalled();
   });
 });
+
+describe('PATCH /maps/:id/objects/:objId: collisionBaseHeight', () => {
+  async function patchHeight(prisma: PrismaClient, body: Record<string, unknown>) {
+    return request(makeApp(prisma))
+      .patch('/maps/map-1/objects/7')
+      .set('Authorization', sessionBearer('lm-user'))
+      .set('X-Tenant', 'lass-machen')
+      .send(body);
+  }
+
+  it('accepts 0 and persists the stored value', async () => {
+    const prisma = makePrisma();
+    const res = await patchHeight(prisma, { collisionBaseHeight: 0 });
+    expect(res.status).toBe(200);
+    expect(prisma.mapObject.update).toHaveBeenCalledWith({
+      where: { id: 7 },
+      data: expect.objectContaining({ collisionBaseHeight: 0 }),
+    });
+    expect(res.body.collisionBaseHeight).toBe(0);
+  });
+
+  it('accepts a positive integer and persists it', async () => {
+    const prisma = makePrisma();
+    const res = await patchHeight(prisma, { collisionBaseHeight: 2 });
+    expect(res.status).toBe(200);
+    expect(prisma.mapObject.update).toHaveBeenCalledWith({
+      where: { id: 7 },
+      data: expect.objectContaining({ collisionBaseHeight: 2 }),
+    });
+    expect(res.body.collisionBaseHeight).toBe(2);
+  });
+
+  it('rejects a negative height and updates nothing', async () => {
+    const prisma = makePrisma();
+    const res = await patchHeight(prisma, { collisionBaseHeight: -1 });
+    expect(res.status).toBe(400);
+    expect(prisma.mapObject.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a fractional height and updates nothing', async () => {
+    const prisma = makePrisma();
+    const res = await patchHeight(prisma, { collisionBaseHeight: 1.5 });
+    expect(res.status).toBe(400);
+    expect(prisma.mapObject.update).not.toHaveBeenCalled();
+  });
+});
