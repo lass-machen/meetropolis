@@ -10,10 +10,15 @@ const serviceDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const authHeader = 'x-npc-secret';
 const validSecret = `test-secret-${'x'.repeat(52)}`;
 const testPortKey = 'NPC_TEST_PORT';
+// Fixed loopback port for the spawned service; override with NPC_TEST_PORT when it is taken.
+const DEFAULT_TEST_PORT = 39731;
 
 function getTestPort(): number {
   const raw = process.env[testPortKey];
-  const port = raw === undefined ? Number.NaN : Number(raw);
+  if (raw === undefined || raw === '') {
+    return DEFAULT_TEST_PORT;
+  }
+  const port = Number(raw);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error(`${testPortKey} must be set to an integer between 1 and 65535`);
   }
