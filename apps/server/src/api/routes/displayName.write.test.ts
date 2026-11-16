@@ -30,11 +30,15 @@ vi.mock('../utils/sessionAuth.js', () => ({
   revokeSessionsForUser: vi.fn(),
 }));
 vi.mock('./auth.verify.js', () => ({ startEmailVerification: vi.fn(() => Promise.resolve()) }));
+vi.mock('../utils/emailProof.js', () => ({
+  issueEmailProof: vi.fn(() => Promise.resolve({ status: 'issued', sent: true })),
+}));
 
 import { handleAuthRegister } from './auth.signin.js';
 import { registerMiscRoutes } from './misc.js';
 import { registerGuestRoutes } from './guests.js';
 import { setAuthResolution } from '../utils/authState.js';
+import { issueEmailProof } from '../utils/emailProof.js';
 import { MAX_DISPLAY_NAME_LENGTH } from '../utils/displayName.js';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 
@@ -172,22 +176,37 @@ describe('PATCH /me', () => {
     expect(updated[0]?.data.name).toBe(name);
   });
 
-  it('leaves the e-mail field as it was: an e-mail alone is stored without touching the name', async () => {
+  it('an e-mail alone starts a confirmed change without touching the name', async () => {
     const { prisma, updated } = makePrisma();
 
     const res = await request(makeApp(prisma)).patch('/me').send({ email: 'new@example.test' });
 
-    expect(res.status).toBe(200);
-    expect(updated[0]?.data).toEqual({ name: undefined, email: 'new@example.test' });
+    expect(res.status).toBe(202);
+    expect(res.body.emailChangePending).toBe(true);
+    expect(res.body.pendingEmail).toBe('new@example.test');
+    expect(res.body.email).toBe('admin@example.test');
+    expect(res.body.name).toBe('Admin');
+    expect(updated).toEqual([]);
+    expect(issueEmailProof).toHaveBeenCalledTimes(1);
+    expect(issueEmailProof).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'email_change', email: 'new@example.test' }),
+    );
   });
 
-  it('treats a null name next to an e-mail as no name, as before', async () => {
+  it('treats a null name next to an e-mail as no name and starts a confirmed change', async () => {
     const { prisma, updated } = makePrisma();
 
     const res = await request(makeApp(prisma)).patch('/me').send({ name: null, email: 'new@example.test' });
 
-    expect(res.status).toBe(200);
-    expect(updated[0]?.data).toEqual({ name: undefined, email: 'new@example.test' });
+    expect(res.status).toBe(202);
+    expect(res.body.emailChangePending).toBe(true);
+    expect(res.body.pendingEmail).toBe('new@example.test');
+    expect(res.body.name).toBe('Admin');
+    expect(updated).toEqual([]);
+    expect(issueEmailProof).toHaveBeenCalledTimes(1);
+    expect(issueEmailProof).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'email_change', email: 'new@example.test' }),
+    );
   });
 
   it('still answers an empty body with nothing to update', async () => {
@@ -249,7 +268,7 @@ describe('PATCH /users/:id', () => {
     const res = await request(makeApp(prisma)).patch(`/users/${CALLER_ID}`).send({ email: 'not-an-email' });
 
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: 'nothing to update' });
+    expect(res.body).toEqual({ error: 'Invalid email address.' });
     expect(updated).toEqual([]);
   });
 });
