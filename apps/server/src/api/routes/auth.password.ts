@@ -100,8 +100,15 @@ async function sendResetMailIfEligible(prisma: PrismaClient, email: string): Pro
 
   let sent = false;
   try {
-    sent = await mail.sendRaw(renderPasswordResetMail({ to: user.email, name: user.name || '',
-      resetUrl, expiresInMinutes: PASSWORD_RESET_TTL_MINUTES, locale }));
+    sent = await mail.sendRaw(
+      renderPasswordResetMail({
+        to: user.email,
+        name: user.name || '',
+        resetUrl,
+        expiresInMinutes: PASSWORD_RESET_TTL_MINUTES,
+        locale,
+      }),
+    );
   } catch {
     logger.warn({ event: 'auth.forgot.email_failed', userId: user.id });
   }
