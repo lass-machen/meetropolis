@@ -428,7 +428,8 @@ The mail loader resolves a single active provider at server boot:
 
 Self-hosting needs a mail provider to admit new users. Without
 `SMTP_HOST` and `SMTP_FROM` (and without the enterprise mail module) the
-server cannot confirm or register new accounts:
+server cannot confirm or register new accounts, except through
+[manual account confirmation](#manual-account-confirmation):
 
 - `POST /auth/verify/request` answers `503 EMAIL_DELIVERY_UNAVAILABLE`.
 - `POST /auth/register` with an invitation code answers
@@ -449,6 +450,27 @@ What still works without mail:
   `POST /admin/users/:id/reset-token`; the response contains the link.
   For tenant admins the same route answers
   `503 EMAIL_DELIVERY_UNAVAILABLE` without a mail provider.
+
+#### Manual account confirmation
+
+When no mail provider is configured (no `SMTP_HOST` with `SMTP_FROM` and
+no enterprise mail module), setting `MANUAL_ACCOUNT_CONFIRMATION=true`
+lets a super admin confirm new accounts by hand. The switch has no effect
+while a delivering mail route exists: with SMTP or the enterprise mail
+module configured, email proof always applies, even when sending fails.
+
+With the switch active, registration with an invitation code and
+acceptance of an invitation by an unconfirmed account create a pending
+confirmation instead of answering `503 EMAIL_DELIVERY_UNAVAILABLE`. Until
+confirmation the account has no access and no membership.
+
+Only a super admin (an owner of the internal tenant) can confirm: in the
+admin overlay or with `GET /admin/pending-confirmations` and
+`POST /admin/users/:id/confirm-email`. A pending confirmation expires
+after 7 days, or earlier when the invitation itself expires; afterwards
+the person needs a new invitation. Check the identity and the address of
+the person through another channel before confirming. Confirmation sets `emailVerifiedAt`, and the server logs record
+the confirmation with the account identifiers of the admin and the person.
 
 ### Recommended providers
 

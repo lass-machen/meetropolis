@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Self-hosting without a mail provider: with `MANUAL_ACCOUNT_CONFIRMATION=true` a super admin can confirm pending accounts by hand (`GET /admin/pending-confirmations`, `POST /admin/users/:id/confirm-email`); pending confirmations expire after 7 days.
+
 ### Changed
 
 - **Breaking (enterprise integration):** The tenant deletion callback in
