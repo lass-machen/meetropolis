@@ -22,10 +22,7 @@ function isScalarKind(kind: string): boolean {
 }
 
 function isForbiddenExport(model: string, field: string): boolean {
-  return (
-    SENSITIVE_FIELD_PATTERN.test(field) &&
-    !ALLOWED_SENSITIVE_FIELDS.includes(`${model}.${field}`)
-  );
+  return SENSITIVE_FIELD_PATTERN.test(field) && !ALLOWED_SENSITIVE_FIELDS.includes(`${model}.${field}`);
 }
 
 export function findSpecProblems(
@@ -54,19 +51,13 @@ export function findSpecProblems(
       const exported = exportedNames.has(field.name);
       const omitted = omittedNames.has(field.name);
       if (!exported && !omitted) {
-        problems.push(
-          `model ${model.name}: scalar field ${field.name} is neither exported nor omitted`,
-        );
+        problems.push(`model ${model.name}: scalar field ${field.name} is neither exported nor omitted`);
       }
       if (exported && omitted) {
-        problems.push(
-          `model ${model.name}: field ${field.name} is both exported and omitted`,
-        );
+        problems.push(`model ${model.name}: field ${field.name} is both exported and omitted`);
       }
       if (exported && isForbiddenExport(model.name, field.name)) {
-        problems.push(
-          `model ${model.name}: field ${field.name} looks like secret material`,
-        );
+        problems.push(`model ${model.name}: field ${field.name} looks like secret material`);
       }
     }
     const knownNames = new Set(model.fields.map((field) => field.name));
@@ -97,8 +88,6 @@ export function assertSpecsSafe(specs: readonly ModelExportSpec[]): void {
     }
   }
   if (violations.length > 0) {
-    throw new Error(
-      `unsafe tenant export spec, forbidden fields exported: ${violations.join(', ')}`,
-    );
+    throw new Error(`unsafe tenant export spec, forbidden fields exported: ${violations.join(', ')}`);
   }
 }

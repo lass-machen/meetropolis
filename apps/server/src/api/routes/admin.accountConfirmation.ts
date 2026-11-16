@@ -47,24 +47,26 @@ async function handlePendingConfirmations(
     take: 200,
     include: { user: true, invite: { include: { tenant: true } } },
   });
-  const pending = proofs.flatMap((proof) => proof.invite ? [{
-    userId: proof.userId,
-    email: proof.user.email,
-    name: proof.user.name,
-    tenantId: proof.invite.tenantId,
-    tenantName: proof.invite.tenant.name,
-    role: proof.invite.role,
-    requestedAt: proof.createdAt.toISOString(),
-    expiresAt: proof.expiresAt.toISOString(),
-  }] : []);
+  const pending = proofs.flatMap((proof) =>
+    proof.invite
+      ? [
+          {
+            userId: proof.userId,
+            email: proof.user.email,
+            name: proof.user.name,
+            tenantId: proof.invite.tenantId,
+            tenantName: proof.invite.tenant.name,
+            role: proof.invite.role,
+            requestedAt: proof.createdAt.toISOString(),
+            expiresAt: proof.expiresAt.toISOString(),
+          },
+        ]
+      : [],
+  );
   res.json({ pending });
 }
 
-async function handleConfirmEmail(
-  prisma: PrismaClient,
-  req: express.Request,
-  res: express.Response,
-): Promise<void> {
+async function handleConfirmEmail(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const parse = paramsSchema.safeParse(req.params);
   if (!parse.success) {
     res.status(400).json({ error: 'invalid_user_id' });

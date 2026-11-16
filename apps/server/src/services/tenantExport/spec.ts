@@ -346,23 +346,19 @@ export const OSS_EXPORT_SPECS: readonly ModelExportSpec[] = [
 export const OSS_EXCLUDED_MODELS: readonly ExcludedModel[] = [
   {
     model: 'PasswordReset',
-    reason:
-      'account-wide access material, covered by the personal export via GET /users/me/export',
+    reason: 'account-wide access material, covered by the personal export via GET /users/me/export',
   },
   {
     model: 'EmailVerification',
-    reason:
-      'account-wide access material, covered by the personal export via GET /users/me/export',
+    reason: 'account-wide access material, covered by the personal export via GET /users/me/export',
   },
   {
     model: 'ApiToken',
-    reason:
-      'account-wide access material, covered by the personal export via GET /users/me/export',
+    reason: 'account-wide access material, covered by the personal export via GET /users/me/export',
   },
   {
     model: 'Session',
-    reason:
-      'account-wide access material, covered by the personal export via GET /users/me/export',
+    reason: 'account-wide access material, covered by the personal export via GET /users/me/export',
   },
   {
     model: 'GuestToken',

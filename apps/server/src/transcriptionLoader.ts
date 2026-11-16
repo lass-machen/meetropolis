@@ -113,8 +113,7 @@ export function toTranscriptionModule(mod: z.infer<typeof transcriptionModuleSch
     isTenantTranscriptionActive: mod.isTenantTranscriptionActive as TranscriptionModule['isTenantTranscriptionActive'],
     revokeOAuthRefreshTokensAfterRestore:
       mod.revokeOAuthRefreshTokensAfterRestore as TranscriptionModule['revokeOAuthRefreshTokensAfterRestore'],
-    exportTenantTranscripts:
-      mod.exportTenantTranscripts as TranscriptionModule['exportTenantTranscripts'],
+    exportTenantTranscripts: mod.exportTenantTranscripts as TranscriptionModule['exportTenantTranscripts'],
     setupRoutes: mod.setupRoutes as TranscriptionModule['setupRoutes'],
   };
 }

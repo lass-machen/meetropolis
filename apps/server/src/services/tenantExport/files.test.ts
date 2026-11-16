@@ -4,13 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { createExportSink, TenantExportError } from './sink.js';
-import {
-  collectTenantFiles,
-  copyPlannedFiles,
-  planTenantFiles,
-  type FileRoots,
-  type TenantFileRows,
-} from './files.js';
+import { collectTenantFiles, copyPlannedFiles, planTenantFiles, type FileRoots, type TenantFileRows } from './files.js';
 
 const PACK_UUID = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
 const AVATAR_UUID = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
@@ -178,7 +172,10 @@ describe('copyPlannedFiles', () => {
     };
     const outDir = await makeTmpDir();
     const { sink } = createExportSink(outDir);
-    await copyPlannedFiles(planTenantFiles(rows, roots, 'acme', () => true), sink);
+    await copyPlannedFiles(
+      planTenantFiles(rows, roots, 'acme', () => true),
+      sink,
+    );
 
     expect(await listRelative(path.join(outDir, 'files', 'packs', PACK_UUID))).toEqual([
       'pack.json',
@@ -201,7 +198,10 @@ describe('copyPlannedFiles', () => {
       npcMediaPaths: [],
       tilesetImageUrls: [],
     };
-    await copyPlannedFiles(planTenantFiles(rows, roots, 'acme', () => true), sink);
+    await copyPlannedFiles(
+      planTenantFiles(rows, roots, 'acme', () => true),
+      sink,
+    );
     const totals = await finalize({
       exportedAt: new Date(0).toISOString(),
       tenant: { id: 't', slug: 'acme', name: 'Acme' },
@@ -231,7 +231,10 @@ describe('copyPlannedFiles', () => {
     };
     const outDir = await makeTmpDir();
     const { sink } = createExportSink(outDir);
-    await copyPlannedFiles(planTenantFiles(rows, roots, 'acme', () => true), sink);
+    await copyPlannedFiles(
+      planTenantFiles(rows, roots, 'acme', () => true),
+      sink,
+    );
 
     expect(await listRelative(path.join(outDir, 'files', 'packs', PACK_UUID))).toEqual(['real.txt']);
   });

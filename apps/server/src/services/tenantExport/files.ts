@@ -75,7 +75,12 @@ function assertInside(root: string, resolved: string): void {
 }
 
 /** Plans one directory copy below `root`, keyed by a single validated segment. */
-function planDir(dirs: Map<string, { relDir: string; sourceDir: string }>, root: string, relDir: string, sourceDir: string): void {
+function planDir(
+  dirs: Map<string, { relDir: string; sourceDir: string }>,
+  root: string,
+  relDir: string,
+  sourceDir: string,
+): void {
   assertInside(root, sourceDir);
   if (!dirs.has(relDir)) {
     dirs.set(relDir, { relDir, sourceDir });
@@ -83,7 +88,12 @@ function planDir(dirs: Map<string, { relDir: string; sourceDir: string }>, root:
 }
 
 /** Plans one file copy below `root`. */
-function planFile(files: Map<string, { relPath: string; source: string }>, root: string, relPath: string, source: string): void {
+function planFile(
+  files: Map<string, { relPath: string; source: string }>,
+  root: string,
+  relPath: string,
+  source: string,
+): void {
   assertInside(root, source);
   if (!files.has(relPath)) {
     files.set(relPath, { relPath, source });

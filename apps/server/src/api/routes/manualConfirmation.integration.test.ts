@@ -117,10 +117,7 @@ describe('manual account confirmation without a mail provider', () => {
 
   it('case 2: a waiting account is denied tenant routes, world access and reports admin pending', async () => {
     const value = await pendingRegistration('member');
-    const users = await request(app)
-      .get('/users')
-      .set('X-Tenant', value.tenant.slug)
-      .set('Cookie', value.cookie);
+    const users = await request(app).get('/users').set('X-Tenant', value.tenant.slug).set('Cookie', value.cookie);
     expect(users.status).toBe(403);
     const full = await fixture.session(value.user.id, value.tenant.id);
     expect((await validateTenantSessionFresh(fixture.prisma, full.token, value.tenant.id)).status).toBe('forbidden');
@@ -184,9 +181,7 @@ describe('manual account confirmation without a mail provider', () => {
     expect(accepted.status).toBe(409);
     expect(accepted.body.code).toBe('EMAIL_VERIFICATION_REQUIRED');
     expect(accepted.body.delivery).toBe('admin');
-    expect(
-      await fixture.prisma.membership.count({ where: { userId: caller.id, tenantId: target.tenant.id } }),
-    ).toBe(0);
+    expect(await fixture.prisma.membership.count({ where: { userId: caller.id, tenantId: target.tenant.id } })).toBe(0);
     expect((await confirmAsSuperAdmin(caller.id)).status).toBe(200);
     const membership = await fixture.prisma.membership.findUniqueOrThrow({
       where: { tenantId_userId: { tenantId: target.tenant.id, userId: caller.id } },
@@ -246,7 +241,9 @@ describe('manual account confirmation without a mail provider', () => {
     const invalid = await confirmAsSuperAdmin('not-a-user-id');
     expect(invalid.status).toBe(404);
     expect(invalid.body).toEqual({ error: 'user_not_found' });
-    expect((await fixture.prisma.user.findUniqueOrThrow({ where: { id: verified.id } })).emailVerifiedAt).not.toBeNull();
+    expect(
+      (await fixture.prisma.user.findUniqueOrThrow({ where: { id: verified.id } })).emailVerifiedAt,
+    ).not.toBeNull();
     expect((await fixture.prisma.user.findUniqueOrThrow({ where: { id: unverified.id } })).emailVerifiedAt).toBeNull();
   });
 
@@ -259,9 +256,7 @@ describe('manual account confirmation without a mail provider', () => {
       .set('X-Tenant', 'internal')
       .set('Authorization', `Bearer ${admin.session}`);
     expect(list.status).toBe(200);
-    const entry = (list.body.pending as Array<Record<string, unknown>>).find(
-      (item) => item.userId === value.user.id,
-    );
+    const entry = (list.body.pending as Array<Record<string, unknown>>).find((item) => item.userId === value.user.id);
     expect(entry).toMatchObject({
       userId: value.user.id,
       email: value.user.email,
@@ -402,9 +397,9 @@ describe('manual account confirmation without a mail provider', () => {
       .set('X-Tenant', 'internal')
       .set('Authorization', `Bearer ${admin.session}`);
     expect(list.status).toBe(200);
-    expect(
-      (list.body.pending as Array<Record<string, unknown>>).some((item) => item.userId === value.user.id),
-    ).toBe(false);
+    expect((list.body.pending as Array<Record<string, unknown>>).some((item) => item.userId === value.user.id)).toBe(
+      false,
+    );
     const confirmed = await confirmAsSuperAdmin(value.user.id);
     expect(confirmed.status).toBe(409);
     expect(confirmed.body).toEqual({ code: 'NO_PENDING_CONFIRMATION' });

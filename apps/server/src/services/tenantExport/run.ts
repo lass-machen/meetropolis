@@ -46,9 +46,7 @@ export async function loadEnterpriseExportHooks(): Promise<EnterpriseExportHooks
       managedExport === undefined ? undefined : (config, tenantId, sink) => managedExport(config, tenantId, sink),
     transcriptionLoaded: transcription !== null,
     exportTenantTranscripts:
-      transcriptExport === undefined
-        ? undefined
-        : (config, tenantId, sink) => transcriptExport(config, tenantId, sink),
+      transcriptExport === undefined ? undefined : (config, tenantId, sink) => transcriptExport(config, tenantId, sink),
   };
 }
 

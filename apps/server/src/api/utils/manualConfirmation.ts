@@ -40,12 +40,17 @@ export async function requestAdminConfirmation(
       orderBy: { createdAt: 'desc' },
     });
     if (existing) return { status: 'admin_pending' as const };
-    await tx.emailVerification.create({ data: {
-      token: hashEmailProof(crypto.randomBytes(32).toString('hex')),
-      userId, purpose: ADMIN_CONFIRMATION_PURPOSE, inviteId,
-      email: normalizeEmailForStorage(user.email), sourceEmail: user.email,
-      expiresAt: new Date(Date.now() + ADMIN_CONFIRMATION_TTL_MS),
-    } });
+    await tx.emailVerification.create({
+      data: {
+        token: hashEmailProof(crypto.randomBytes(32).toString('hex')),
+        userId,
+        purpose: ADMIN_CONFIRMATION_PURPOSE,
+        inviteId,
+        email: normalizeEmailForStorage(user.email),
+        sourceEmail: user.email,
+        expiresAt: new Date(Date.now() + ADMIN_CONFIRMATION_TTL_MS),
+      },
+    });
     return { status: 'admin_pending' as const };
   });
 }
@@ -63,7 +68,12 @@ export async function confirmAccountByAdmin(
       if (!user) return 'user_not_found' as const;
       if (user.emailVerifiedAt) return 'already_verified' as const;
       const proof = await tx.emailVerification.findFirst({
-        where: { userId: targetUserId, purpose: ADMIN_CONFIRMATION_PURPOSE, usedAt: null, expiresAt: { gt: new Date() } },
+        where: {
+          userId: targetUserId,
+          purpose: ADMIN_CONFIRMATION_PURPOSE,
+          usedAt: null,
+          expiresAt: { gt: new Date() },
+        },
         orderBy: { createdAt: 'desc' },
       });
       if (!proof) return 'no_pending' as const;
