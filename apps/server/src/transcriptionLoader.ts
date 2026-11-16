@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import type { PrismaClient } from './generated/prisma/index.js';
 import type { requireApiToken, requireAuth, requireMembership } from './api/utils/authHelpers.js';
 import type { resolveTenantBySlug } from './tenancy.js';
+import type { EnterpriseExportResult, TenantExportSink } from './services/tenantExport/types.js';
 import { logger } from './logger.js';
 import { z } from 'zod';
 
@@ -57,6 +58,17 @@ export interface TranscriptionModule {
    * and returns how many were revoked. Absent in transcription builds without it.
    */
   revokeOAuthRefreshTokensAfterRestore?(prisma: PrismaClient, now: Date): Promise<number>;
+  /**
+   * Optional: exports the transcription tables of one tenant into the sink.
+   * Absent in transcription builds without it; then the operator tenant
+   * export aborts with `enterprise_export_unavailable`. Declared as a
+   * property so passing it on never loses its receiver.
+   */
+  exportTenantTranscripts?: (
+    config: { prisma: PrismaClient },
+    tenantId: string,
+    sink: TenantExportSink,
+  ) => Promise<EnterpriseExportResult>;
   setupRoutes(app: Express, deps: TranscriptionRouteDeps): void;
 }
 
@@ -69,6 +81,8 @@ export const transcriptionModuleSchema = z.object({
   isTenantTranscriptionActive: z.function().optional(),
   // Optional: absent in transcription builds without OAuth restore revocation.
   revokeOAuthRefreshTokensAfterRestore: z.function().optional(),
+  // Optional: absent in transcription builds without tenant export.
+  exportTenantTranscripts: z.function().optional(),
   setupRoutes: z.function(),
 });
 
@@ -99,6 +113,8 @@ export function toTranscriptionModule(mod: z.infer<typeof transcriptionModuleSch
     isTenantTranscriptionActive: mod.isTenantTranscriptionActive as TranscriptionModule['isTenantTranscriptionActive'],
     revokeOAuthRefreshTokensAfterRestore:
       mod.revokeOAuthRefreshTokensAfterRestore as TranscriptionModule['revokeOAuthRefreshTokensAfterRestore'],
+    exportTenantTranscripts:
+      mod.exportTenantTranscripts as TranscriptionModule['exportTenantTranscripts'],
     setupRoutes: mod.setupRoutes as TranscriptionModule['setupRoutes'],
   };
 }

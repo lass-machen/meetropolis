@@ -7,6 +7,7 @@ import type {
   TenantDeletionPreparationContext,
   TenantDeletionTaskPlan,
 } from './services/tenantDeletionContract.js';
+import type { EnterpriseExportResult, TenantExportSink } from './services/tenantExport/types.js';
 import {
   TENANT_DELETION_PROTOCOL,
   TenantDeletionContractError,
@@ -252,6 +253,18 @@ export interface AdminEnterpriseModule {
    * serve again; empty when none is open. Optional like deleteManagedTenant.
    */
   pendingRestorePreconditions?(): string[];
+
+  /**
+   * Exports the enterprise-owned tables of one tenant into the sink. Used by
+   * the operator tenant export. Optional: older enterprise builds do not
+   * export it, and then the export aborts with `enterprise_export_unavailable`.
+   * Declared as a property so passing it on never loses its receiver.
+   */
+  exportManagedTenant?: (
+    config: { prisma: PrismaClient },
+    tenantId: string,
+    sink: TenantExportSink,
+  ) => Promise<EnterpriseExportResult>;
 }
 
 export const adminEnterpriseSchema = z.object({
@@ -268,6 +281,8 @@ export const adminEnterpriseSchema = z.object({
   // Optional: restore replay hooks, absent in older enterprise builds.
   deleteManagedTenant: z.function().optional(),
   pendingRestorePreconditions: z.function().optional(),
+  // Optional: tenant export hook, absent in older enterprise builds.
+  exportManagedTenant: z.function().optional(),
 });
 
 let cached: AdminEnterpriseModule | null = null;
@@ -317,6 +332,7 @@ export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule 
       deleteManagedTenant: mod.deleteManagedTenant as AdminEnterpriseModule['deleteManagedTenant'],
       pendingRestorePreconditions:
         mod.pendingRestorePreconditions as AdminEnterpriseModule['pendingRestorePreconditions'],
+      exportManagedTenant: mod.exportManagedTenant as AdminEnterpriseModule['exportManagedTenant'],
     };
 
     logger.info({ event: 'admin.enterprise_loaded', version: EXPECTED_ADMIN_MODULE_VERSION });
