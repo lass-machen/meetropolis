@@ -127,8 +127,8 @@ function describe(intent: UndecidedReplayIntent): string {
   return `  key=${intent.key} tenant=${intent.tenantRef} at=${intent.at} exists=${exists}`;
 }
 
-async function missingDeletePath(): Promise<void> {
-  throw new ReplayDeletePathMissingError();
+function missingDeletePath(): Promise<void> {
+  return Promise.reject(new ReplayDeletePathMissingError());
 }
 
 async function readMarker(journalDir: string): Promise<RestorePendingMarker | null | 'unreadable'> {

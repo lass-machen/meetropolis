@@ -54,7 +54,7 @@ function managedDeleter(
   journalDir: string,
   admin: AdminModule | null,
 ): ((tenantId: string) => Promise<void>) | undefined {
-  const deleteManagedTenant = admin?.deleteManagedTenant;
+  const deleteManagedTenant = admin?.deleteManagedTenant?.bind(admin);
   if (!deleteManagedTenant) return undefined;
   let resolver: ReturnType<typeof createJournalPlanResolver> | undefined;
   const config: Parameters<typeof deleteManagedTenant>[0] = {
@@ -134,7 +134,7 @@ async function main(): Promise<void> {
       decisions,
       deleteTenant: managedDeleter(prisma, journalDir, admin),
       deleteAccount: (userId) => deleteAccount(prisma, userId),
-      pendingPreconditions: async () => admin?.pendingRestorePreconditions?.() ?? [],
+      pendingPreconditions: () => Promise.resolve(admin?.pendingRestorePreconditions?.() ?? []),
       oauthRefreshRevocation: await oauthRevocation(prisma),
     });
     for (const line of result.lines) console.log(line);

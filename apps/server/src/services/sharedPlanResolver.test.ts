@@ -5,9 +5,9 @@ describe('createSharedPlanResolver', () => {
   it('creates the resolver once, also for concurrent first calls, and returns the same instance', async () => {
     let created = 0;
     const shared = createSharedPlanResolver(
-      async (dir: string) => {
+      (dir: string) => {
         created += 1;
-        return { dir };
+        return Promise.resolve({ dir });
       },
       () => undefined,
     );
@@ -21,9 +21,9 @@ describe('createSharedPlanResolver', () => {
   it('refuses a second, different journal directory', async () => {
     let created = 0;
     const shared = createSharedPlanResolver(
-      async (dir: string) => {
+      (dir: string) => {
         created += 1;
-        return { dir };
+        return Promise.resolve({ dir });
       },
       () => undefined,
     );
@@ -37,10 +37,10 @@ describe('createSharedPlanResolver', () => {
     let attempts = 0;
     const errors: unknown[] = [];
     const shared = createSharedPlanResolver(
-      async (dir: string) => {
+      (dir: string) => {
         attempts += 1;
-        if (attempts === 1) throw new Error('journal unavailable');
-        return { dir };
+        if (attempts === 1) return Promise.reject(new Error('journal unavailable'));
+        return Promise.resolve({ dir });
       },
       (error) => errors.push(error),
     );

@@ -69,8 +69,8 @@ function accountPlanResolver(): AccountJournalResolver {
 }
 
 /** No test in this file expects a tenant deletion, so the callback fails if one is attempted. */
-async function refuseTenantDeletion(): Promise<void> {
-  throw new Error('tenant deletion is not expected in this test');
+function refuseTenantDeletion(): Promise<void> {
+  return Promise.reject(new Error('tenant deletion is not expected in this test'));
 }
 
 async function createTenant(): Promise<string> {

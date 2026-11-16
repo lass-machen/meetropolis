@@ -70,7 +70,7 @@ const oauthCases: OAuthCase[] = [
   },
   {
     label: 'revocation available',
-    revocation: { kind: 'available', revoke: async () => 3 },
+    revocation: { kind: 'available', revoke: () => Promise.resolve(3) },
     exitCode: REPLAY_EXIT.done,
     markerKept: false,
     expectedLine: 'oauth refresh tokens revoked: 3',
@@ -120,7 +120,7 @@ function runOptions(journalDir: string, revocation: OAuthRefreshRevocation): Res
     journalDir,
     decisions: new Map(),
     deleteTenant: undefined,
-    pendingPreconditions: async () => [],
+    pendingPreconditions: () => Promise.resolve([]),
     oauthRefreshRevocation: revocation,
   };
 }
