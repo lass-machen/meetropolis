@@ -332,12 +332,19 @@ describe('collision reconciliation through map routes', () => {
       objects: [{ ...TALL_OBJECT }],
       collisionValues: [1, 0, 1, 0],
     });
+    const app = appFor(state.prisma);
 
-    const response = await request(appFor(state.prisma)).patch('/maps/map/objects/1').send({ collisionBaseHeight: 1 });
+    const response = await request(app).patch('/maps/map/objects/1').send({ collisionBaseHeight: 1 });
 
     expect(response.status).toBe(200);
     expect(response.body.collisionBaseHeight).toBe(1);
     expect(collisionCells(state)).toEqual([false, false, true, false]);
+
+    const restore = await request(app).patch('/maps/map/objects/1').send({ collisionBaseHeight: 0 });
+
+    expect(restore.status).toBe(200);
+    expect(restore.body.collisionBaseHeight).toBe(0);
+    expect(collisionCells(state)).toEqual([true, false, true, false]);
   });
 
   it('keeps hand-painted collision solid when shrinking collisionBaseHeight', async () => {
