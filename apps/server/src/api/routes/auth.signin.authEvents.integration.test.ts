@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Tenant } from '../../generated/prisma/index.js';
@@ -51,6 +52,8 @@ beforeAll(async () => {
   user = { id: created.id, email: created.email };
 
   app = express();
+  // Same order as the server entry: cookies are parsed before the session middleware reads them.
+  app.use(cookieParser());
   app.use(express.json());
   app.use((req, _res, next) => {
     void resolveTenantBySlug(prisma, req)
