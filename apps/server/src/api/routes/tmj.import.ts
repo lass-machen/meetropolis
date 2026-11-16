@@ -53,11 +53,16 @@ function computeTileCount(t: {
   return columns * rows;
 }
 
+/** Directory where imported tileset images are stored; shared with the tenant export. */
+export function importedTilesetsDir(): string {
+  return path.resolve(__dirname, '../../../../public/assets/tilesets');
+}
+
 function saveTilesetImage(images: MulterFile[], tilesetImage: string): string | null {
   const baseName = path.basename(tilesetImage);
   const file = images.find((candidate) => candidate.originalname === baseName);
   if (!file) return null;
-  const tilesetsDir = path.resolve(__dirname, '../../../../public/assets/tilesets');
+  const tilesetsDir = importedTilesetsDir();
   if (!fs.existsSync(tilesetsDir)) fs.mkdirSync(tilesetsDir, { recursive: true });
   fs.writeFileSync(path.join(tilesetsDir, baseName), file.buffer);
   return `/assets/tilesets/${baseName}`;
