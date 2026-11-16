@@ -25,6 +25,7 @@ import { deliveringEmailModule, lockEmailAccount } from '../utils/emailProof.js'
 import { manualConfirmationEnabled } from '../utils/manualConfirmation.js';
 import { beginInviteVerification, verificationPending } from '../utils/inviteVerification.js';
 import { establishSession } from '../utils/sessionAuth.js';
+import { recordAuthEvent } from '../../services/authEvents.js';
 import { buildSigninResponseBody, isNativeClientRequest } from './auth.helpers.js';
 
 const inviteCodeSchema = z.object({ code: z.string().min(4) });
@@ -232,6 +233,13 @@ async function handleAcceptInvite(prisma: PrismaClient, req: express.Request, re
       return;
     }
     const session = await establishSession({ prisma, req, res, userId: user.id, tenantId: invite.tenantId });
+    await recordAuthEvent(prisma, {
+      type: 'invite_accept',
+      success: true,
+      userId: user.id,
+      tenantId: invite.tenantId,
+      req,
+    });
     res.json({ ...buildSigninResponseBody(user, session.token, isNativeClientRequest(req)), alreadyMember });
   } catch (error: unknown) {
     if (error instanceof InviteUnavailableError) {

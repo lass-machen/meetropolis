@@ -16,6 +16,7 @@ import { getRequestToken } from './auth.helpers.js';
 import { buildPublicWebLink, publicWebBase } from '../utils/publicLinks.js';
 import { deliveringEmailModule } from '../utils/emailProof.js';
 import { resolveLocale, readEnvDefaultLocale } from '../../email/localeResolver.js';
+import { recordAuthEvent } from '../../services/authEvents.js';
 
 const forgotSchema = z.object({ email: z.string().email() });
 
@@ -157,6 +158,7 @@ export async function handleAuthReset(
 
   const revokedCount = await revokeSessionsForUser(prisma, claim.userId);
   logger.info({ event: 'auth.reset.completed', userId: claim.userId, revokedCount });
+  await recordAuthEvent(prisma, { type: 'password_reset', success: true, userId: claim.userId, req });
 
   res.json({ ok: true });
 }

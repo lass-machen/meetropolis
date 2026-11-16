@@ -3,7 +3,14 @@ import type { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { requireVerificationAuth } from '../utils/authHelpers.js';
 import { getDeniedTenant } from '../utils/tenantAccessState.js';
-import { completeEmailProof, EmailProofInvalid, issueEmailProof, type EmailProofOutcome } from '../utils/emailProof.js';
+import {
+  completeEmailProof,
+  EmailProofInvalid,
+  hashEmailProof,
+  issueEmailProof,
+  type EmailProofOutcome,
+} from '../utils/emailProof.js';
+import { recordAuthEvent } from '../../services/authEvents.js';
 import { pendingInviteForUser, verificationBindingRequired } from '../utils/inviteVerification.js';
 import { ADMIN_CONFIRMATION_PURPOSE } from '../utils/manualConfirmation.js';
 
@@ -92,6 +99,13 @@ export async function handleVerifyToken(
   }
   try {
     const result = await completeEmailProof(prisma, parsed.data.token);
+    // completeEmailProof returns no user id, so resolve it from the consumed
+    // proof row: the token hash is unique and the row survives consumption.
+    // A failed lookup must not turn the completed verification into an error.
+    const proof = await prisma.emailVerification
+      .findUnique({ where: { token: hashEmailProof(parsed.data.token) }, select: { userId: true } })
+      .catch(() => null);
+    await recordAuthEvent(prisma, { type: 'email_verification', success: true, userId: proof?.userId ?? null, req });
     res.json({ ok: true, ...result });
   } catch (error: unknown) {
     if (
