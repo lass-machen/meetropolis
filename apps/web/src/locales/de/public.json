@@ -370,6 +370,7 @@
       "cooldown": "Bitte warte noch {{seconds}} Sekunden, bevor du erneut eine Mail anforderst.",
       "failed": "Die Mail konnte nicht zugestellt werden. Bitte wende dich an die Administration.",
       "loginRequired": "Bitte melde dich erneut an, um eine Bestätigungsmail anzufordern.",
+      "adminPending": "Dein Konto wartet auf die Bestätigung durch eine Administratorin oder einen Administrator.",
       "resend": "Bestätigungsmail erneut anfordern",
       "login": "Zur Anmeldung",
       "check": "Bestätigung prüfen"

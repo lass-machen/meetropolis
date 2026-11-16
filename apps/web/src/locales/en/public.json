@@ -370,6 +370,7 @@
       "cooldown": "Please wait {{seconds}} seconds before requesting another email.",
       "failed": "The email could not be delivered. Please contact your administrator.",
       "loginRequired": "Please sign in again to request a confirmation email.",
+      "adminPending": "Your account is waiting for confirmation by an administrator.",
       "resend": "Request another confirmation email",
       "login": "Back to sign in",
       "check": "Check confirmation"

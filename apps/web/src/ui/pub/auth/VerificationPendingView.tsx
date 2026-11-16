@@ -13,13 +13,15 @@ export function VerificationPendingView({ apiBase }: { apiBase: string }) {
     <p role="status">
       {request.errorMessage ?? t(`auth.emailProof.${request.state}`, { seconds: request.retryAfter })}
     </p>
-    <PubButton
-      variant="primary"
-      disabled={request.state === 'sending' || request.state === 'cooldown'}
-      onClick={() => { void request.resend(); }}
-    >
-      {t('auth.emailProof.resend')}
-    </PubButton>
+    {request.state !== 'adminPending' && (
+      <PubButton
+        variant="primary"
+        disabled={request.state === 'sending' || request.state === 'cooldown'}
+        onClick={() => { void request.resend(); }}
+      >
+        {t('auth.emailProof.resend')}
+      </PubButton>
+    )}
     <PubButton
       variant="secondary"
       onClick={() => {

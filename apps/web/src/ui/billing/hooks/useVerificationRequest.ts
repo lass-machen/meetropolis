@@ -4,7 +4,9 @@ import { AccountActionError, readMailSent, readVerificationDelivery } from '../.
 
 export function useVerificationRequest(apiBase: string, inspectStatus = false) {
   const { post } = useAuthApi(apiBase);
-  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'cooldown' | 'failed' | 'loginRequired'>('idle');
+  const [state, setState] = useState<
+    'idle' | 'sending' | 'sent' | 'cooldown' | 'failed' | 'loginRequired' | 'adminPending'
+  >('idle');
   const actionVersion = useRef(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryAfter, setRetryAfter] = useState(0);
@@ -19,7 +21,15 @@ export function useVerificationRequest(apiBase: string, inspectStatus = false) {
           setState('loginRequired');
           return;
         }
-        const delivery = readVerificationDelivery(await response.json().catch(() => null));
+        const body = (await response.json().catch(() => null)) as {
+          status?: unknown;
+          pendingDelivery?: unknown;
+        } | null;
+        if (body?.status === 'admin_pending' || body?.pendingDelivery === 'admin') {
+          if (!controller.signal.aborted && version === actionVersion.current) setState('adminPending');
+          return;
+        }
+        const delivery = readVerificationDelivery(body);
         if (!controller.signal.aborted && version === actionVersion.current && delivery)
           setState(
             delivery === 'sent' ? 'sent' : delivery === 'login_required' ? 'loginRequired' : 'failed',
