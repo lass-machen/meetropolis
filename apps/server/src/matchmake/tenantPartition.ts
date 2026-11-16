@@ -91,9 +91,8 @@ export function assertValidPartitionOptions(options: unknown): void {
  */
 export function assertValidDefaultTenantSlug(configured: string | undefined = process.env.DEFAULT_TENANT_SLUG): void {
   if (!configured || TENANT_SLUG_PATTERN.test(configured)) return;
-  const shown = configured.length > 80 ? `${configured.slice(0, 80)}...` : configured;
   throw new Error(
-    `DEFAULT_TENANT_SLUG=${JSON.stringify(shown)} is not a valid tenant slug. ` +
+    'DEFAULT_TENANT_SLUG is not a valid tenant slug. ' +
       `It must match ${TENANT_SLUG_PATTERN.source} (lower-case letters, digits, "_" and "-", 1 to 64 characters), ` +
       'because it names the world room of the default tenant. Correct the value or unset it to use "default".',
   );

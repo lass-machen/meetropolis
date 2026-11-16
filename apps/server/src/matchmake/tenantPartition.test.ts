@@ -130,19 +130,31 @@ describe('assertValidDefaultTenantSlug', () => {
     },
   );
 
-  it('shortens a huge value in the message', () => {
+  it('keeps a huge value out of the message', () => {
     expect.hasAssertions();
     try {
       assertValidDefaultTenantSlug('A'.repeat(5000));
+      expect.unreachable();
     } catch (error) {
-      expect((error as Error).message.length).toBeLessThan(500);
+      expect((error as Error).message).not.toContain('A'.repeat(10));
+    }
+  });
+
+  it('never reports the rejected value in the message', () => {
+    expect.hasAssertions();
+    try {
+      assertValidDefaultTenantSlug('Bad-Slug-Marker-7f3');
+      expect.unreachable();
+    } catch (error) {
+      expect((error as Error).message).toContain('DEFAULT_TENANT_SLUG');
+      expect((error as Error).message).not.toContain('Bad-Slug-Marker-7f3');
     }
   });
 
   it('reads DEFAULT_TENANT_SLUG when called without an argument', () => {
     vi.stubEnv('DEFAULT_TENANT_SLUG', 'Not.Valid');
     try {
-      expect(() => assertValidDefaultTenantSlug()).toThrow(/Not\.Valid/);
+      expect(() => assertValidDefaultTenantSlug()).toThrow(/DEFAULT_TENANT_SLUG/);
       vi.stubEnv('DEFAULT_TENANT_SLUG', 'valid-slug');
       expect(() => assertValidDefaultTenantSlug()).not.toThrow();
     } finally {
