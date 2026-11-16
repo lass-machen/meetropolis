@@ -68,6 +68,8 @@ import { getTelemetryModule } from './telemetryLoader.js';
 import { getTranscriptionModule } from './transcriptionLoader.js';
 import { logger } from './logger.js';
 import { getEmailModule, sendIfAvailable } from './emailLoader.js';
+import { createBillingEmailService } from './billingEmailService.js';
+import { deliveringEmailModule } from './api/utils/emailProof.js';
 import { resolveTenantBySlug } from './tenancy.js';
 import { resolveTemplateTenantSlug } from './services/templateTenant.js';
 
@@ -386,15 +388,11 @@ async function registerEnterpriseBillingRoutes(app: express.Express) {
   const telemetryModule = await getTelemetryModule();
 
   const emailModule = await getEmailModule();
-  const emailService = {
-    async send(email: { to: string; subject: string; text: string; html: string }): Promise<void> {
-      if (!emailModule) {
-        logger.warn({ event: 'billing.email_module_unavailable', to: email.to, subject: email.subject });
-        return;
-      }
-      await emailModule.sendRaw(email);
-    },
-  };
+  const emailService = createBillingEmailService({
+    emailModule,
+    delivering: (await deliveringEmailModule()) !== null,
+    logger,
+  });
 
   const billingPortalUrl = process.env.BILLING_PORTAL_URL || process.env.BILLING_PUBLIC_URL || '';
   const pricingUrl = process.env.PRICING_URL || process.env.BILLING_PUBLIC_URL || '';

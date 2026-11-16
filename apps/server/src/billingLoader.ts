@@ -1,5 +1,6 @@
 import type { Router, Request, Response, NextFunction, Express } from 'express';
 import type { PrismaClient } from './generated/prisma/index.js';
+import type { EmailSendResult } from './billingEmailService.js';
 import { z } from 'zod';
 import { logger } from './logger.js';
 import type { deleteTenantWithMembers } from './services/accountDeletion.js';
@@ -42,7 +43,7 @@ export interface BillingModule {
     config: {
       prisma: PrismaClient;
       emailService: {
-        send(email: { to: string; subject: string; text: string; html: string }): Promise<void>;
+        send(email: { to: string; subject: string; text: string; html: string }): Promise<void | EmailSendResult>;
       };
       logger: {
         info(obj: object): void;
