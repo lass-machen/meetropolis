@@ -462,7 +462,7 @@ test('Case 2: background save keeps the foreign zone state', async ({ stack, see
     });
     const freshZones = Array.isArray(fresh.zones) ? fresh.zones.filter(isRecord) : [];
     const kept = freshZones.find((zone) => zone.name === nameB);
-    expect(kept, 'The B state must be preserved after A's background save.').toBeTruthy();
+    expect(kept, "The B state must be preserved after A's background save.").toBeTruthy();
     expect(kept ? zonePoints(kept) : [], 'The B geometry must remain unchanged.').toEqual(rectB);
     expect(fresh.backgroundColor, 'The new background color must be saved.').toBe(newBg);
   });
