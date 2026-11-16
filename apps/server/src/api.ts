@@ -18,6 +18,7 @@ import { registerNpcRoutes } from './api/routes/npcs.js';
 import { registerNpcMediaRoutes } from './api/routes/npcMedia.js';
 import { registerAdminMapRoutes } from './api/routes/adminMaps.js';
 import { registerAdminPasswordResetRoutes } from './api/routes/admin.passwordReset.js';
+import { registerAdminAccountConfirmationRoutes } from './api/routes/admin.accountConfirmation.js';
 import { copyMapToTenant } from './api/routes/adminMaps.js';
 import { registerGuestRoutes } from './api/routes/guests.js';
 import { deleteTenantWithMembers, removeMemberFromTenant } from './services/accountDeletion.js';
@@ -545,6 +546,7 @@ export async function registerApi(app: express.Express) {
   registerMobileRoutes(app);
   registerAdminMapRoutes(app, prisma);
   registerAdminPasswordResetRoutes(app, prisma);
+  registerAdminAccountConfirmationRoutes(app, prisma);
 
   registerLegacyModularRoutes(app);
 }

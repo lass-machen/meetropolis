@@ -9,6 +9,7 @@ import { buildPublicWebLink, requirePublicWebBase } from '../utils/publicLinks.j
 import { establishSession, revokeSessionByToken } from '../utils/sessionAuth.js';
 import { displayNameSchema, invalidNameBodyFor } from '../utils/displayName.js';
 import { deliveringEmailModule } from '../utils/emailProof.js';
+import { manualConfirmationEnabled } from '../utils/manualConfirmation.js';
 import { beginInviteVerification, pendingInviteForUser, verificationPending, verificationBindingRequired } from '../utils/inviteVerification.js';
 import { isInternalOwner as checkInternalOwner } from '../utils/tenantMembership.js';
 import { hasBillingModule } from '../../billingLoader.js';
@@ -125,7 +126,7 @@ export async function handleAuthRegister(
     res.status(403).json({ error: 'invite_email_mismatch' });
     return;
   }
-  if (!(await deliveringEmailModule())) {
+  if (!(await deliveringEmailModule()) && !manualConfirmationEnabled()) {
     res.status(503).json({ code: 'EMAIL_DELIVERY_UNAVAILABLE', error: 'This invitation requires email confirmation. Configure a delivery provider or contact an administrator.' });
     return;
   }

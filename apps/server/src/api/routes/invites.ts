@@ -22,6 +22,7 @@ import {
   maskInviteEmail,
 } from '../utils/inviteLifecycle.js';
 import { deliveringEmailModule, lockEmailAccount } from '../utils/emailProof.js';
+import { manualConfirmationEnabled } from '../utils/manualConfirmation.js';
 import { beginInviteVerification, verificationPending } from '../utils/inviteVerification.js';
 import { establishSession } from '../utils/sessionAuth.js';
 import { buildSigninResponseBody, isNativeClientRequest } from './auth.helpers.js';
@@ -203,7 +204,7 @@ async function handleAcceptInvite(prisma: PrismaClient, req: express.Request, re
       return;
     }
     if (!user.emailVerifiedAt) {
-      if (!(await deliveringEmailModule())) {
+      if (!(await deliveringEmailModule()) && !manualConfirmationEnabled()) {
         res.status(503).json({ code: 'EMAIL_DELIVERY_UNAVAILABLE', error: 'This invitation requires confirmation email delivery. Please contact an administrator.' });
         return;
       }

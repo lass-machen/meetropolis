@@ -5,6 +5,7 @@ import { requireVerificationAuth } from '../utils/authHelpers.js';
 import { getDeniedTenant } from '../utils/tenantAccessState.js';
 import { completeEmailProof, EmailProofInvalid, issueEmailProof, type EmailProofOutcome } from '../utils/emailProof.js';
 import { pendingInviteForUser, verificationBindingRequired } from '../utils/inviteVerification.js';
+import { ADMIN_CONFIRMATION_PURPOSE } from '../utils/manualConfirmation.js';
 
 export type EmailVerificationOutcome = EmailProofOutcome;
 
@@ -84,11 +85,13 @@ export async function handleVerifyStatus(
     const proof = await prisma.emailVerification.findFirst({ where: { userId: auth.userId, usedAt: null },
       orderBy: { createdAt: 'desc' }, select: { readyAt: true, expiresAt: true, purpose: true, email: true } });
     const pending = await pendingInviteForUser(prisma, auth.userId, auth.tenantId);
+    const adminPending = proof?.purpose === ADMIN_CONFIRMATION_PURPOSE && proof.expiresAt > new Date();
     if (auth.verificationOnly) {
       const requiresLogin = !!user.emailVerifiedAt && !pending;
       res.json({
         code: requiresLogin ? 'ACCOUNT_LOGIN_REQUIRED' : 'EMAIL_VERIFICATION_REQUIRED',
         status: requiresLogin ? 'login_required'
+          : adminPending ? 'admin_pending'
           : proof?.readyAt && proof.expiresAt > new Date() ? 'sent' : 'unavailable',
       });
       return;
@@ -96,7 +99,7 @@ export async function handleVerifyStatus(
     res.json({
       requiresLogin: auth.verificationOnly && !!user.emailVerifiedAt && !pending,
       ...(proof?.purpose === 'email_change' && proof.readyAt && proof.expiresAt > new Date() ? { emailChangePending: true, pendingEmail: proof.email } : {}),
-      pendingDelivery: proof?.readyAt && proof.expiresAt > new Date() ? 'sent' : 'unavailable',
+      pendingDelivery: adminPending ? 'admin' : proof?.readyAt && proof.expiresAt > new Date() ? 'sent' : 'unavailable',
       email: user.email,
       verified: !!user.emailVerifiedAt,
       verifiedAt: user.emailVerifiedAt?.toISOString() || null,
