@@ -8,6 +8,7 @@ import type {
   TenantDeletionTaskPlan,
 } from './services/tenantDeletionContract.js';
 import type { EnterpriseExportResult, TenantExportSink } from './services/tenantExport/types.js';
+import type { AuthEventInput } from './services/authEvents.js';
 import {
   TENANT_DELETION_PROTOCOL,
   TenantDeletionContractError,
@@ -120,6 +121,10 @@ export interface AdminEnterpriseModule {
         userId: string;
         tenantId: string;
       }) => Promise<{ token: string; sessionId: string; expiresAt: Date }>;
+      // Optional: records one authentication event (see AuthEventInput) on the
+      // host, so the signup can log its login without importing OSS internals.
+      // When absent, no event is recorded.
+      recordAuthEvent?: (input: AuthEventInput) => Promise<void>;
       // Optional: kicks off e-mail verification for a freshly created account.
       // The verification machinery is OSS-internal and cannot be imported from
       // the closed-source package, so the host injects it. Called detached by

@@ -51,6 +51,7 @@ import {
   createRequireTenantAdmin,
 } from './api/utils/authHelpers.js';
 import { createSessionAuthMiddleware, establishSession } from './api/utils/sessionAuth.js';
+import { recordAuthEvent } from './services/authEvents.js';
 import { createTenantAccessMiddleware } from './api/middleware/tenantAccess.js';
 import { startEmailVerification } from './api/routes/auth.verify.js';
 import { isNativeClientRequest } from './api/routes/auth.helpers.js';
@@ -318,6 +319,7 @@ async function registerEnterpriseAdminRoutes(app: express.Express) {
     // session row behind it and the session middleware — correctly — would
     // reject it on the very next request.
     establishSession: ({ req, res, userId, tenantId }) => establishSession({ prisma, req, res, userId, tenantId }),
+    recordAuthEvent: (input) => recordAuthEvent(prisma, input),
     startEmailVerification: async ({ req, userId }) => {
       const outcome = await startEmailVerification({ prisma, userId, req });
       if (outcome.status === 'no_public_base_url') {
