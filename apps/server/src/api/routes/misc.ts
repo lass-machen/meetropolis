@@ -282,9 +282,15 @@ async function handleUpdateUser(prisma: PrismaClient, req: express.Request, res:
   }
 
   const id = pathParam(req, 'id');
-  if (id === auth.userId) { await updateOwnProfile(prisma, auth.userId, req.body, res); return; }
+  if (id === auth.userId) {
+    await updateOwnProfile(prisma, auth.userId, req.body, res);
+    return;
+  }
   if (req.body && typeof req.body === 'object' && 'email' in req.body) {
-    res.status(403).json({ code: 'SELF_EMAIL_CHANGE_REQUIRED', error: 'Only the account holder can change their email address through a confirmation link.' });
+    res.status(403).json({
+      code: 'SELF_EMAIL_CHANGE_REQUIRED',
+      error: 'Only the account holder can change their email address through a confirmation link.',
+    });
     return;
   }
   if (id !== auth.userId) {
