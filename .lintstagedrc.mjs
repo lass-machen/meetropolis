@@ -2,7 +2,9 @@ import path from 'node:path';
 
 const workspaces = [
   { directory: 'apps/web', name: '@meetropolis/web' },
-  { directory: 'apps/server', name: '@meetropolis/server' },
+  // Database tests need DATABASE_URL and run through `npm run test:db`;
+  // the hook runs the server's unit test project only.
+  { directory: 'apps/server', name: '@meetropolis/server', vitestArgs: ['--project', 'server'] },
   { directory: 'packages/shared', name: '@meetropolis/shared' },
 ];
 
@@ -30,7 +32,8 @@ const typescriptTasks = (files) => {
     const relatedFiles = workspaceFiles
       .map(({ absolute }) => quote(path.relative(workspaceRoot, absolute).split(path.sep).join('/')))
       .join(' ');
-    tasks.push(`npx vitest related --run --root ${quote(workspaceRoot)} ${relatedFiles}`);
+    const vitestArgs = (workspace.vitestArgs ?? []).map((arg) => ` ${arg}`).join('');
+    tasks.push(`npx vitest related --run --root ${quote(workspaceRoot)}${vitestArgs} ${relatedFiles}`);
   }
 
   return tasks;
