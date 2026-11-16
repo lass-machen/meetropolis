@@ -74,6 +74,7 @@ async function purgeAccountRows(
   await tx.invite.updateMany({ where: { usedById: userId }, data: { usedById: null } });
   await tx.invite.updateMany({ where: { createdBy: userId }, data: { createdBy: null } });
   await tx.membership.deleteMany({ where: { userId } });
+  await tx.authEvent.deleteMany({ where: { userId } });
   // CustomAvatar and the enterprise transcription tables cascade from User.
   await tx.user.delete({ where: { id: userId } });
   if (journalId !== undefined) await completeAccountJournalInTx(tx, journalId);
@@ -252,6 +253,7 @@ export async function deleteTenantWithMembers(
         await tx.customAvatar.deleteMany({ where: { tenantId } });
         await tx.invite.deleteMany({ where: { tenantId } });
         await tx.membership.deleteMany({ where: { tenantId } });
+        await tx.authEvent.deleteMany({ where: { tenantId } });
         const deleted: string[] = [];
         for (const userId of memberIds) {
           await revokeSessionsForUserInTx(tx, userId);
