@@ -6,6 +6,7 @@ import { logger } from '../../logger.js';
 import { requireSuperAdmin } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { copyMapToTenant, TargetPackAccessError } from './adminMaps.copy.js';
+import { sendFootprintError } from '../utils/mapObjectWriteLimits.js';
 import { handleImportAdminMap } from './adminMaps.tiledImport.js';
 import { INTERNAL_MAP_LAYER_NAMES } from '../utils/mapLayerPolicy.js';
 import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
@@ -236,6 +237,7 @@ async function handleCopyAdminMap(prisma: PrismaClient, req: express.Request, re
       });
       return;
     }
+    if (sendFootprintError(res, e)) return;
     logger.error({ event: 'admin_maps.copy.error', error: msg });
     res.status(500).json({ error: 'internal_error' });
   }
@@ -247,5 +249,10 @@ export function registerAdminMapRoutes(app: express.Application, prisma: PrismaC
   app.post('/admin/maps', (req, res) => handleCreateAdminMap(prisma, req, res));
   app.delete('/admin/maps/:id', (req, res) => handleDeleteAdminMap(prisma, req, res));
   app.post('/admin/maps/:id/copy', (req, res) => handleCopyAdminMap(prisma, req, res));
-  app.post('/admin/maps/import', uploadGuard(prisma, 'admin_map'), boundedMultipart(importUpload.single('file')), (req, res) => handleImportAdminMap(prisma, req, res));
+  app.post(
+    '/admin/maps/import',
+    uploadGuard(prisma, 'admin_map'),
+    boundedMultipart(importUpload.single('file')),
+    (req, res) => handleImportAdminMap(prisma, req, res),
+  );
 }

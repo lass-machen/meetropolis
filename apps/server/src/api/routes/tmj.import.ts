@@ -13,6 +13,7 @@ import { importedLayerStorageName, isReservedImportLayer } from '../utils/mapLay
 import type { MapDb } from '../utils/mapChunkMutations.js';
 import type { MulterFile, RequestWithMulterFields } from '../../types/multer.js';
 import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
+import { sendFootprintError } from '../utils/mapObjectWriteLimits.js';
 import {
   TmjSchema,
   buildGidToSlotMapping,
@@ -280,11 +281,14 @@ export async function handleTmjImport(
       warnings: result.warnings,
     });
   } catch (error: unknown) {
+    if (sendFootprintError(res, error)) return;
     logger.error('[TMJ] import failed', error);
     res.status(500).json({ error: 'internal_error' });
   }
 }
 
 export function registerTmjImportRoute(app: express.Application, prisma: PrismaClient): void {
-  app.post('/maps/:id/import-tmj', uploadGuard(prisma, 'tmj'), boundedMultipart(importUpload), (req, res) => handleTmjImport(prisma, req, res));
+  app.post('/maps/:id/import-tmj', uploadGuard(prisma, 'tmj'), boundedMultipart(importUpload), (req, res) =>
+    handleTmjImport(prisma, req, res),
+  );
 }

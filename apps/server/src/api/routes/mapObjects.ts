@@ -9,6 +9,12 @@ import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { computeFootprintTiles } from '../utils/collisionHelpers.js';
 import { checkBulkFootprints, checkSingleFootprint } from '../utils/mapObjectInputLimits.js';
+import {
+  assertObjectFootprints,
+  MapCollisionBudget,
+  mapTileDimensions,
+  sendFootprintError,
+} from '../utils/mapObjectWriteLimits.js';
 import { reconcileObjectCollision } from '../utils/objectCollision.js';
 import { runSerializable, type ChunkUpdateResult, type MapDb } from '../utils/mapChunkMutations.js';
 import { acquireMapAdvisoryLock, acquirePackAdvisoryLock, acquirePackAdvisoryLocks } from '../utils/advisoryLocks.js';
@@ -58,10 +64,11 @@ const bulkCreateSchema = z.object({
 // ---------------------------------------------------------------------------
 
 function getMapDimensions(map: { chunkSize: number | null; tileWidth: number | null; tileHeight: number | null }) {
+  const tiles = mapTileDimensions(map);
   return {
     chunkSize: map.chunkSize ?? 32,
-    tileWidth: map.tileWidth ?? 16,
-    tileHeight: map.tileHeight ?? 16,
+    tileWidth: tiles.tileWidth,
+    tileHeight: tiles.tileHeight,
   };
 }
 
@@ -278,6 +285,9 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
     }
     const result = await runSerializable(prisma, async (tx) => {
       await acquireMapAdvisoryLock(tx, map.id);
+      if (data.collide) {
+        (await MapCollisionBudget.forMap(tx, map.id, dims)).add(data, dims);
+      }
       await acquirePackAdvisoryLock(tx, data.assetPackUuid);
       const currentScope = await refreshPackScope(tx, scope, 'asset');
       const currentPack = await tx.assetPack.findFirst({
@@ -308,6 +318,7 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
 
     res.json(obj);
   } catch (e: unknown) {
+    if (sendFootprintError(res, e)) return;
     logger.error('[MapObjects] POST failed', e);
     res.status(500).json({ error: 'internal_error' });
   }
@@ -346,6 +357,7 @@ async function handleUpdateObject(prisma: PrismaClient, req: express.Request, re
       await acquireMapAdvisoryLock(tx, map.id);
       const existing = await tx.mapObject.findFirst({ where: { id: objId, mapId: map.id } });
       if (!existing) return null;
+      assertObjectFootprints([existing], dims);
       const positionChanged =
         (updateData.tileX !== undefined && updateData.tileX !== existing.tileX) ||
         (updateData.tileY !== undefined && updateData.tileY !== existing.tileY);
@@ -381,6 +393,7 @@ async function handleUpdateObject(prisma: PrismaClient, req: express.Request, re
 
     res.json(updated);
   } catch (e: unknown) {
+    if (sendFootprintError(res, e)) return;
     logger.error('[MapObjects] PATCH failed', e);
     res.status(500).json({ error: 'internal_error' });
   }
@@ -432,6 +445,7 @@ async function handleDeleteObject(prisma: PrismaClient, req: express.Request, re
 
     res.json({ ok: true });
   } catch (e: unknown) {
+    if (sendFootprintError(res, e)) return;
     logger.error('[MapObjects] DELETE failed', e);
     res.status(500).json({ error: 'internal_error' });
   }
@@ -483,6 +497,11 @@ async function createObjectsWithPackLocks(params: {
   const { tx, mapId, objects, dims, scope } = params;
   const uuids = [...new Set(objects.map((object) => object.assetPackUuid))];
   await acquireMapAdvisoryLock(tx, mapId);
+  const colliding = objects.filter((object) => object.collide);
+  if (colliding.length > 0) {
+    const collisionBudget = await MapCollisionBudget.forMap(tx, mapId, dims);
+    for (const object of colliding) collisionBudget.add(object, dims);
+  }
   await acquirePackAdvisoryLocks(tx, uuids);
   const currentScope = await refreshPackScope(tx, scope, 'asset');
   const currentPacks = await tx.assetPack.findMany({
@@ -579,6 +598,7 @@ async function handleBulkCreateObjects(
 
     res.json({ ok: true, objects: created });
   } catch (e: unknown) {
+    if (sendFootprintError(res, e)) return;
     logger.error('[MapObjects] bulk POST failed', e);
     res.status(500).json({ error: 'internal_error' });
   }

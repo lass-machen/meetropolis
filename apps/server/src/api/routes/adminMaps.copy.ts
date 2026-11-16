@@ -1,6 +1,7 @@
 import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import { assetPackScopeWhere, resolveTenantPackScope } from '../../services/packScope.js';
 import { acquireMapAdvisoryLock, acquirePackAdvisoryLocks } from '../utils/advisoryLocks.js';
+import { assertObjectFootprints, mapTileDimensions, MapCollisionBudget } from '../utils/mapObjectWriteLimits.js';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -108,6 +109,12 @@ async function copyLayersAndChunks(tx: TxClient, original: OriginalMapWithRelati
  * When a column is added to `MapObject`, add it here in the same commit.
  */
 async function copyObjects(tx: TxClient, original: OriginalMapWithRelations, newMapId: string): Promise<void> {
+  assertObjectFootprints(original.objects, mapTileDimensions(original));
+  const budget = new MapCollisionBudget();
+  const dims = mapTileDimensions(original);
+  for (const obj of original.objects) {
+    if (obj.collide) budget.add(obj, dims);
+  }
   for (const obj of original.objects) {
     await tx.mapObject.create({
       data: {

@@ -7,6 +7,7 @@ import type { RequestWithMulterFile } from '../../types/multer.js';
 import { reconcileCollisionTiles, rectCollisionTiles } from '../utils/collisionReconciler.js';
 import { importedLayerStorageName, isInternalMapLayer, isReservedImportLayer } from '../utils/mapLayerPolicy.js';
 import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
+import { assertObjectFootprints, sendFootprintError } from '../utils/mapObjectWriteLimits.js';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -165,6 +166,7 @@ async function importObjectLayers(
       const ow = typeof obj.width === 'number' ? Math.max(1, Math.ceil(obj.width / tileWidth)) : 1;
       const oh = typeof obj.height === 'number' ? Math.max(1, Math.ceil(obj.height / tileHeight)) : 1;
 
+      assertObjectFootprints([{ width: ow, height: oh }], { tileWidth, tileHeight });
       await tx.mapObject.create({
         data: {
           mapId,
@@ -279,6 +281,7 @@ export async function handleImportAdminMap(
     logger.info({ event: 'admin_maps.imported', mapId: result.id, tenantId, name: mapName });
     res.json({ id: result.id, name: result.name });
   } catch (e: unknown) {
+    if (sendFootprintError(res, e)) return;
     logger.error({ event: 'admin_maps.import.error', error: e instanceof Error ? e.message : String(e) });
     res.status(500).json({ error: 'import_failed' });
   }

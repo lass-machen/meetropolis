@@ -20,6 +20,7 @@ import { acquireMapAdvisoryLock } from '../api/utils/advisoryLocks.js';
 import { importedLayerStorageName, isReservedImportLayer } from '../api/utils/mapLayerPolicy.js';
 import type { MapDb } from '../api/utils/mapChunkMutations.js';
 import { encodeRlePairsToBuffer, rleEncodeBooleans, rleEncodeNumbers, tileRefIdFrom } from '../mapEncoding.js';
+import { assertObjectFootprints, MapCollisionBudget } from '../api/utils/mapObjectWriteLimits.js';
 
 type ImportDb = PrismaClient | MapDb;
 
@@ -365,6 +366,7 @@ async function importObjectGroup(
   tileHeightPx: number,
   layer: TmjLayer,
   tilesets: TmjTileset[],
+  budget: MapCollisionBudget,
 ) {
   if (!Array.isArray(layer.objects) || layer.objects.length === 0) return 0;
   let created = 0;
@@ -409,6 +411,16 @@ async function importObjectGroup(
     // for this single-tile object tileset.
     const dataUrl = resolveObjectDataUrl(obj, tilesets, itemId);
 
+    assertObjectFootprints([{ width: obj.width, height: obj.height, scaleFactor: 1 }], {
+      tileWidth: tileWidthPx,
+      tileHeight: tileHeightPx,
+    });
+    if (collide) {
+      budget.add(
+        { width: obj.width, height: obj.height, scaleFactor: 1 },
+        { tileWidth: tileWidthPx, tileHeight: tileHeightPx },
+      );
+    }
     await prisma.mapObject.create({
       data: {
         mapId,
@@ -495,11 +507,26 @@ export function resolveObjectDataUrl(obj: TmjObject, tilesets: TmjTileset[], ite
   return `/assets/furniture/${group}/${itemId}.png`;
 }
 
-async function importObjectGroups(prisma: ImportDb, mapId: string, tmj: Tmj, chunkSize: number) {
+async function importObjectGroups(
+  prisma: ImportDb,
+  mapId: string,
+  tmj: Tmj,
+  chunkSize: number,
+  budget: MapCollisionBudget,
+) {
   let total = 0;
   for (const layer of tmj.layers) {
     if (layer.type !== 'objectgroup') continue;
-    total += await importObjectGroup(prisma, mapId, chunkSize, tmj.tilewidth, tmj.tileheight, layer, tmj.tilesets);
+    total += await importObjectGroup(
+      prisma,
+      mapId,
+      chunkSize,
+      tmj.tilewidth,
+      tmj.tileheight,
+      layer,
+      tmj.tilesets,
+      budget,
+    );
   }
   return total;
 }
@@ -542,7 +569,8 @@ export async function importTmjIntoMap(
     await rebuildZonesFromTmj(tx, tenantId, map.id, zones);
 
     await importTileLayers(tx, map.id, tmj, chunkSize, gidToTileRefId);
-    const objectsCreated = await importObjectGroups(tx, map.id, tmj, chunkSize);
+    const collisionBudget = new MapCollisionBudget();
+    const objectsCreated = await importObjectGroups(tx, map.id, tmj, chunkSize, collisionBudget);
     await reconcileCollisionTiles(
       tx,
       map.id,
