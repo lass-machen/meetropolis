@@ -2,9 +2,8 @@
  * Pure boundary cases for the input limits: exact 4096/4097,
  * exact 65536/exceedance, scaling with pixel ceil edges, scale-
  * Overflow and invalid map tile sizes. Plus one legacy compatibility-
- * case: the proven calculation function still returns 4097 tiles for
- * large legacy inputs; it stays without a global limit so that old
- * worlds, seeds and migrations keep loading unchanged.
+ * case: the proven calculation function throws above the limit for
+ * large legacy inputs instead of returning 4097 tiles.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -14,6 +13,7 @@ import {
   MAX_OBJECT_FOOTPRINT_TILES,
 } from './mapObjectInputLimits.js';
 import { computeFootprintTiles } from './collisionHelpers.js';
+import { ObjectFootprintLimitError } from './objectFootprintLimits.js';
 
 const DIMS = { tileWidth: 16, tileHeight: 16 };
 
@@ -89,9 +89,8 @@ describe('checkBulkFootprints', () => {
   });
 });
 
-describe('computeFootprintTiles stays unbounded (legacy compatibility)', () => {
-  it('still returns 4097 tiles for large legacy inputs', () => {
-    const tiles = computeFootprintTiles(0, 0, 16 * 4097, 16, 16, 16, 32, 0);
-    expect(tiles).toHaveLength(4097);
+describe('computeFootprintTiles enforces the per-object tile limit', () => {
+  it('rejects 4097 tiles for large legacy inputs', () => {
+    expect(() => computeFootprintTiles(0, 0, 16 * 4097, 16, 16, 16, 32, 0)).toThrow(ObjectFootprintLimitError);
   });
 });

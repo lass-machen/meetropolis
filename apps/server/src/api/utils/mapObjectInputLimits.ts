@@ -1,10 +1,10 @@
 /**
  * Input limits for map object footprints.
  *
- * Limits only new size and scale inputs at the two POST entry-
- * points (single and bulk creation). Existing worlds, seeds, automatic
- * migrations and backfills keep loading and computing without these limits;
- * `computeFootprintTiles` in collisionHelpers.ts remains unchanged.
+ * The input limits check the two POST entry points with stable 400
+ * responses; `computeFootprintTiles` in collisionHelpers.ts enforces the
+ * same per-object tile limit as a final guard and throws
+ * `ObjectFootprintLimitError`.
  *
  * Calculation contract (exact for the current grid): effective pixel sizes are
  * `width * (scaleFactor ?? 1)` or `height * (scaleFactor ?? 1)`; the
