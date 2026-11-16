@@ -133,8 +133,12 @@ jobs:
   test-db:
     name: Database tests (server)
     runs-on: ubuntu-latest
-    # Matches the workflow-wide DATABASE_URL, so here it points at a real,
-    # throwaway database instead of a dummy.
+    # Points at a real, throwaway database instead of the workflow-wide dummy.
+    # The database tests only accept 127.0.0.1:35440 (see
+    # apps/server/test/fixtures/httpFixture.ts), so the service is published
+    # on that port.
+    env:
+      DATABASE_URL: 'postgresql://ci:ci@127.0.0.1:35440/ci'
     services:
       postgres:
         image: postgres:16-alpine
@@ -143,7 +147,7 @@ jobs:
           POSTGRES_PASSWORD: ci
           POSTGRES_DB: ci
         ports:
-          - 5432:5432
+          - 35440:5432
         options: >-
           --health-cmd "pg_isready -U ci -d ci"
           --health-interval 5s
