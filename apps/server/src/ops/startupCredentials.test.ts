@@ -3,12 +3,23 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { prepareCredentialCheckerDir } from '../testUtils/credentialCheckerDir.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.resolve(HERE, '..', '..');
 const ENTRYPOINT = path.resolve(SERVER_DIR, 'entrypoint.sh');
 const TEMPLATE_PATH = path.resolve(SERVER_DIR, '..', '..', '.env.example');
+
+let checkerDir: string;
+
+beforeAll(() => {
+  checkerDir = prepareCredentialCheckerDir();
+});
+
+afterAll(() => {
+  fs.rmSync(checkerDir, { recursive: true, force: true });
+});
 
 const MARKER_TEXT = 'ready';
 const PRODUCTION = 'production';
@@ -40,8 +51,7 @@ function validEnv(mode: string): Record<string, string> {
     LIVEKIT_API_KEY: 'synthetic-valid-livekit-key',
     LIVEKIT_API_SECRET: 'synthetic-valid-livekit-secret',
     TOOLS_PASSWORD: 'synthetic-valid-tools-password',
-    DATABASE_URL:
-      'postgresql://meetropolis:synthetic-valid-db-password@localhost:5432/meetropolis?schema=public',
+    DATABASE_URL: 'postgresql://meetropolis:synthetic-valid-db-password@localhost:5432/meetropolis?schema=public',
   };
 }
 
@@ -59,7 +69,7 @@ function startWithEnv(env: Record<string, string>): StartResult {
   const marker = path.join(dir, 'started');
   const markerScript = `require("fs").writeFileSync(${JSON.stringify(marker)}, ${JSON.stringify(MARKER_TEXT)})`;
   const result = spawnSync('sh', [ENTRYPOINT, 'node', '-e', markerScript], {
-    cwd: SERVER_DIR,
+    cwd: checkerDir,
     env: { ...env, RUN_MIGRATIONS: 'false', RUN_SEED: 'false' },
     encoding: 'utf8',
     timeout: 30000,
