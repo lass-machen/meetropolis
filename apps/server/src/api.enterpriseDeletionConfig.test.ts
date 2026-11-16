@@ -53,35 +53,6 @@ vi.mock('./services/tenantDeletionPlanning.js', async (importOriginal) => {
   return { ...actual, createJournalPlanResolver: journalResolver };
 });
 
-// prom-client registers on a process-global registry, so a fresh api.js
-// per test would throw "already been registered": stub the client out.
-vi.mock('prom-client', () => {
-  const stubMetric = (): Record<string, (...args: never[]) => unknown> => ({
-    observe: () => undefined,
-    inc: () => undefined,
-    dec: () => undefined,
-    set: () => undefined,
-    remove: () => undefined,
-    labels: () => stubMetric(),
-  });
-  const stubClient = {
-    Registry: function () {
-      return { registerMetric: () => undefined };
-    },
-    Histogram: function () {
-      return stubMetric();
-    },
-    Gauge: function () {
-      return stubMetric();
-    },
-    Counter: function () {
-      return stubMetric();
-    },
-    collectDefaultMetrics: () => undefined,
-  };
-  return { ...stubClient, default: stubClient };
-});
-
 // Warm the transform cache: each test re-imports a fresh api.js, and the
 // first cold import of the route graph exceeds the per-test timeout.
 import './api.js';
