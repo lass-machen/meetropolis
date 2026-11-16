@@ -36,6 +36,7 @@ import { logger } from './logger.js';
 import { metricsMiddleware } from './metrics.js';
 import { resolveMetricsBind, startMetricsServer, type MetricsServer } from './ops/metricsServer.js';
 import { createToolsRoute, parseToolsApiOrigins, toolsBaseCsp } from './ops/toolsRoute.js';
+import { resolvePublicPort } from './ops/startupConfigFindings.js';
 import { installOriginGuard } from './ops/originGuard.js';
 import { createWsUpgradeLimiter, resolveWsUpgradeLimit, type WsUpgradeLimitSettings } from './ops/wsUpgradeLimit.js';
 import {
@@ -322,7 +323,7 @@ warnIfPublicBaseUrlUnusable();
 app.head('/metrics', sendPublicMetricsNotFound);
 app.get('/metrics', sendPublicMetricsNotFound);
 
-const port = Number(process.env.PORT ?? 2567);
+const port = resolvePublicPort(process.env);
 const httpServer = createServer(app);
 httpServer.on('error', (err) => {
   logger.error('HTTP server error', err);
