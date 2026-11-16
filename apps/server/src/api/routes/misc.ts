@@ -6,6 +6,7 @@ import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authH
 import { pathParam } from '../utils/requestHelpers.js';
 import { displayNameSchema, invalidNameBodyFor } from '../utils/displayName.js';
 import { deleteAccount, MembershipNotFoundError, removeMemberFromTenant } from '../../services/accountDeletion.js';
+import { recordAuthEvent } from '../../services/authEvents.js';
 import { updateOwnProfile } from './accountProfile.js';
 import { registerInviteRoutes } from './invites.js';
 
@@ -39,6 +40,7 @@ function loadExportUser(prisma: PrismaClient, userId: string) {
       name: true,
       imageUrl: true,
       emailVerifiedAt: true,
+      lastLoginAt: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -53,6 +55,11 @@ async function loadExportRelations(prisma: PrismaClient, userId: string) {
   const sessions = await prisma.session.findMany({
     where: { userId },
     select: { id: true, userAgent: true, ipAddress: true, lastActiveAt: true, createdAt: true },
+  });
+  const authEvents = await prisma.authEvent.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    select: { type: true, success: true, tenantId: true, ipAddress: true, userAgent: true, createdAt: true },
   });
   const presences = await prisma.presence.findMany({
     where: { userId },
@@ -70,13 +77,13 @@ async function loadExportRelations(prisma: PrismaClient, userId: string) {
     where: { userId },
     select: { id: true, name: true, lastUsedAt: true, createdAt: true },
   });
-  return { memberships, sessions, presences, apiTokens };
+  return { memberships, sessions, presences, apiTokens, authEvents };
 }
 
 async function buildExportData(prisma: PrismaClient, userId: string) {
   const user = await loadExportUser(prisma, userId);
   if (!user) return null;
-  const { memberships, sessions, presences, apiTokens } = await loadExportRelations(prisma, userId);
+  const { memberships, sessions, presences, apiTokens, authEvents } = await loadExportRelations(prisma, userId);
 
   return {
     exportedAt: new Date().toISOString(),
@@ -86,6 +93,7 @@ async function buildExportData(prisma: PrismaClient, userId: string) {
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
       emailVerifiedAt: user.emailVerifiedAt?.toISOString() || null,
+      lastLoginAt: user.lastLoginAt?.toISOString() || null,
     },
     memberships: memberships.map((m) => ({
       tenantId: m.tenant.id,
@@ -112,6 +120,14 @@ async function buildExportData(prisma: PrismaClient, userId: string) {
       name: t.name,
       lastUsedAt: t.lastUsedAt?.toISOString() || null,
       createdAt: t.createdAt.toISOString(),
+    })),
+    authEvents: authEvents.map((e) => ({
+      type: e.type,
+      success: e.success,
+      tenantId: e.tenantId,
+      ipAddress: e.ipAddress,
+      userAgent: e.userAgent,
+      createdAt: e.createdAt.toISOString(),
     })),
     _userMeta: { id: user.id },
   };
@@ -196,6 +212,7 @@ async function handleDeleteMe(prisma: PrismaClient, req: express.Request, res: e
 
     logger.info({ event: 'user.self_delete.started', userId });
     await deleteAccount(prisma, userId);
+    await recordAuthEvent(prisma, { type: 'account_delete', success: true, userId: null, tenantId: null, req });
     logger.info({ event: 'user.self_delete.completed', userId });
 
     res.clearCookie('token', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
@@ -388,6 +405,7 @@ async function handleChangeRole(prisma: PrismaClient, req: express.Request, res:
     });
 
     logger.info('[Users] Role changed', { userId: id, newRole: parse.data.role, changedBy: auth.userId });
+    await recordAuthEvent(prisma, { type: 'role_change', success: true, userId: id, tenantId: tenant.id, req });
     res.json({ ok: true, role: parse.data.role });
   } catch (e) {
     logger.error('[Users] Role change failed', e);
