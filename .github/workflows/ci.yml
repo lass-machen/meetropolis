@@ -130,6 +130,98 @@ jobs:
       - run: npm -w @meetropolis/web run test
       - run: npm -w @meetropolis/server run test
 
+  test-db:
+    name: Database tests (server)
+    runs-on: ubuntu-latest
+    # Matches the workflow-wide DATABASE_URL, so here it points at a real,
+    # throwaway database instead of a dummy.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      # Mail catcher for invites.integration.test.ts (SMTP 1025, HTTP API 8025).
+      # STARTTLS with a self-signed certificate generated at start, so the
+      # server exercises the same TLS path as against a real mail server.
+      mailpit:
+        image: axllent/mailpit:v1.32.0
+        env:
+          MP_SMTP_AUTH_ACCEPT_ANY: '1'
+          MP_SMTP_AUTH_ALLOW_INSECURE: '1'
+          MP_SMTP_TLS_CERT: sans:mailpit
+          MP_SMTP_TLS_KEY: sans:mailpit
+        ports:
+          - 1025:1025
+          - 8025:8025
+      # Test SFU for avAccessRevocation.integration.test.ts. Participants join
+      # over real WebRTC, so the RTC ports are published 1:1 and the node IP is
+      # the runner's loopback. devkey/secret are the public development keys,
+      # not a secret. The test pauses this container through `docker pause`.
+      livekit:
+        image: livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
+        env:
+          LIVEKIT_CONFIG: |
+            port: 7880
+            bind_addresses: ["0.0.0.0"]
+            rtc:
+              tcp_port: 7881
+              udp_port: 7882
+              use_external_ip: false
+              node_ip: 127.0.0.1
+            keys:
+              devkey: secret
+            logging:
+              level: info
+        ports:
+          - 7880:7880
+          - 7881:7881
+          - 7882:7882/udp
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # Activate the packageManager pin from package.json (see note above).
+      - run: corepack enable
+      - run: npm ci
+      - run: npm -w @meetropolis/shared run build
+      - run: npm run generate
+      - name: prisma migrate deploy
+        working-directory: apps/server
+        run: npx prisma migrate deploy
+      # Neither image is guaranteed to ship a health check the runner waits
+      # for, so wait for both HTTP endpoints explicitly (at most 60 s each).
+      - name: Wait for Mailpit and the test SFU
+        run: |
+          for url in http://127.0.0.1:8025/api/v1/info http://127.0.0.1:7880/; do
+            for _ in $(seq 1 60); do
+              curl -fsS -o /dev/null "$url" && continue 2
+              sleep 1
+            done
+            echo "Service at $url did not become ready" >&2
+            exit 1
+          done
+      - name: npm -w @meetropolis/server run test:db
+        env:
+          MAILPIT_URL: http://127.0.0.1:8025
+          MAILPIT_SMTP_HOST: 127.0.0.1
+          MAILPIT_SMTP_PORT: '1025'
+          LIVEKIT_URL: ws://127.0.0.1:7880
+          LIVEKIT_API_KEY: devkey
+          LIVEKIT_API_SECRET: secret
+          TEST_SFU_CONTAINER: ${{ job.services.livekit.id }}
+        run: npm -w @meetropolis/server run test:db
+
   build:
     name: Build (web + server) — OSS-only smoke
     runs-on: ubuntu-latest
