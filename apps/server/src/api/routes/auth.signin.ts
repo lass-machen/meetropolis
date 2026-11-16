@@ -27,6 +27,7 @@ import { hasBillingModule } from '../../billingLoader.js';
 import { hasAdminEnterpriseModule } from '../../adminLoader.js';
 import { getTenancyModule } from '../../tenancyLoader.js';
 import { isNativeClientRequest, getRequestToken, buildSigninResponseBody } from './auth.helpers.js';
+import { recordAuthEvent } from '../../services/authEvents.js';
 import { getDeniedTenant, isTenantAccessDenied } from '../utils/tenantAccessState.js';
 import * as inviteLifecycle from '../utils/inviteLifecycle.js';
 
@@ -345,6 +346,7 @@ export async function handleAuthLogin(
   // oracle; see DUMMY_PASSWORD_HASH.
   const passwordOk = await verifyPasswordConstantWork(password, user?.passwordHash);
   if (!user || !user.passwordHash) {
+    await recordAuthEvent(prisma, { type: 'login', success: false, userId: user?.id ?? null, email, req });
     const guestCheck = await checkGuestRedirect(prisma, user);
     if (guestCheck.guest) {
       res
@@ -356,6 +358,7 @@ export async function handleAuthLogin(
     return;
   }
   if (!passwordOk) {
+    await recordAuthEvent(prisma, { type: 'login', success: false, userId: user.id, req });
     res.status(401).json({ error: 'invalid credentials' });
     return;
   }
@@ -378,6 +381,8 @@ export async function handleAuthLogin(
     return;
   }
 
+  await recordAuthEvent(prisma, { type: 'login', success: true, userId: user.id, tenantId: tenant.id, req });
+
   res.json(buildSigninResponseBody(user, established.token, isNativeClientRequest(req)));
 }
 
@@ -386,12 +391,21 @@ export async function handleAuthLogout(
   req: express.Request,
   res: express.Response,
 ): Promise<void> {
+  const auth = requireAuth(req);
   try {
     const currentToken = getRequestToken(req);
     if (currentToken) await revokeSessionByToken(prisma, currentToken);
   } catch (e) {
     logger.warn({ event: 'auth.logout.session_delete_failed', error: String(e) });
   }
+
+  await recordAuthEvent(prisma, {
+    type: 'logout',
+    success: true,
+    userId: auth?.userId ?? null,
+    tenantId: auth?.tenantId ?? null,
+    req,
+  });
 
   res.clearCookie('auth_token', { path: '/' });
   res.json({ ok: true });
