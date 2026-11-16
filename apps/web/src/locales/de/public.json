@@ -339,7 +339,7 @@
     "vatIdPlaceholder": "z. B. DE123456789",
     "vatIdHint": "Für innergemeinschaftliche Leistungen (Reverse-Charge) empfohlen.",
     "b2bDeclaration": "Ich bestätige, dass ich diesen Vertrag als Unternehmer im Sinne des § 14 BGB und nicht als Verbraucher abschließe.",
-    "agbAccept": "Ich akzeptiere die <termsLink>AGB</termsLink> und die <privacyLink>Datenschutzerklärung</privacyLink>.",
+    "agbAccept": "Ich akzeptiere die <termsLink>AGB</termsLink>. Die <privacyLink>Datenschutzerklärung</privacyLink> habe ich zur Kenntnis genommen.",
     "transparencyTitle": "Deine Bestellung im Überblick",
     "transparencyPackage": "Paket",
     "transparencyPrice": "Preis",

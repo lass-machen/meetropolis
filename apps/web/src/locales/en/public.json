@@ -339,7 +339,7 @@
     "vatIdPlaceholder": "e.g. DE123456789",
     "vatIdHint": "Recommended for intra-EU services (reverse charge).",
     "b2bDeclaration": "I confirm that I am entering into this contract as an entrepreneur within the meaning of § 14 BGB, not as a consumer.",
-    "agbAccept": "I accept the <termsLink>Terms of Service</termsLink> and the <privacyLink>Privacy Policy</privacyLink>.",
+    "agbAccept": "I accept the <termsLink>Terms of Service</termsLink>. I have read the <privacyLink>Privacy Policy</privacyLink>.",
     "transparencyTitle": "Your order at a glance",
     "transparencyPackage": "Package",
     "transparencyPrice": "Price",
