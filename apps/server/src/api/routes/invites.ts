@@ -57,7 +57,10 @@ async function handleDeleteInvite(prisma: PrismaClient, req: express.Request, re
   const { tenant } = admin;
   const id = pathParam(req, 'id');
   if (!/^c[0-9a-z]{24}$/.test(id)) {
-    res.status(400).json({ code: 'invite_id_invalid', error: 'Update the application and use the current invitation list to revoke invitations.' });
+    res.status(400).json({
+      code: 'invite_id_invalid',
+      error: 'Update the application and use the current invitation list to revoke invitations.',
+    });
     return;
   }
   try {
@@ -137,7 +140,10 @@ async function handlePublicInvitePreview(
     include: { tenant: { select: { name: true } } },
   });
   if (!invite) {
-    res.status(404).json({ code: 'invite_invalid', error: 'This invitation link is invalid. Request a new invitation or update the application.' });
+    res.status(404).json({
+      code: 'invite_invalid',
+      error: 'This invitation link is invalid. Request a new invitation or update the application.',
+    });
     return;
   }
   res.json({
@@ -160,13 +166,17 @@ async function acceptInviteTransaction(
     await tx.$queryRaw`SELECT "id" FROM "Invite" WHERE "id" = ${invite.id} FOR UPDATE`;
     const account = await tx.user.findUnique({ where: { id: userId } });
     const current = await tx.invite.findUnique({ where: { id: invite.id } });
-    if (!account?.emailVerifiedAt || !current || !inviteEmailMatches(current.email, account.email)) throw new InviteUnavailableError();
+    if (!account?.emailVerifiedAt || !current || !inviteEmailMatches(current.email, account.email))
+      throw new InviteUnavailableError();
     if (!(await consumeInvite(tx, code, userId, now))) throw new InviteUnavailableError();
     const membership = await tx.membership.findUnique({
       where: { tenantId_userId: { tenantId: invite.tenantId, userId } },
     });
     if (membership?.inviteVerificationRequired) {
-      await tx.membership.update({ where: { id: membership.id }, data: { role: invite.role, inviteVerificationRequired: false } });
+      await tx.membership.update({
+        where: { id: membership.id },
+        data: { role: invite.role, inviteVerificationRequired: false },
+      });
       return false;
     }
     if (membership) return true;
@@ -205,7 +215,10 @@ async function handleAcceptInvite(prisma: PrismaClient, req: express.Request, re
     }
     if (!user.emailVerifiedAt) {
       if (!(await deliveringEmailModule()) && !manualConfirmationEnabled()) {
-        res.status(503).json({ code: 'EMAIL_DELIVERY_UNAVAILABLE', error: 'This invitation requires confirmation email delivery. Please contact an administrator.' });
+        res.status(503).json({
+          code: 'EMAIL_DELIVERY_UNAVAILABLE',
+          error: 'This invitation requires confirmation email delivery. Please contact an administrator.',
+        });
         return;
       }
       const outcome = await beginInviteVerification(prisma, user.id, invite.id);
