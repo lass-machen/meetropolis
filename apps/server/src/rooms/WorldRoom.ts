@@ -265,7 +265,11 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   // result onto `client.auth` when the seat is consumed and skips instance
   // auth. Reconnect does not call `onJoin`, so this registration stays on
   // the first consume only.
-  static async onAuth(token: string, options: RoomOptions | undefined, context: AuthContext): Promise<WorldAuth> {
+  static override async onAuth(
+    token: string,
+    options: RoomOptions | undefined,
+    context: AuthContext,
+  ): Promise<WorldAuth> {
     return authenticateWorldMatchmake(token, options, context);
   }
 

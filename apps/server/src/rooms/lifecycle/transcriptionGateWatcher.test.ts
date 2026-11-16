@@ -46,6 +46,7 @@ import {
   stopMatchmakeServer,
   type MatchmakeTestServer,
 } from '../../testUtils/matchmakeHarness.js';
+import { stubWorldAuth } from '../../testUtils/worldAuthStub.js';
 
 const listeners = new Set<(change: TranscriptionGateChange) => void>();
 const getJoinRequirementMock = vi.fn<TranscriptionModule['getJoinRequirement']>(() => Promise.resolve(null));
@@ -67,6 +68,7 @@ const moduleImplementation = {
 } satisfies TranscriptionModule;
 
 let server: MatchmakeTestServer;
+let authSpy: ReturnType<typeof stubWorldAuth>;
 
 function makeClient(identity: string, tenantId: string, isNpc = false): Client {
   return {
@@ -110,6 +112,11 @@ beforeEach(async () => {
   mocks.unsubscribe.mockReset();
   mocks.loggerWarn.mockReset();
   mocks.loggerError.mockReset();
+  authSpy = stubWorldAuth();
+});
+
+afterEach(() => {
+  authSpy.mockRestore();
 });
 
 describe('watchTranscriptionGate', () => {

@@ -121,13 +121,15 @@ describe('WorldRoom.onAuth with a verified session', () => {
       // membership gate has its own tests (worldAccess.integration.test.ts).
       membership: { findUnique: () => Promise.resolve({ expiresAt: null, role: 'member' }) },
     }));
-    freshSessionMock.mockImplementation((_prisma: unknown, _rawToken: string, tenantId: string) => Promise.resolve({
-      status: 'allowed',
-      userId: 'user-1',
-      sessionId: 'db-session-1',
-      tenantId,
-      access: 'member',
-    }));
+    freshSessionMock.mockImplementation((_prisma: unknown, _rawToken: string, tenantId: string) =>
+      Promise.resolve({
+        status: 'allowed',
+        userId: 'user-1',
+        sessionId: 'db-session-1',
+        tenantId,
+        access: 'member',
+      }),
+    );
     server = await startMatchmakeServer();
   });
 
@@ -181,6 +183,6 @@ describe('WorldRoom.onAuth with a verified session', () => {
     vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'true');
     await expect(
       WorldRoom.onAuth(context.token ?? '', { tenant: 'acme', zonePrivacyVersion: 1 }, context),
-    ).rejects.toMatchObject({ code: AUTH_REJECTED_CODE, message: 'tenant_mismatch' });
+    ).rejects.toMatchObject({ code: 401, message: 'tenant_mismatch' });
   });
 });

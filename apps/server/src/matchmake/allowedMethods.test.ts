@@ -5,7 +5,7 @@
  * working. The transport guard is left out on purpose: the allow-list has to
  * hold on its own.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -24,6 +24,7 @@ import {
   worldRooms,
   type MatchmakeTestServer,
 } from '../testUtils/matchmakeHarness.js';
+import { stubWorldAuth } from '../testUtils/worldAuthStub.js';
 import { ALLOWED_MATCHMAKE_METHODS, assertAllowedMatchmakeMethod } from './allowedMethods.js';
 import { installPartitionKeyValidation, type TenantExists } from './tenantPartition.js';
 
@@ -84,6 +85,7 @@ describe('the allow-list in front of Colyseus', () => {
 describe('matchmake methods against a real Colyseus server', () => {
   let server: MatchmakeTestServer;
   const tenantExists = vi.fn<TenantExists>((slug) => Promise.resolve(slug === 'acme'));
+  let authSpy: ReturnType<typeof stubWorldAuth>;
 
   beforeAll(async () => {
     createPrismaClientMock.mockImplementation(makeFakePrisma);
@@ -98,6 +100,11 @@ describe('matchmake methods against a real Colyseus server', () => {
     await disposeAllRooms();
     createPrismaClientMock.mockClear();
     tenantExists.mockClear();
+    authSpy = stubWorldAuth();
+  });
+
+  afterEach(() => {
+    authSpy.mockRestore();
   });
 
   it.each([

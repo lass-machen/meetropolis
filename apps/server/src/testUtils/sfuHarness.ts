@@ -61,7 +61,7 @@ function adminClient(): RoomServiceClient {
 export async function connectParticipant(token: string): Promise<Room> {
   const { url } = sfuConfig();
   const room = new Room();
-  await room.connect(url, token, { autoSubscribe: false });
+  await room.connect(url, token, { autoSubscribe: false, dynacast: false });
   connectedRooms.push(room);
   return room;
 }
@@ -89,11 +89,10 @@ export async function mintServiceToken(
   opts?: { metadata?: string },
 ): Promise<string> {
   const { apiKey, apiSecret } = sfuConfig();
-  const token = new AccessToken(
-    apiKey,
-    apiSecret,
-    { identity, ...(opts?.metadata !== undefined ? { metadata: opts.metadata } : {}) },
-  );
+  const token = new AccessToken(apiKey, apiSecret, {
+    identity,
+    ...(opts?.metadata !== undefined ? { metadata: opts.metadata } : {}),
+  });
   token.addGrant({ room: roomName, roomJoin: true, canPublish: true, canSubscribe: true });
   return token.toJwt();
 }
@@ -124,11 +123,7 @@ export async function waitForIdentityGone(roomName: string, identity: string, ti
  * Poll until `identity` is present in `roomName` (every 250 ms). Returns
  * whether the condition held in time, so tests can assert on the result.
  */
-export async function waitForIdentityPresent(
-  roomName: string,
-  identity: string,
-  timeoutMs: number,
-): Promise<boolean> {
+export async function waitForIdentityPresent(roomName: string, identity: string, timeoutMs: number): Promise<boolean> {
   return pollIdentity(roomName, identity, timeoutMs, true);
 }
 
@@ -169,10 +164,10 @@ export async function withSfuPaused<T>(fn: () => Promise<T>): Promise<T> {
  * process-wide confirmed-removal backlog. `stop` ends both. No other helper
  * in this file changes with that fix.
  */
-export async function startAvReconcile(prisma: PrismaClient): Promise<AvReconciler> {
+export function startAvReconcile(prisma: PrismaClient): Promise<AvReconciler> {
   const reconciler = startAvAccessReconciler(prisma);
   let stopped = false;
-  return {
+  return Promise.resolve({
     runRound: () => reconciler.runRound(),
     stop: async () => {
       if (stopped) return;
@@ -180,5 +175,5 @@ export async function startAvReconcile(prisma: PrismaClient): Promise<AvReconcil
       await reconciler.stop();
       await stopAvPendingRevocations();
     },
-  };
+  });
 }

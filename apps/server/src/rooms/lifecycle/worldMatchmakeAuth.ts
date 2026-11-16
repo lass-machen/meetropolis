@@ -1,4 +1,4 @@
-import type { AuthContext } from 'colyseus';
+import { ServerError, type AuthContext } from 'colyseus';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { createPrismaClient } from '../../db.js';
 import type { RoomOptions } from '../WorldRoom.js';
@@ -18,6 +18,20 @@ function getMatchmakePrisma(): PrismaClient {
   return matchmakePrisma;
 }
 
+/**
+ * Colyseus answers a failed static auth over HTTP and uses the error code
+ * as the status. The world rejection codes (4401, 4426) are WebSocket close
+ * codes and no valid HTTP status, so the response itself would fail and
+ * reach the client as a 500. Their last three digits are the matching HTTP
+ * status, which is what matchmaking answers with.
+ */
+function toMatchmakeError(error: unknown): unknown {
+  if (error instanceof ServerError && error.code >= 4400 && error.code <= 4599) {
+    return new ServerError(error.code - 4000, error.message);
+  }
+  return error;
+}
+
 export async function authenticateWorldMatchmake(
   token: string,
   options: RoomOptions | undefined,
@@ -25,5 +39,9 @@ export async function authenticateWorldMatchmake(
 ): Promise<WorldAuth> {
   const raw = resolveRawAuthToken(context, token);
   const authContext: AuthContext = raw ? { ...context, token: raw } : context;
-  return authenticateWorldJoin(options, authContext, getMatchmakePrisma());
+  try {
+    return await authenticateWorldJoin(options, authContext, getMatchmakePrisma());
+  } catch (error) {
+    throw toMatchmakeError(error);
+  }
 }

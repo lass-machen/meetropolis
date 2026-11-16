@@ -24,6 +24,7 @@ import {
   worldRooms,
   type MatchmakeTestServer,
 } from '../testUtils/matchmakeHarness.js';
+import { stubWorldAuth } from '../testUtils/worldAuthStub.js';
 import {
   TENANT_SLUG_PATTERN,
   assertTenantExists,
@@ -347,6 +348,10 @@ describe('partition key against a real Colyseus server', () => {
   /** The tenants that "exist" in this suite; everything else is a well-formed slug nobody owns. */
   const knownTenants = new Set(['acme', 'acme-corp', 'team_42', 'a', 'a'.repeat(64), '0', '-']);
   const tenantExists = vi.fn<TenantExists>((slug) => Promise.resolve(knownTenants.has(slug)));
+  // Matchmaking authenticates before it reserves a seat. These cases are
+  // about the partition key, so they act as a member of the tenant they
+  // ask for; the refusal without a session has its own case below.
+  let authSpy: ReturnType<typeof stubWorldAuth>;
 
   beforeAll(async () => {
     createPrismaClientMock.mockImplementation(makeFakePrisma);
@@ -361,6 +366,11 @@ describe('partition key against a real Colyseus server', () => {
     await disposeAllRooms();
     createPrismaClientMock.mockClear();
     tenantExists.mockClear();
+    authSpy = stubWorldAuth();
+  });
+
+  afterEach(() => {
+    authSpy.mockRestore();
   });
 
   it.each([
@@ -524,5 +534,13 @@ describe('partition key against a real Colyseus server', () => {
   it('still answers an unknown room name with the Colyseus error', async () => {
     const res = await matchmake(server, JSON.stringify({}), { path: '/matchmake/joinOrCreate/nope' });
     expect(res.status).toBe(520);
+  });
+
+  it('refuses a request without a session with HTTP 401 and builds no room', async () => {
+    authSpy.mockRestore();
+    const res = await matchmake(server, JSON.stringify({ tenant: 'acme' }));
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ code: 401, error: 'unauthorized' });
+    expect(await worldRooms()).toHaveLength(0);
   });
 });

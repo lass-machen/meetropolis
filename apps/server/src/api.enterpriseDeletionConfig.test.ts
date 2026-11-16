@@ -53,7 +53,38 @@ vi.mock('./services/tenantDeletionPlanning.js', async (importOriginal) => {
   return { ...actual, createJournalPlanResolver: journalResolver };
 });
 
-import { registerApi } from './api.js';
+// prom-client registers on a process-global registry, so a fresh api.js
+// per test would throw "already been registered": stub the client out.
+vi.mock('prom-client', () => {
+  const stubMetric = (): Record<string, (...args: never[]) => unknown> => ({
+    observe: () => undefined,
+    inc: () => undefined,
+    dec: () => undefined,
+    set: () => undefined,
+    remove: () => undefined,
+    labels: () => stubMetric(),
+  });
+  const stubClient = {
+    Registry: function () {
+      return { registerMetric: () => undefined };
+    },
+    Histogram: function () {
+      return stubMetric();
+    },
+    Gauge: function () {
+      return stubMetric();
+    },
+    Counter: function () {
+      return stubMetric();
+    },
+    collectDefaultMetrics: () => undefined,
+  };
+  return { ...stubClient, default: stubClient };
+});
+
+// Warm the transform cache: each test re-imports a fresh api.js, and the
+// first cold import of the route graph exceeds the per-test timeout.
+import './api.js';
 
 type ResolvePlan = (tx: unknown, input: { tenantId: string; transactionTime: Date }) => Promise<unknown>;
 
@@ -70,6 +101,10 @@ function resolveTenantDeletionPlanOf(config: object): unknown {
 
 async function captureTenantAdminConfig(): Promise<object> {
   captured.config = undefined;
+  // Fresh module state per test: the plan resolver is a process-wide singleton
+  // keyed by journal directory, so a shared module would refuse the next tmpdir.
+  vi.resetModules();
+  const { registerApi } = await import('./api.js');
   const app = express();
   app.use(cookieParser());
   app.use(express.json());
@@ -131,7 +166,7 @@ describe('enterprise admin deletion plan config', () => {
       journalUntil: new Date('2026-12-01T00:00:00.000Z'),
       tasks: [],
     };
-    const resolver = vi.fn(async () => plan);
+    const resolver = vi.fn(() => Promise.resolve(plan));
     journalResolver.mockReset();
     journalResolver.mockResolvedValue(resolver);
 
@@ -162,7 +197,7 @@ describe('enterprise admin deletion plan config', () => {
       journalUntil: new Date('2026-12-01T00:00:00.000Z'),
       tasks: [],
     };
-    const resolver = vi.fn(async () => plan);
+    const resolver = vi.fn(() => Promise.resolve(plan));
     journalResolver.mockReset();
     journalResolver.mockRejectedValueOnce(new Error('journal unavailable')).mockResolvedValueOnce(resolver);
 

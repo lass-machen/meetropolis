@@ -1,5 +1,5 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { Prisma, PrismaClient } from '../../generated/prisma/index.js';
 import { logger } from '../../logger.js';
 import { getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
@@ -180,7 +180,7 @@ export async function handleEditorStatePut(
           tilesets: tilesets ?? currentMeta.tilesets ?? [],
           backgroundColor: backgroundColor ?? currentMeta.backgroundColor ?? undefined,
           spawn: spawn ?? currentMeta.spawn ?? undefined,
-        },
+        } as Prisma.InputJsonValue,
       },
     });
     if (Array.isArray(zones) && roomForZones) {

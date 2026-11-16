@@ -9,7 +9,7 @@
  * drops its subscriptions when the room is disposed; this pins that, so an
  * upgrade that changes it shows up here instead of as a slow leak.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { matchMaker } from 'colyseus';
 
 vi.mock('../logger.js', () => ({
@@ -28,10 +28,12 @@ import {
   worldRooms,
   type MatchmakeTestServer,
 } from '../testUtils/matchmakeHarness.js';
+import { stubWorldAuth } from '../testUtils/worldAuthStub.js';
 
 describe('WorldRoom disposal', () => {
   let server: MatchmakeTestServer;
   const disconnect = vi.fn(() => Promise.resolve());
+  let authSpy: ReturnType<typeof stubWorldAuth>;
 
   beforeAll(async () => {
     createPrismaClientMock.mockImplementation(() => ({ ...makeFakePrisma(), $disconnect: disconnect }));
@@ -45,6 +47,11 @@ describe('WorldRoom disposal', () => {
   beforeEach(async () => {
     await disposeAllRooms();
     disconnect.mockClear();
+    authSpy = stubWorldAuth();
+  });
+
+  afterEach(() => {
+    authSpy.mockRestore();
   });
 
   it('releases the map_update presence subscription of its tenant', async () => {

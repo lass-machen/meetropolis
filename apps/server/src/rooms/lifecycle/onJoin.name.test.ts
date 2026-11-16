@@ -25,6 +25,18 @@ const fakePrisma = {
     findUnique: vi.fn(() => Promise.resolve({ role: 'member', expiresAt: null })),
   },
   presence: { findMany: vi.fn(() => Promise.resolve([])) },
+  // The admit gate re-proves the database session behind the join.
+  session: {
+    findMany: vi.fn((args: { where: { id: { in: string[] }; userId: string } }) =>
+      Promise.resolve([
+        {
+          id: args.where.id.in[0],
+          userId: args.where.userId,
+          expiresAt: new Date(Date.now() + 3_600_000),
+        },
+      ]),
+    ),
+  },
   user: { findUnique: vi.fn() },
   avatarPack: { findFirst: vi.fn(() => Promise.resolve({ avatars: [{ key: 'business_man' }] })) },
   customAvatar: { findFirst: vi.fn(() => Promise.resolve(null)) },
@@ -99,6 +111,7 @@ function registerJoin(room: WorldRoom, identity: string): void {
     identity,
     tenantId: 'tenant-1',
     tenantSlug: 'tenant-1',
+    sessionId: 'sess-1',
     isNpc: false,
     zonePrivacyVersion: 1,
   });
@@ -108,6 +121,7 @@ function clientWith(auth: Record<string, unknown>): CompletionClient {
   return {
     sessionId: 'sid-1',
     send: vi.fn(),
+    leave: vi.fn(),
     view: { add() {}, remove() {}, has: () => false },
     auth,
   } as unknown as CompletionClient;

@@ -141,6 +141,9 @@ function createTmjPrisma() {
     mapAutotile: { findMany: vi.fn().mockResolvedValue([]) },
     mapObject: { findMany: vi.fn().mockResolvedValue([]) },
     zone: { findMany: vi.fn().mockResolvedValue([]) },
+    membership: {
+      findUnique: vi.fn().mockResolvedValue({ role: 'admin', expiresAt: null }),
+    },
     $transaction: vi.fn(async (work: (tx: unknown) => Promise<unknown>) => {
       const savedLayers = layers.map((layer) => ({ ...layer }));
       const savedChunks = chunks.map((chunk) => ({ ...chunk, data: new Uint8Array(chunk.data) }));

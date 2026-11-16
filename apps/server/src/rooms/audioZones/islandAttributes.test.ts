@@ -13,7 +13,16 @@ const mocks = vi.hoisted(() => ({
   requireAuth: vi.fn(),
   getTenantFromReq: vi.fn(),
   requireMembership: vi.fn(),
+  validateTenantSessionFresh: vi.fn(),
 }));
+
+vi.mock('../../api/utils/sessionAuth.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../api/utils/sessionAuth.js')>();
+  return {
+    ...actual,
+    validateTenantSessionFresh: mocks.validateTenantSessionFresh,
+  };
+});
 
 vi.mock('../../transcriptionLoader.js', () => ({
   getTranscriptionModuleSync: mocks.getTranscriptionModuleSync,
@@ -78,7 +87,7 @@ function makeRoom(admin: LivekitAdminClient): WorldRoom {
 }
 
 function fakeReq(body: Record<string, unknown>): express.Request {
-  return { body, headers: {} } as express.Request;
+  return { body, headers: { authorization: 'Bearer test-session-token' } } as unknown as express.Request;
 }
 
 function fakeRes() {
@@ -91,7 +100,10 @@ function fakeRes() {
   return { res, send };
 }
 
-const prisma = { $disconnect: vi.fn().mockResolvedValue(undefined) } as PrismaClient;
+const prisma = {
+  $disconnect: vi.fn().mockResolvedValue(undefined),
+  membership: { findUnique: vi.fn().mockResolvedValue({ expiresAt: null }) },
+} as unknown as PrismaClient;
 
 beforeEach(() => {
   moduleImplementation.publishIslandAttributes = false;
@@ -185,6 +197,13 @@ describe('island attribute publish failures', () => {
 describe('handleLivekitToken participant grants', () => {
   it('does not grant clients permission to update their own metadata', async () => {
     mocks.getTranscriptionModuleSync.mockReturnValue(null);
+    mocks.validateTenantSessionFresh.mockResolvedValue({
+      status: 'allowed',
+      userId: 'user-1',
+      sessionId: 'session-1',
+      tenantId: 'tenant-1',
+      access: 'member',
+    });
     process.env.LIVEKIT_API_KEY = 'test-key';
     process.env.LIVEKIT_API_SECRET = 'test-secret';
     const { res, send } = fakeRes();
