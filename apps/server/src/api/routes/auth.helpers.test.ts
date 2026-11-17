@@ -15,7 +15,7 @@ describe('isNativeClientRequest', () => {
     expect(isNativeClientRequest(reqWithOrigin('tauri://localhost'))).toBe(true);
   });
 
-  it('recognises the Windows/Linux tauri.localhost origin', () => {
+  it('recognises the HTTP(S) tauri.localhost origin', () => {
     expect(isNativeClientRequest(reqWithOrigin('http://tauri.localhost'))).toBe(true);
     expect(isNativeClientRequest(reqWithOrigin('https://tauri.localhost'))).toBe(true);
   });
@@ -39,7 +39,7 @@ describe('buildSigninResponseBody', () => {
     expect(body).toEqual({ id: 'user-1', email: 'a@b.test', name: 'Ada', token: 'jwt-token' });
   });
 
-  it('echoes the JWT for the Windows/Linux tauri.localhost origin', () => {
+  it('echoes the JWT for the HTTP(S) tauri.localhost origin', () => {
     const body = buildSigninResponseBody(
       user,
       'jwt-token',
