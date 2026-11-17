@@ -69,6 +69,8 @@ import {
 import { assertBaseAvatarAvailable, listenAfterStartupChecks } from './services/startupInvariant.js';
 import { startDeletionTaskWorker } from './services/deletionTaskScheduler.js';
 import { startAvAccessServices } from './rooms/lifecycle/avAccessServices.js';
+import { createColyseusScalingOptions } from './ops/colyseusScaling.js';
+import { closeSharedRedis } from './ops/redisConnection.js';
 
 // The origin allowlist is read once, before anything is served. A missing or
 // malformed list is not a startable configuration: the server refuses to start
@@ -332,7 +334,11 @@ httpServer.on('error', (err) => {
 // Attach to existing HTTP server; compatible with Colyseus 0.15+
 // Colyseus Server with WebSocketTransport
 const wsUpgradeLimiter = createWsUpgradeLimiter(wsUpgradeLimitSettings, trustProxy);
+// With REDIS_URL set, presence, room registry and public address are shared
+// across server processes; without it the server stays single-process.
+const scalingOptions = createColyseusScalingOptions(process.env);
 const gameServer = new ColyseusServer({
+  ...scalingOptions,
   transport: new WebSocketTransport({
     server: httpServer,
     // Every upgrade attempt is counted first, so an exhausted budget answers
@@ -496,6 +502,12 @@ async function gracefulShutdown(signal: string) {
     await gameServer.gracefullyShutdown(false);
   } catch (e) {
     logger.error('[Server] Error during graceful shutdown', e);
+  }
+
+  try {
+    await closeSharedRedis();
+  } catch (e) {
+    logger.error('[Server] Error closing the shared Redis client', e);
   }
 
   await closeMetricsListener();
