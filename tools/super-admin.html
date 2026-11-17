@@ -1269,6 +1269,61 @@ async function apiFetch(path, opts = {}) {
   return res;
 }
 
+// ── Protected member assets ──
+// Loads a /packs/* or /npc-media/* reference through the authenticated
+// member-assets endpoint and returns a blob: URL, or null when the
+// reference is not a usable member asset. This tool currently renders
+// image URLs as text only; the helper exists so any future image use
+// follows the same protected path as the other operator tools.
+const protectedObjectUrls = new Set();
+
+function trackProtectedUrl(url) {
+  if (url) protectedObjectUrls.add(url);
+  return url;
+}
+
+function revokeProtectedUrls() {
+  for (const url of protectedObjectUrls) URL.revokeObjectURL(url);
+  protectedObjectUrls.clear();
+}
+
+function toProtectedAssetPath(ref) {
+  if (!ref || typeof ref !== 'string') return null;
+  let path = ref;
+  const base = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  if (path.startsWith(base)) path = path.slice(base.length);
+  if (!path.startsWith('/packs/') && !path.startsWith('/npc-media/')) return null;
+  const segments = path.split('/').filter(Boolean);
+  if (segments.some((segment) => segment === '..')) return null;
+  const namespace = path.startsWith('/packs/') ? 'packs' : 'npc-media';
+  const rest = path.slice(namespace.length + 2);
+  if (!rest) return null;
+  return `${base}/member-assets/v1/${namespace}/${rest}`;
+}
+
+async function loadProtectedImage(ref) {
+  const url = toProtectedAssetPath(ref);
+  if (!url) return null;
+  const token = document.getElementById('authToken').value.trim();
+  const headers = { 'X-Asset-Protocol': '1' };
+  if (token) {
+    headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  }
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      cache: 'no-store',
+      redirect: 'error',
+      headers,
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return trackProtectedUrl(URL.createObjectURL(blob));
+  } catch {
+    return null;
+  }
+}
+
 async function testConnection() {
   const dot = document.getElementById('connDot');
   persistConnection();

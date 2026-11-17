@@ -564,6 +564,58 @@ async function apiFetch(path, opts = {}) {
   return res;
 }
 
+// ── Protected member assets ──
+// Loads a /packs/* or /npc-media/* reference through the authenticated
+// member-assets endpoint and returns a blob: URL, or null when the
+// reference is not a usable member asset. Non-member references yield
+// null so callers keep their existing direct handling for those.
+const protectedObjectUrls = new Set();
+
+function trackProtectedUrl(url) {
+  if (url) protectedObjectUrls.add(url);
+  return url;
+}
+
+function revokeProtectedUrls() {
+  for (const url of protectedObjectUrls) URL.revokeObjectURL(url);
+  protectedObjectUrls.clear();
+}
+
+function toProtectedAssetPath(ref) {
+  if (!ref || typeof ref !== 'string') return null;
+  let path = ref;
+  const base = (document.getElementById('apiUrl').value || window.location.origin).replace(/\/+$/, '');
+  if (path.startsWith(base)) path = path.slice(base.length);
+  if (!path.startsWith('/packs/') && !path.startsWith('/npc-media/')) return null;
+  const segments = path.split('/').filter(Boolean);
+  if (segments.some((segment) => segment === '..')) return null;
+  const namespace = path.startsWith('/packs/') ? 'packs' : 'npc-media';
+  const rest = path.slice(namespace.length + 2);
+  if (!rest) return null;
+  return `${base}/member-assets/v1/${namespace}/${rest}`;
+}
+
+async function loadProtectedImage(ref) {
+  const url = toProtectedAssetPath(ref);
+  if (!url) return null;
+  const token = document.getElementById('authToken').value.trim();
+  const headers = { 'X-Asset-Protocol': '1' };
+  if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      cache: 'no-store',
+      redirect: 'error',
+      headers,
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return trackProtectedUrl(URL.createObjectURL(blob));
+  } catch {
+    return null;
+  }
+}
+
 async function testConnection() {
   const msg = document.getElementById('connMsg');
   const dot = document.getElementById('connDot');
@@ -616,6 +668,12 @@ function loadPack(idx) {
   const p = existingPacks[idx];
   if (!p) return;
   uploadedSpriteUrl = null;
+  if (spriteDataUrl && spriteDataUrl.startsWith('blob:')) {
+    URL.revokeObjectURL(spriteDataUrl);
+    protectedObjectUrls.delete(spriteDataUrl);
+  }
+  spriteDataUrl = null;
+  spriteImg = null;
   const uploadStatus = document.getElementById('uploadStatus');
   const uploadMsg = document.getElementById('uploadMsg');
   if (uploadStatus) uploadStatus.textContent = '';
@@ -655,7 +713,7 @@ function loadPack(idx) {
     if (av.spriteUrl) {
       const fn = av.spriteUrl.split('/').pop();
       document.getElementById('spriteFilename').value = fn;
-      if (av.spriteUrl.startsWith('/packs/')) {
+      if (toProtectedAssetPath(av.spriteUrl)) {
         uploadedSpriteUrl = av.spriteUrl;
       }
     }
@@ -664,6 +722,20 @@ function loadPack(idx) {
   frameH = parseInt(document.getElementById('frameH').value) || 24;
   renderAvatars();
   updatePreview();
+  if (uploadedSpriteUrl && toProtectedAssetPath(uploadedSpriteUrl)) {
+    loadProtectedImage(uploadedSpriteUrl).then((objectUrl) => {
+      if (!objectUrl) return;
+      const img = new Image();
+      img.onload = () => {
+        spriteDataUrl = objectUrl;
+        spriteImg = img;
+        renderSpriteViewer();
+        updatePreview();
+      };
+      img.onerror = () => URL.revokeObjectURL(objectUrl);
+      img.src = objectUrl;
+    });
+  }
   toast('ok', `Loaded pack: ${p.name || p.uuid}`);
 }
 
@@ -702,6 +774,10 @@ function handleFile(file) {
   document.getElementById('spriteFilename').value = file.name;
   const reader = new FileReader();
   reader.onload = e => {
+    if (spriteDataUrl && spriteDataUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(spriteDataUrl);
+      protectedObjectUrls.delete(spriteDataUrl);
+    }
     spriteDataUrl = e.target.result;
     const img = new Image();
     img.onload = () => {
@@ -991,7 +1067,18 @@ function renderAvatarCard(av) {
   let previewImg = null;
   if (av.previewUrl) {
     previewImg = h('img', { className: 'preview-thumb' });
-    previewImg.src = getPreviewFullUrl(av.previewUrl);
+    if (toProtectedAssetPath(av.previewUrl)) {
+      loadProtectedImage(av.previewUrl).then((objectUrl) => {
+        if (objectUrl) {
+          if (previewImg.isConnected) previewImg.src = objectUrl;
+          else URL.revokeObjectURL(objectUrl);
+        } else if (previewImg.isConnected) {
+          previewImg.remove();
+        }
+      });
+    } else {
+      previewImg.src = getPreviewFullUrl(av.previewUrl);
+    }
   }
   const previewName = av.previewUrl ? av.previewUrl.split('/').pop() : 'No preview';
   const stateRows = Object.entries(av.states).map(([sn, sv]) => renderStateRow(av, sn, sv));
@@ -1055,6 +1142,7 @@ function renderAvatarCard(av) {
 
 function renderAvatars() {
   const el = document.getElementById('avatarList');
+  revokeProtectedUrls();
   el.replaceChildren();
   avatars.forEach((av) => {
     el.appendChild(renderAvatarCard(av));

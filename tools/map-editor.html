@@ -717,6 +717,84 @@ async function apiFetch(path, opts = {}) {
   return res.json();
 }
 
+// ── Protected member assets ──
+// Loads a /packs/* or /npc-media/* reference through the authenticated
+// member-assets endpoint and returns a blob: URL, or null when the
+// reference is not a usable member asset. Non-member references yield
+// null so callers keep their existing direct handling for those.
+const protectedObjectUrls = new Set();
+
+function trackProtectedUrl(url) {
+  if (url) protectedObjectUrls.add(url);
+  return url;
+}
+
+function revokeImageSrc(img) {
+  if (img && img.src && img.src.startsWith('blob:')) {
+    URL.revokeObjectURL(img.src);
+    protectedObjectUrls.delete(img.src);
+  }
+}
+
+function revokeProtectedUrls() {
+  for (const url of protectedObjectUrls) URL.revokeObjectURL(url);
+  protectedObjectUrls.clear();
+}
+
+function toProtectedAssetPath(ref) {
+  if (!ref || typeof ref !== 'string') return null;
+  let path = ref;
+  if (CFG.server && path.startsWith(CFG.server)) path = path.slice(CFG.server.length);
+  if (!path.startsWith('/packs/') && !path.startsWith('/npc-media/')) return null;
+  const segments = path.split('/').filter(Boolean);
+  if (segments.some((segment) => segment === '..')) return null;
+  const namespace = path.startsWith('/packs/') ? 'packs' : 'npc-media';
+  const rest = path.slice(namespace.length + 2);
+  if (!rest) return null;
+  return `${CFG.server}/member-assets/v1/${namespace}/${rest}`;
+}
+
+async function loadProtectedImage(ref) {
+  const url = toProtectedAssetPath(ref);
+  if (!url) return null;
+  const headers = { 'X-Asset-Protocol': '1' };
+  if (CFG.token) headers['Authorization'] = CFG.token.startsWith('Bearer ') ? CFG.token : 'Bearer ' + CFG.token;
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      cache: 'no-store',
+      redirect: 'error',
+      headers,
+    });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return trackProtectedUrl(URL.createObjectURL(blob));
+  } catch {
+    return null;
+  }
+}
+
+function loadThumbImage(img, url, useCrossOrigin) {
+  img.onerror = () => { img.style.display = 'none'; };
+  if (!url) {
+    img.style.display = 'none';
+    return;
+  }
+  if (toProtectedAssetPath(url)) {
+    loadProtectedImage(url).then((objectUrl) => {
+      if (objectUrl) {
+        if (img.isConnected) img.src = objectUrl;
+        else URL.revokeObjectURL(objectUrl);
+      } else if (img.isConnected) {
+        img.style.display = 'none';
+      }
+    });
+  } else {
+    if (useCrossOrigin) img.crossOrigin = 'anonymous';
+    img.src = url.startsWith('/') ? CFG.server + url : url;
+  }
+}
+
 // ============================================================================
 // CONNECTION & MAP LOADING
 // ============================================================================
@@ -855,6 +933,7 @@ async function loadMap(mapId) {
 
 async function loadAutotilePalette(entries) {
   autotileDefinitions = entries.map(entry => ({ ...entry, _wallTypeId: entry.slot }));
+  for (const img of Object.values(autotileImages)) revokeImageSrc(img);
   autotileImages = {};
   selectedAutotile = null;
   await Promise.all(autotileDefinitions.map(loadAutotileImage));
@@ -863,16 +942,25 @@ async function loadAutotilePalette(entries) {
 function loadAutotileImage(def) {
   return new Promise(resolve => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      autotileImages[def.slot] = img;
-      resolve();
-    };
-    img.onerror = () => {
+    const onFail = () => {
       console.error(`Missing autotile snapshot for slot ${def.slot}:`, def.imageUrl);
       resolve();
     };
-    img.src = def.imageUrl.startsWith('/') ? CFG.server + def.imageUrl : def.imageUrl;
+    img.onload = () => {
+      revokeImageSrc(autotileImages[def.slot]);
+      autotileImages[def.slot] = img;
+      resolve();
+    };
+    img.onerror = onFail;
+    if (toProtectedAssetPath(def.imageUrl)) {
+      loadProtectedImage(def.imageUrl).then((objectUrl) => {
+        if (objectUrl) img.src = objectUrl;
+        else onFail();
+      });
+    } else {
+      img.crossOrigin = 'anonymous';
+      img.src = def.imageUrl.startsWith('/') ? CFG.server + def.imageUrl : def.imageUrl;
+    }
   });
 }
 
@@ -890,17 +978,21 @@ async function loadTilesetImages() {
   for (const ts of tilesetRegistry) {
     if (tilesetImages[ts.key]) continue;
     const img = new Image();
-    img.crossOrigin = 'anonymous';
     const p = new Promise((resolve) => {
-      img.onload = () => { tilesetImages[ts.key] = img; resolve(); };
-      img.onerror = () => { console.warn('Failed to load tileset:', ts.key, ts.imageUrl); resolve(); };
+      const onFail = () => { console.warn('Failed to load tileset:', ts.key, ts.imageUrl); resolve(); };
+      img.onload = () => { revokeImageSrc(tilesetImages[ts.key]); tilesetImages[ts.key] = img; resolve(); };
+      img.onerror = onFail;
+      // Handle relative URLs
+      if (toProtectedAssetPath(ts.imageUrl)) {
+        loadProtectedImage(ts.imageUrl).then((objectUrl) => {
+          if (objectUrl) img.src = objectUrl;
+          else onFail();
+        });
+      } else {
+        img.crossOrigin = 'anonymous';
+        img.src = ts.imageUrl.startsWith('/') ? CFG.server + ts.imageUrl : ts.imageUrl;
+      }
     });
-    // Handle relative URLs
-    if (ts.imageUrl.startsWith('/')) {
-      img.src = CFG.server + ts.imageUrl;
-    } else {
-      img.src = ts.imageUrl;
-    }
     promises.push(p);
   }
   await Promise.all(promises);
@@ -921,16 +1013,20 @@ async function loadObjectImages() {
   for (const url of urls) {
     if (objectImages[url]) continue;
     const img = new Image();
-    img.crossOrigin = 'anonymous';
     const p = new Promise((resolve) => {
-      img.onload = () => { objectImages[url] = img; resolve(); };
-      img.onerror = () => { console.warn('Failed to load object image:', url); resolve(); };
+      const onFail = () => { console.warn('Failed to load object image:', url); resolve(); };
+      img.onload = () => { revokeImageSrc(objectImages[url]); objectImages[url] = img; resolve(); };
+      img.onerror = onFail;
+      if (toProtectedAssetPath(url)) {
+        loadProtectedImage(url).then((objectUrl) => {
+          if (objectUrl) img.src = objectUrl;
+          else onFail();
+        });
+      } else {
+        img.crossOrigin = 'anonymous';
+        img.src = url.startsWith('/') ? CFG.server + url : url;
+      }
     });
-    if (url.startsWith('/')) {
-      img.src = CFG.server + url;
-    } else {
-      img.src = url;
-    }
     promises.push(p);
   }
   await Promise.all(promises);
@@ -1699,6 +1795,7 @@ function onPackSelect() {
 
 function renderAssetBrowser() {
   const container = document.getElementById('assetBrowser');
+  revokeProtectedUrls();
   if (selectedPackIdx < 0 || !assetPacks[selectedPackIdx]) {
     container.replaceChildren(emptyState('Select an asset pack.'));
     return;
@@ -1723,13 +1820,7 @@ function renderAssetBrowser() {
       });
 
       const img = h('img', { className: 'asset-thumb' });
-      const url = item.dataURL || item.dataUrl;
-      if (url && url.startsWith('/')) {
-        img.src = CFG.server + url;
-      } else {
-        img.src = url || '';
-      }
-      img.onerror = () => { img.style.display = 'none'; };
+      loadThumbImage(img, item.dataURL || item.dataUrl, false);
       el.appendChild(img);
 
       el.appendChild(h('div', { className: 'asset-label', text: item.key || item.id }));
@@ -1757,14 +1848,7 @@ function renderAssetBrowser() {
     });
 
     const img = document.createElement('img');
-    img.crossOrigin = 'anonymous';
-    const url = item.dataURL || item.dataUrl;
-    if (url && url.startsWith('/')) {
-      img.src = CFG.server + url;
-    } else {
-      img.src = url || '';
-    }
-    img.onerror = () => { img.style.display = 'none'; };
+    loadThumbImage(img, item.dataURL || item.dataUrl, true);
     el.appendChild(img);
 
     el.appendChild(h('div', { className: 'asset-label', text: item.key || item.id }));
@@ -1788,9 +1872,15 @@ async function selectAssetItem(pack, item, cat) {
     const url = item.dataURL || item.dataUrl;
     if (url && !objectImages[url]) {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => { objectImages[url] = img; };
-      img.src = url.startsWith('/') ? CFG.server + url : url;
+      img.onload = () => { revokeImageSrc(objectImages[url]); objectImages[url] = img; };
+      if (toProtectedAssetPath(url)) {
+        loadProtectedImage(url).then((objectUrl) => {
+          if (objectUrl) img.src = objectUrl;
+        });
+      } else {
+        img.crossOrigin = 'anonymous';
+        img.src = url.startsWith('/') ? CFG.server + url : url;
+      }
     }
   }
 }
@@ -1838,11 +1928,18 @@ async function showTilePicker(pack, item) {
       // Load the tileset image
       if (ts && !tilesetImages[ts.key]) {
         const img = new Image();
-        img.crossOrigin = 'anonymous';
         await new Promise(resolve => {
-          img.onload = () => { tilesetImages[ts.key] = img; resolve(); };
+          img.onload = () => { revokeImageSrc(tilesetImages[ts.key]); tilesetImages[ts.key] = img; resolve(); };
           img.onerror = () => resolve();
-          img.src = ts.imageUrl.startsWith('/') ? CFG.server + ts.imageUrl : ts.imageUrl;
+          if (toProtectedAssetPath(ts.imageUrl)) {
+            loadProtectedImage(ts.imageUrl).then((objectUrl) => {
+              if (objectUrl) img.src = objectUrl;
+              else img.onerror(new Event('error'));
+            });
+          } else {
+            img.crossOrigin = 'anonymous';
+            img.src = ts.imageUrl.startsWith('/') ? CFG.server + ts.imageUrl : ts.imageUrl;
+          }
         });
       }
       toast('ok', `Tileset registered: ${tsKey}`);
@@ -2256,9 +2353,15 @@ function placeObject(tileX, tileY) {
   const url = obj.dataUrl;
   if (url && !objectImages[url]) {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => { objectImages[url] = img; markDirty(); };
-    img.src = url.startsWith('/') ? CFG.server + url : url;
+    img.onload = () => { revokeImageSrc(objectImages[url]); objectImages[url] = img; markDirty(); };
+    if (toProtectedAssetPath(url)) {
+      loadProtectedImage(url).then((objectUrl) => {
+        if (objectUrl) img.src = objectUrl;
+      });
+    } else {
+      img.crossOrigin = 'anonymous';
+      img.src = url.startsWith('/') ? CFG.server + url : url;
+    }
   }
 
   markDirty();
