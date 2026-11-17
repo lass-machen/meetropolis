@@ -76,8 +76,8 @@ function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
         <button
           type="button"
           onClick={onForgot}
+          className="pub-auth-text-link"
           style={{
-            all: 'unset',
             cursor: 'pointer',
             fontSize: 13,
             color: 'var(--pub-accent-purple)',
@@ -168,8 +168,8 @@ function LoginFooter({ onRegister, onInvite, registrationEnabled }: LoginFooterP
           <button
             type="button"
             onClick={onRegister}
+            className="pub-auth-text-link"
             style={{
-              all: 'unset',
               cursor: 'pointer',
               color: 'var(--pub-accent-purple)',
               textDecoration: 'none',
@@ -185,8 +185,8 @@ function LoginFooter({ onRegister, onInvite, registrationEnabled }: LoginFooterP
         <button
           type="button"
           onClick={onInvite}
+          className="pub-auth-text-link"
           style={{
-            all: 'unset',
             cursor: 'pointer',
             color: 'var(--pub-accent-purple)',
             textDecoration: 'none',

@@ -355,10 +355,22 @@
   flex-shrink: 0;
 }
 
+/* --- Auth text link (pub-auth-text-link) --- */
+/* Text links keep their type scale and color from the markup: only the box
+   grows to a pointer target, so the visual stays the same. */
+.pub-auth-text-link {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+
 /* --- Step Indicator (pub-step) --- */
 .pub-step-indicator {
   display: flex;
   align-items: center;
+  max-width: 100%;
 }
 
 .pub-step__circle {
@@ -389,10 +401,12 @@
   color: var(--pub-text-tertiary);
 }
 
+/* Connectors absorb narrow columns by shrinking toward a short segment while
+   the circles keep their size, so the row never forces an overflow. */
 .pub-step__connector {
-  width: 48px;
+  flex: 0 1 48px;
+  min-width: 12px;
   height: 2px;
-  flex-shrink: 0;
 }
 
 .pub-step__connector--completed {
