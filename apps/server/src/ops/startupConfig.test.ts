@@ -68,7 +68,8 @@ async function runEntry(): Promise<{ exitCode: number | undefined; stdout: strin
   // fresh import; clear it first so repeated imports stay possible.
   client.register.clear();
   await import('./startupConfig.js');
-  return { exitCode: exit.mock.calls[0]?.[0], stdout: stdoutText, stderr: stderrText };
+  const code = exit.mock.calls[0]?.[0];
+  return { exitCode: typeof code === 'number' ? code : undefined, stdout: stdoutText, stderr: stderrText };
 }
 
 beforeEach(() => {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createBillingEmailService, type BillingEmail } from './billingEmailService.js';
 import type { EmailModule } from './emailLoader.js';
+import type { logger } from './logger.js';
 
 const mail: BillingEmail = {
   to: 'owner@example.test',
@@ -9,8 +10,8 @@ const mail: BillingEmail = {
   html: '<p>Your payment failed.</p>',
 };
 
-function fakeLogger() {
-  return { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() };
+function fakeLogger(): typeof logger {
+  return { level: 'debug', warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() };
 }
 
 function fakeModule(sendRaw: (email: BillingEmail) => Promise<boolean>): EmailModule {

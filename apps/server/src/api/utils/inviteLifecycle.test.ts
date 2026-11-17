@@ -48,11 +48,12 @@ describe('inviteLifecycle', () => {
   });
 
   it('records a failed delivery without claiming it was sent or logging its code', async () => {
-    const invite = { id: 'invite-id', email: 'person@example.test', tenantId: 'tenant-id' };
+    const invite = { id: 'invite-id', email: 'person@example.test', tenantId: 'tenant-id', expiresAt: null };
+    // Partial double: deliverInvite reads only user.findUnique and invite.update.
     const prisma = {
       user: { findUnique: vi.fn().mockResolvedValue({ name: 'Inviter', email: 'inviter@example.test', locale: 'en' }) },
       invite: { update: vi.fn().mockResolvedValue(undefined) },
-    } as PrismaClient;
+    } as unknown as PrismaClient;
 
     await expect(
       deliverInvite(prisma, {

@@ -14,7 +14,7 @@ vi.mock('../logger.js', () => ({
 const createPrismaClientMock = vi.hoisted(() => vi.fn());
 vi.mock('../db.js', () => ({ createPrismaClient: createPrismaClientMock }));
 
-import { ServerError } from '@colyseus/core';
+import { ServerError, type AuthContext } from '@colyseus/core';
 import {
   disposeAllRooms,
   makeFakePrisma,
@@ -65,19 +65,20 @@ describe('assertAllowedMatchmakeMethod', () => {
 
 describe('the allow-list in front of Colyseus', () => {
   it('never reaches Colyseus, and looks no tenant up, for a method that is not allowed', async () => {
+    const authContext: AuthContext = { headers: new Headers(), ip: '127.0.0.1' };
     const reached = vi.fn((..._args: unknown[]) => Promise.resolve({ room: { roomId: 'r1' } }));
     const controller = { invokeMethod: reached } as unknown as NonNullable<
       Parameters<typeof installPartitionKeyValidation>[1]
     >;
     const lookup = vi.fn<TenantExists>().mockResolvedValue(true);
     installPartitionKeyValidation(lookup, controller);
-    await expect(controller.invokeMethod('create', 'world', { tenant: 'acme' }, {})).rejects.toMatchObject({
+    await expect(controller.invokeMethod('create', 'world', { tenant: 'acme' }, authContext)).rejects.toMatchObject({
       code: 400,
       message: 'invalid_method',
     });
     expect(reached).not.toHaveBeenCalled();
     expect(lookup).not.toHaveBeenCalled();
-    await controller.invokeMethod('joinOrCreate', 'world', { tenant: 'acme' }, {});
+    await controller.invokeMethod('joinOrCreate', 'world', { tenant: 'acme' }, authContext);
     expect(reached).toHaveBeenCalledTimes(1);
   });
 });

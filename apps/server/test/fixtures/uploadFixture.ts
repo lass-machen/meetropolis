@@ -9,10 +9,11 @@ export async function uploadTransport(app: express.Application) {
   await once(server, 'listening');
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('No local test port');
+  const port = address.port;
   const serverRequests: http.IncomingMessage[] = [];
   server.on('request', (req) => serverRequests.push(req));
   function open(route: string, headers: Record<string, string>) {
-    const req = http.request({ host: '127.0.0.1', port: address.port, path: route, method: 'POST', headers });
+    const req = http.request({ host: '127.0.0.1', port, path: route, method: 'POST', headers });
     const result = new Promise<{ status: number; retryAfter: number }>((resolve, reject) => {
       req.once('response', (res) => {
         res.resume();

@@ -9,11 +9,12 @@ import {
 } from './startupInvariant.js';
 
 function prismaWithPack(avatars: unknown, visible = true): Prisma.TransactionClient {
+  // Partial double: the invariant reads only avatarPack.findFirst.
   return {
     avatarPack: {
       findFirst: vi.fn(() => Promise.resolve(visible ? { avatars } : null)),
     },
-  } as Prisma.TransactionClient;
+  } as unknown as Prisma.TransactionClient;
 }
 
 describe('base-avatar startup invariant', () => {

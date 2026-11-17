@@ -25,7 +25,19 @@ import jwt from 'jsonwebtoken';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const SECRET = 'guest-revocation-test-secret';
-const TENANT = { id: 'tenant-1', slug: 'acme', name: 'Acme' };
+const TENANT: Tenant = {
+  id: 'tenant-1',
+  slug: 'acme',
+  name: 'Acme',
+  concurrentLimit: 50,
+  freeSeats: 3,
+  bypassLimits: false,
+  isInternal: false,
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  defaultMapName: 'office',
+  publicRegistrationEnabled: true,
+};
 const GUEST_USER = 'guest-user-1';
 const ADMIN_USER = 'admin-user-1';
 
@@ -144,7 +156,7 @@ import { guestExpiryMiddleware } from './api/middleware/guestExpiry.js';
 import { startGuestExpiryInterval } from './rooms/lifecycle/guestExpiry.js';
 import { createWorldAccess } from './rooms/lifecycle/worldAccess.js';
 import type { WorldRoom } from './rooms/WorldRoom.js';
-import type { PrismaClient } from './generated/prisma/index.js';
+import type { PrismaClient, Tenant } from './generated/prisma/index.js';
 
 const prisma = db.prisma as unknown as PrismaClient;
 
@@ -249,11 +261,13 @@ describe('room guest-expiry sweep', () => {
     } as unknown as WorldRoom;
     room.worldAccess = createWorldAccess(room);
     for (const [sessionId, player] of players) {
+      const rowId = sessionIds.get(sessionId);
       room.worldAccess.register(sessionId, {
         identity: player.identity,
         tenantId: TENANT.id,
         tenantSlug: TENANT.slug,
-        authSessionId: sessionIds.get(sessionId),
+        sessionId: rowId ?? null,
+        authSessionId: rowId,
         isNpc: false,
         zonePrivacyVersion: 1,
       });

@@ -244,10 +244,7 @@ function wirePeer(actorSessionId: string): void {
 
 async function leaveRoom(room: Room | undefined): Promise<void> {
   if (!room) return;
-  await Promise.race([
-    room.leave().catch(() => undefined),
-    new Promise((resolve) => setTimeout(resolve, 3_000)),
-  ]);
+  await Promise.race([room.leave().catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 3_000))]);
 }
 
 /** Repeat a valid move until the cache from room creation is visible in the pose. */
@@ -402,7 +399,8 @@ beforeAll(async () => {
   guest = await seedMember(prisma, tenantId, { role: 'member' });
   server = await startMatchmakeServer({ configureApp: configureApi });
   previousGameServer = global.gameServer;
-  global.gameServer = server.gameServer;
+  // Colyseus Server is wider than the narrow global.gameServer stand-in.
+  global.gameServer = server.gameServer as unknown as typeof global.gameServer;
 }, 30_000);
 
 beforeEach(async () => {

@@ -75,6 +75,7 @@ describe('origin access', { timeout: 180_000 }, () => {
       mode: 'development',
       origins: [WEB_ORIGIN],
       metrics: false,
+      metricsPort: undefined,
     });
     production = await startServer({
       port: configuredPort() ?? ports[1],
