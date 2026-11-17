@@ -1,5 +1,5 @@
 /**
- * Studio-only DB integration for D-517 orphan cleanup reference checks.
+ * Studio-only DB integration for orphan cleanup reference checks.
  * Not executed in the local unit harness (vitest server project excludes
  * *.integration.test.ts). Requires a real DATABASE_URL and generated Prisma client.
  *

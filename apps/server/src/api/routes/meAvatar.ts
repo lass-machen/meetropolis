@@ -20,6 +20,11 @@ import {
   readCustomAvatarGeometry,
   writeCustomAvatarFiles,
 } from '../../services/avatarComposer.js';
+import {
+  registerRetiredCustomAvatar,
+  runCustomAvatarOrphanCleanup,
+  type CustomAvatarOrphanRefs,
+} from '../../services/customAvatarOrphanCleanup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -169,6 +174,7 @@ async function handleCompose(
 
   const configHash = configHashHex(catalog, canonical);
   const existing = await prisma.customAvatar.findUnique({ where: { userId: auth.userId } });
+  const displacedUuid = existing && existing.configHash !== configHash ? existing.uuid : null;
 
   const built = await persistCustomAvatar(prisma, packsDir, catalog, {
     userId: auth.userId,
@@ -179,7 +185,50 @@ async function handleCompose(
   });
 
   await prisma.user.update({ where: { id: auth.userId }, data: { avatarId: built.avatarId } });
+
+  // D-517: after the live DB/user pointers moved, record the displaced UUID and
+  // run a bounded orphan pass (also on unchanged compose). Failures are non-fatal.
+  try {
+    if (displacedUuid) {
+      await registerRetiredCustomAvatar(packsDir, displacedUuid);
+    }
+    await runCustomAvatarOrphanCleanup({
+      packsDir,
+      refs: customAvatarOrphanRefsFromPrisma(prisma),
+    });
+  } catch (err) {
+    logger.warn('[meAvatar] custom avatar orphan cleanup failed (non-fatal)', {
+      error: String(err),
+    });
+  }
+
   res.json({ avatarId: built.avatarId, manifest: built.manifest });
+}
+
+/** Reference lookups for due cleanup candidates only; discovery uses findMany+uuid.in. */
+function customAvatarOrphanRefsFromPrisma(prisma: PrismaClient): CustomAvatarOrphanRefs {
+  return {
+    listPresentCustomAvatarUuids: async (uuids) => {
+      if (uuids.length === 0) return new Set();
+      const rows = await prisma.customAvatar.findMany({
+        where: { uuid: { in: uuids } },
+        select: { uuid: true },
+      });
+      return new Set(rows.map((row) => row.uuid));
+    },
+    isActivelyReferenced: async (uuid) => {
+      const row = await prisma.customAvatar.findFirst({
+        where: { uuid },
+        select: { uuid: true },
+      });
+      if (row) return true;
+      const user = await prisma.user.findFirst({
+        where: { avatarId: `custom:${uuid}` },
+        select: { id: true },
+      });
+      return user !== null;
+    },
+  };
 }
 
 async function persistCustomAvatar(

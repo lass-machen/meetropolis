@@ -1,5 +1,5 @@
 /**
- * Unit tests for D-517 custom-avatar orphan retirement + bounded cleanup.
+ * Unit tests for custom-avatar orphan retirement + bounded cleanup.
  * Real temp files and a real express.static HTTP check; DB refs are injected.
  */
 import fs from 'node:fs';
