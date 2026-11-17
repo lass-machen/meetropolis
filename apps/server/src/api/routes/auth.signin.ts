@@ -30,6 +30,7 @@ import { isNativeClientRequest, getRequestToken, buildSigninResponseBody } from 
 import { recordAuthEvent } from '../../services/authEvents.js';
 import { getDeniedTenant, isTenantAccessDenied } from '../utils/tenantAccessState.js';
 import * as inviteLifecycle from '../utils/inviteLifecycle.js';
+import { createOpenInvite } from '../utils/openInvite.js';
 
 const inviteSchema = z.object({
   email: z.string().email(),
@@ -87,15 +88,11 @@ export async function handleAuthInvite(
         where: { id: openInvite.id },
         data: { expiresAt: inviteLifecycle.inviteExpiry(), role: allowedRole },
       })
-    : await prisma.invite.create({
-        data: {
-          code: crypto.randomBytes(12).toString('hex'),
-          email: normalizedEmail,
-          createdBy: auth.userId,
-          tenantId: tenant.id,
-          role: allowedRole,
-          expiresAt: inviteLifecycle.inviteExpiry(),
-        },
+    : await createOpenInvite(prisma, {
+        tenantId: tenant.id,
+        email: normalizedEmail,
+        createdBy: auth.userId,
+        role: allowedRole,
       });
   const inviteUrl = buildPublicWebLink(baseUrl, `?invite=${invite.code}`);
   const emailSent = await inviteLifecycle.deliverInvite(prisma, {

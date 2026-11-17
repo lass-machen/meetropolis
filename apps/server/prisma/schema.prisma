@@ -112,6 +112,9 @@ model User {
   customAvatar        CustomAvatar?
 }
 
+// A partial unique index on (tenantId, email) for open invites lives only in
+// migration 20261117090000_unique_open_invite, because Prisma cannot express
+// a unique index with a WHERE clause.
 model Invite {
   id        String   @id @default(cuid())
   code      String   @unique
