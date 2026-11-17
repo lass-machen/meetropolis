@@ -15,7 +15,7 @@
     "@livekit/rtc-node": "^1.2.2",
     "@meetropolis/shared": "*",
     "dotenv": "^17.4.2",
-    "livekit-server-sdk": "^2.19.1"
+    "livekit-server-sdk": "^2.20.0"
   },
   "devDependencies": {
     "tsx": "^4.23.15",
