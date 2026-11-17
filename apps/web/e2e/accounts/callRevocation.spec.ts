@@ -87,7 +87,7 @@ test.describe('AV calls end with the tenant access', () => {
 
     const ownerRequest = await createApiRequest(playwright.request, stack.apiUrl, tenant.slug);
     const ownerApi = new MeetropolisApi(ownerRequest, stack.apiUrl, tenant.slug);
-    await ownerApi.login(owner.email, owner.password);
+    await ownerApi.login(owner.email, owner.password ?? stack.userPassword);
 
     const email = `call-revoke-${crypto.randomUUID()}@example.test`;
     const password = 'Acct-E2E-Password-1';

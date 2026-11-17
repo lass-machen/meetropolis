@@ -16,8 +16,10 @@ export function mailProofFixture(db: Client, seed: SeedData, stack: TestStackEnv
   if (url.hostname !== '127.0.0.1' || url.port !== '35440')
     throw new Error('This test requires the assigned database on 127.0.0.1:35440.');
   const tenant = getSeedTenant(seed);
-  const owner = tenant.users.owner;
-  if (!owner) throw new Error('Seed contains no owner');
+  const seedOwner = tenant.users.owner;
+  if (!seedOwner) throw new Error('Seed contains no owner');
+  // Bind the narrowed value so the hoisted helpers below see a defined owner.
+  const owner = seedOwner;
   const emails: string[] = [];
   const extraTenants: string[] = [];
   async function account(options: { verified?: boolean; member?: boolean } = {}): Promise<TestUser> {
