@@ -29,13 +29,18 @@ function isMoveInsideMap(room: WorldRoom, mapId: string, x: number, y: number): 
   return x >= 0 && x <= width && y >= 0 && y <= height;
 }
 
-function publishMove(room: WorldRoom, client: Client, player: {
-  x: number;
-  y: number;
-  direction: string;
-  mapId: string;
-  mapName: string;
-}, move: MoveData): void {
+function publishMove(
+  room: WorldRoom,
+  client: Client,
+  player: {
+    x: number;
+    y: number;
+    direction: string;
+    mapId: string;
+    mapName: string;
+  },
+  move: MoveData,
+): void {
   player.x = move.x;
   player.y = move.y;
   player.direction = move.direction;
