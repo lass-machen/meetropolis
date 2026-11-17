@@ -3,6 +3,7 @@ import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import type { Role } from '../../generated/prisma/index.js';
 import { normalizeEmailForMatching, normalizeEmailForStorage } from './authHelpers.js';
 import { sendIfAvailable } from '../../emailLoader.js';
+import { hashInviteCode } from './inviteCode.js';
 
 export const INVITE_TTL_DAYS = 7;
 export type InviteStatus = 'pending' | 'accepted' | 'expired';
@@ -50,12 +51,14 @@ export function inviteEmailMatches(inviteEmail: string | null, accountEmail: str
 
 export async function consumeInvite(
   tx: Prisma.TransactionClient,
-  code: string,
+  codeHash: string,
   userId: string,
   now: Date,
 ): Promise<boolean> {
+  // Callers pass the stored hash: routes hash the user-supplied raw code first,
+  // and the email-proof flow already holds the stored value.
   const result = await tx.invite.updateMany({
-    where: { code, usedAt: null, expiresAt: { gt: now } },
+    where: { code: codeHash, usedAt: null, expiresAt: { gt: now } },
     data: { usedAt: now, usedById: userId },
   });
   return result.count === 1;
@@ -77,7 +80,7 @@ export async function registerInvitedUser(
     const user = await tx.user.create({
       data: { email: normalizeEmailForStorage(args.email), name: args.name, passwordHash: args.passwordHash },
     });
-    const invite = await tx.invite.findUnique({ where: { code: args.code } });
+    const invite = await tx.invite.findUnique({ where: { code: hashInviteCode(args.code) } });
     if (
       !invite ||
       deriveInviteStatus(invite, args.now) !== 'pending' ||
@@ -156,12 +159,13 @@ export async function deliverInvite(
 }
 
 export function inviteResponse(
-  invite: { code: string; role: string; expiresAt: Date | null },
+  invite: { role: string; expiresAt: Date | null },
+  rawCode: string,
   inviteUrl: string,
   emailSent: boolean,
 ) {
   return {
-    code: invite.code,
+    code: rawCode,
     role: invite.role,
     inviteUrl,
     expiresAt: invite.expiresAt?.toISOString() ?? null,

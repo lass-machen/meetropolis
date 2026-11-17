@@ -29,12 +29,21 @@ vi.mock('../../services/authEvents.js', () => ({
   recordAuthEvent: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock('../../emailLoader.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../emailLoader.js')>();
+  return {
+    ...actual,
+    sendIfAvailable: vi.fn(() => Promise.resolve(false)),
+    getEmailModule: vi.fn(() => Promise.resolve(null)),
+  };
+});
+
 vi.mock('../utils/sessionAuth.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils/sessionAuth.js')>();
   return { ...actual, establishSession: vi.fn(), revokeSessionByToken: vi.fn() };
 });
 
-import { handleAuthLogin, handleAuthLogout } from './auth.signin.js';
+import { handleAuthInvite, handleAuthLogin, handleAuthLogout } from './auth.signin.js';
 import { recordAuthEvent } from '../../services/authEvents.js';
 import { establishSession, revokeSessionByToken } from '../utils/sessionAuth.js';
 import { setAuthResolution } from '../utils/authState.js';
@@ -318,5 +327,42 @@ describe('handleAuthLogout: auth event recording (W2N-V30)', () => {
 
     expect(res.json).toHaveBeenCalledWith({ ok: true });
     expect(recordMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('handleAuthInvite: stored invite code', () => {
+  it('stored code is not the raw code from inviteUrl', async () => {
+    process.env.PUBLIC_BASE_URL = 'https://app.example.test';
+    let storedCode = '';
+    const prisma = {
+      user: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findUnique: vi.fn().mockResolvedValue({ name: 'Owner', email: 'owner@example.test', locale: 'en' }),
+      },
+      membership: { findUnique: vi.fn().mockResolvedValue({ role: 'owner', expiresAt: null }) },
+      invite: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn(
+          (args: { data: { code: string; email: string; tenantId: string; role: string; expiresAt: Date } }) => {
+            storedCode = args.data.code;
+            return Promise.resolve({ id: 'invite-1', ...args.data });
+          },
+        ),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    } as unknown as PrismaClient;
+    const req = { headers: {}, body: { email: 'new@example.test', role: 'member' } } as unknown as express.Request;
+    (req as unknown as { tenant: unknown }).tenant = { id: 't1', slug: 'acme', name: 'Acme' };
+    setAuthResolution(req, { auth: { userId: 'u1', tenantId: 't1', sessionId: 's1', tokenHash: 'h1' } });
+    const res = fakeRes();
+
+    await handleAuthInvite(prisma, req, res);
+
+    const body = vi.mocked(res.json).mock.calls[0]?.[0] as { inviteUrl: string; code: string };
+    const rawCode = new URL(body.inviteUrl.replace('/#/', '/')).searchParams.get('invite') ?? '';
+    expect(rawCode).toMatch(/^[0-9a-f]{24}$/);
+    expect(body.code).toBe(rawCode);
+    expect(storedCode).not.toBe(rawCode);
+    expect(storedCode).toMatch(/^[0-9a-f]{64}$/);
   });
 });

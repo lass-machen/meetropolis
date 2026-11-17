@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createEmailProofFixture } from '../../../test/fixtures/emailProofFixture.js';
+import { hashInviteCode } from '../utils/inviteCode.js';
 
 const setup = createEmailProofFixture();
 const { fixture, app } = setup;
@@ -18,11 +19,12 @@ it('does not unlock an old marked administrator role through a new invitation', 
     where: { tenantId_userId: { tenantId: tenant.id, userId: caller.id } },
     data: { inviteVerificationRequired: true },
   });
-  const invite = await fixture.prisma.invite.create({
+  const rawCode = crypto.randomBytes(12).toString('hex');
+  await fixture.prisma.invite.create({
     data: {
       tenantId: tenant.id,
       email: user.email,
-      code: crypto.randomBytes(12).toString('hex'),
+      code: hashInviteCode(rawCode),
       role: 'member',
       expiresAt: new Date(Date.now() + 3_600_000),
     },
@@ -31,7 +33,7 @@ it('does not unlock an old marked administrator role through a new invitation', 
     .post('/invites/accept')
     .set('X-Tenant', tenant.slug)
     .set('Authorization', `Bearer ${caller.session}`)
-    .send({ code: invite.code });
+    .send({ code: rawCode });
   expect(result.status).toBe(200);
   const member = await fixture.prisma.membership.findUniqueOrThrow({
     where: { tenantId_userId: { tenantId: tenant.id, userId: caller.id } },

@@ -117,6 +117,7 @@ model User {
 // a unique index with a WHERE clause.
 model Invite {
   id        String   @id @default(cuid())
+  // stores the SHA-256 hex of the invite code
   code      String   @unique
   email     String?
   createdAt DateTime @default(now())

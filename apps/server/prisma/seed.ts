@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -432,8 +433,9 @@ async function main() {
   const existingInvite = await prisma.invite.findFirst({ where: { email: admin.email, tenantId: def.id } });
   if (!existingInvite) {
     const code = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
     await prisma.invite.create({
-      data: { code, email: admin.email, createdBy: admin.id, tenantId: def.id, role: 'admin' as any },
+      data: { code: codeHash, email: admin.email, createdBy: admin.id, tenantId: def.id, role: 'admin' as any },
     });
 
     console.log('Seeded invite for admin email');

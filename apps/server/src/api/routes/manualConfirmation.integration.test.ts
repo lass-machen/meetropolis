@@ -7,6 +7,7 @@ import { registerMiscRoutes } from './misc.js';
 import { registerAdminAccountConfirmationRoutes } from './admin.accountConfirmation.js';
 import { errorHandler } from '../errorHandler.js';
 import { validateTenantSessionFresh } from '../utils/sessionAuth.js';
+import { hashInviteCode } from '../utils/inviteCode.js';
 
 const fixture = createHttpFixture();
 const app = fixture.app();
@@ -72,11 +73,12 @@ async function pendingRegistration(role: 'admin' | 'member' = 'admin') {
   const own = await fixture.tenant();
   const email = `fixture-account-${crypto.randomUUID()}@example.test`;
   fixture.userEmails.push(email);
+  const rawCode = crypto.randomBytes(12).toString('hex');
   const invite = await fixture.prisma.invite.create({
     data: {
       tenantId: own.tenant.id,
       email,
-      code: crypto.randomBytes(12).toString('hex'),
+      code: hashInviteCode(rawCode),
       role,
       expiresAt: new Date(Date.now() + 3_600_000),
     },
@@ -85,7 +87,7 @@ async function pendingRegistration(role: 'admin' | 'member' = 'admin') {
   const result = await request(app)
     .post('/auth/register')
     .set('X-Tenant', own.tenant.slug)
-    .send({ code: invite.code, email, password });
+    .send({ code: rawCode, email, password });
   const user = await fixture.prisma.user.findUniqueOrThrow({ where: { email } });
   fixture.userIds.push(user.id);
   return { ...own, invite, result, user, password, cookie: sessionCookie(result) };
@@ -164,11 +166,12 @@ describe('manual account confirmation without a mail provider', () => {
       data: { emailVerifiedAt: null },
     });
     const target = await fixture.tenant();
-    const invite = await fixture.prisma.invite.create({
+    const rawCode = crypto.randomBytes(12).toString('hex');
+    await fixture.prisma.invite.create({
       data: {
         tenantId: target.tenant.id,
         email: account.email,
-        code: crypto.randomBytes(12).toString('hex'),
+        code: hashInviteCode(rawCode),
         role: 'admin',
         expiresAt: new Date(Date.now() + 3_600_000),
       },
@@ -177,7 +180,7 @@ describe('manual account confirmation without a mail provider', () => {
       .post('/invites/accept')
       .set('X-Tenant', target.tenant.slug)
       .set('Authorization', `Bearer ${caller.session}`)
-      .send({ code: invite.code });
+      .send({ code: rawCode });
     expect(accepted.status).toBe(409);
     expect(accepted.body.code).toBe('EMAIL_VERIFICATION_REQUIRED');
     expect(accepted.body.delivery).toBe('admin');
@@ -320,11 +323,12 @@ describe('manual account confirmation without a mail provider', () => {
     const { tenant } = await fixture.tenant();
     const email = `fixture-account-${crypto.randomUUID()}@example.test`;
     fixture.userEmails.push(email);
-    const invite = await fixture.prisma.invite.create({
+    const rawCode = crypto.randomBytes(12).toString('hex');
+    await fixture.prisma.invite.create({
       data: {
         tenantId: tenant.id,
         email,
-        code: crypto.randomBytes(12).toString('hex'),
+        code: hashInviteCode(rawCode),
         role: 'member',
         expiresAt: new Date(Date.now() + 3_600_000),
       },
@@ -332,7 +336,7 @@ describe('manual account confirmation without a mail provider', () => {
     const registered = await request(app)
       .post('/auth/register')
       .set('X-Tenant', tenant.slug)
-      .send({ code: invite.code, email, password: crypto.randomBytes(20).toString('hex') });
+      .send({ code: rawCode, email, password: crypto.randomBytes(20).toString('hex') });
     expect(registered.status).toBe(503);
     expect(registered.body.code).toBe('EMAIL_DELIVERY_UNAVAILABLE');
     expect(await fixture.prisma.user.findUnique({ where: { email } })).toBeNull();
@@ -341,11 +345,12 @@ describe('manual account confirmation without a mail provider', () => {
       where: { id: caller.id },
       data: { emailVerifiedAt: null },
     });
-    const acceptInvite = await fixture.prisma.invite.create({
+    const rawAcceptCode = crypto.randomBytes(12).toString('hex');
+    await fixture.prisma.invite.create({
       data: {
         tenantId: tenant.id,
         email: account.email,
-        code: crypto.randomBytes(12).toString('hex'),
+        code: hashInviteCode(rawAcceptCode),
         role: 'member',
         expiresAt: new Date(Date.now() + 3_600_000),
       },
@@ -354,7 +359,7 @@ describe('manual account confirmation without a mail provider', () => {
       .post('/invites/accept')
       .set('X-Tenant', tenant.slug)
       .set('Authorization', `Bearer ${caller.session}`)
-      .send({ code: acceptInvite.code });
+      .send({ code: rawAcceptCode });
     expect(accepted.status).toBe(503);
     expect(accepted.body.code).toBe('EMAIL_DELIVERY_UNAVAILABLE');
     const verifyRequest = await request(app)

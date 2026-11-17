@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createEmailProofFixture } from '../../../test/fixtures/emailProofFixture.js';
+import { hashInviteCode } from '../utils/inviteCode.js';
 import { registerUserRoutes } from './users.js';
 import { registerPresenceRoutes } from './presence.js';
 import { registerTmjImportRoute } from './tmj.import.js';
@@ -48,11 +49,12 @@ it('issues a signed verification-only registration session with a fifteen-minute
   const { tenant } = await fixture.tenant();
   const email = setup.email();
   fixture.userEmails.push(email);
-  const invite = await fixture.prisma.invite.create({
+  const rawCode = crypto.randomBytes(12).toString('hex');
+  await fixture.prisma.invite.create({
     data: {
       tenantId: tenant.id,
       email,
-      code: crypto.randomBytes(12).toString('hex'),
+      code: hashInviteCode(rawCode),
       role: 'member',
       expiresAt: new Date(Date.now() + 3_600_000),
     },
@@ -60,7 +62,7 @@ it('issues a signed verification-only registration session with a fifteen-minute
   const result = await request(app)
     .post('/auth/register')
     .set('X-Tenant', tenant.slug)
-    .send({ code: invite.code, email, password: crypto.randomBytes(20).toString('hex') });
+    .send({ code: rawCode, email, password: crypto.randomBytes(20).toString('hex') });
   const cookies = result.headers['set-cookie'];
   const cookie = Array.isArray(cookies)
     ? cookies.find((value: string) => value.startsWith('auth_token='))?.split(';')[0]
@@ -75,7 +77,7 @@ it('issues a signed verification-only registration session with a fifteen-minute
   const row = await fixture.prisma.session.findUniqueOrThrow({ where: { tokenHash: hashSessionToken(token) } });
   expect(Math.abs(row.expiresAt.getTime() - (payload.exp ?? 0) * 1000)).toBeLessThan(1100);
   expect(result.status).toBe(409);
-  const accepted = await request(app).post('/invites/accept').set('Cookie', cookie).send({ code: invite.code });
+  const accepted = await request(app).post('/invites/accept').set('Cookie', cookie).send({ code: rawCode });
   expect(accepted.status).toBe(409);
   expect(accepted.body.code).toBe('EMAIL_VERIFICATION_REQUIRED');
   expect(await fixture.prisma.membership.count({ where: { userId: row.userId } })).toBe(0);

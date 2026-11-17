@@ -9,6 +9,7 @@ import { createPrismaClient } from '../../db.js';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { runTenantExport } from './run.js';
 import { OSS_EXPORT_SPECS } from './spec.js';
+import { hashInviteCode } from '../../api/utils/inviteCode.js';
 
 /**
  * Tenant export isolation across two tenants (real PostgreSQL, no mocks).
@@ -183,7 +184,7 @@ async function seedTenantSide(tag: 'a' | 'b', slug: string, userId: string, role
   }
   const membership = await prisma.membership.create({ data: { userId, tenantId, role } });
   seedIds.memberships.push(membership.id);
-  await prisma.invite.create({ data: { tenantId, code: marker('invite', tag) } });
+  await prisma.invite.create({ data: { tenantId, code: hashInviteCode(marker('invite', tag)) } });
   const map = await prisma.map.create({
     data: {
       tenantId,

@@ -11,6 +11,7 @@ import { registerApi } from './api.js';
 import { tenantMiddleware } from './tenancy.js';
 import { getJwtSecret } from './api/utils/authHelpers.js';
 import { inviteExpiry } from './api/utils/inviteLifecycle.js';
+import { hashInviteCode } from './api/utils/inviteCode.js';
 import { hashSessionToken } from './api/utils/sessionAuth.js';
 
 /**
@@ -74,7 +75,9 @@ beforeAll(async () => {
   mapId = (await prisma.map.create({ data: { tenantId, name: 'Office', meta: {} } })).id;
   inviteCode = crypto.randomBytes(12).toString('hex');
   inviteId = (
-    await prisma.invite.create({ data: { code: inviteCode, email: 'invitee@example.test', tenantId, role: 'admin' } })
+    await prisma.invite.create({
+      data: { code: hashInviteCode(inviteCode), email: 'invitee@example.test', tenantId, role: 'admin' },
+    })
   ).id;
 
   app = express();
@@ -125,7 +128,7 @@ describe('tenant data requires a membership (real stack)', () => {
     expect(list.status).toBe(400);
     const revoke = await request(app).delete(`/invites/${inviteId}`).set(as(outsiderToken));
     expect(revoke.status).toBe(400);
-    expect(await prisma.invite.count({ where: { code: inviteCode } })).toBe(1);
+    expect(await prisma.invite.count({ where: { code: hashInviteCode(inviteCode) } })).toBe(1);
   });
 
   it('refuses map export and import to a signed-in non-member', async () => {
@@ -179,7 +182,9 @@ describe('flows that must keep working without a membership (real stack)', () =>
   it('lets a signed-in non-member start an invite registration without a membership before email proof', async () => {
     const code = crypto.randomBytes(12).toString('hex');
     const email = `invitee-${crypto.randomUUID()}@example.test`;
-    await prisma.invite.create({ data: { code, email, tenantId, role: 'member', expiresAt: inviteExpiry() } });
+    await prisma.invite.create({
+      data: { code: hashInviteCode(code), email, tenantId, role: 'member', expiresAt: inviteExpiry() },
+    });
     const res = await request(app)
       .post('/auth/register')
       .set(as(outsiderToken))
@@ -207,7 +212,7 @@ describe('flows that must keep working without a membership (real stack)', () =>
     const member = await prisma.user.findUniqueOrThrow({ where: { id: memberId }, select: { email: true } });
     const code = crypto.randomBytes(12).toString('hex');
     const invite = await prisma.invite.create({
-      data: { code, email: member.email, tenantId: tenantB.id, role: 'member' },
+      data: { code: hashInviteCode(code), email: member.email, tenantId: tenantB.id, role: 'member' },
     });
     await prisma.$executeRaw`
       UPDATE "Invite" SET "expiresAt" = now() + interval '7 days' WHERE "id" = ${invite.id}

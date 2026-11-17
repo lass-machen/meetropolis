@@ -8,6 +8,7 @@ import { handleAuthInvite, handleAuthRegister } from './auth.signin.js';
 import { registerMiscRoutes } from './misc.js';
 import { registerGuestRoutes } from './guests.js';
 import { formatInviteExpiry } from '../utils/inviteLifecycle.js';
+import { hashInviteCode } from '../utils/inviteCode.js';
 
 const capturedLogs = vi.hoisted(() => {
   process.env.RATE_LIMIT_ENABLED = 'false';
@@ -38,7 +39,7 @@ const prisma = createPrismaClient();
 const mailpitUrl = process.env.MAILPIT_URL.replace(/\/$/, '');
 const tenantIds: string[] = [];
 const userIds: string[] = [];
-const inviteFields = 'id,email,role,status,expiresAt,lastSentAt,lastSendError,createdAt,usedAt,url'.split(',').sort();
+const inviteFields = 'id,email,role,status,expiresAt,lastSentAt,lastSendError,createdAt,usedAt'.split(',').sort();
 const smtpEnvKeys = [
   'SMTP_HOST',
   'SMTP_PORT',
@@ -85,7 +86,6 @@ interface ListedInvite {
   status: string;
   expiresAt: string | null;
   lastSendError: string | null;
-  url: string | null;
 }
 
 function makeApp(): express.Application {
@@ -139,7 +139,7 @@ const listInvites = (fixture: Fixture, userId: string) =>
 
 async function inviteLifecycle(code: string): Promise<InviteLifecycleRow> {
   const rows = await prisma.$queryRaw<InviteLifecycleRow[]>`
-    SELECT "expiresAt", "lastSentAt", "sendCount", "lastSendError" FROM "Invite" WHERE "code" = ${code}
+    SELECT "expiresAt", "lastSentAt", "sendCount", "lastSendError" FROM "Invite" WHERE "code" = ${hashInviteCode(code)}
   `;
   if (!rows[0]) throw new Error('Expected invite lifecycle row');
   return rows[0];
@@ -151,15 +151,17 @@ async function createInviteRecord(
   tenantId = fixture.tenantId,
   role = 'member',
 ) {
-  return prisma.invite.create({
+  const rawCode = crypto.randomUUID().replaceAll('-', '');
+  const invite = await prisma.invite.create({
     data: {
-      code: crypto.randomUUID().replaceAll('-', ''),
+      code: hashInviteCode(rawCode),
       email,
       createdBy: fixture.ownerId,
       tenantId,
       role,
     },
   });
+  return { ...invite, code: rawCode };
 }
 
 async function createActiveInvite(fixture: Fixture, email: string, role = 'member') {
@@ -233,9 +235,9 @@ async function createForeignInvite(fixture: Fixture, email: string) {
 }
 
 async function inviteByCode(code: string) {
-  const invite = await prisma.invite.findUnique({ where: { code } });
+  const invite = await prisma.invite.findUnique({ where: { code: hashInviteCode(code) } });
   if (!invite) throw new Error('Expected invite row');
-  return invite;
+  return { ...invite, code };
 }
 
 function registerInvite(fixture: Fixture, code: string, email: string, name = 'Registered Invitee') {
@@ -357,9 +359,11 @@ describe('invite delivery feedback and open invite reuse', () => {
     const secondResponse = await inviteRequest(fixture, fixture.ownerId, email, 'member');
     const second = secondResponse.body as InviteResponse;
     const secondMail = await waitForMail(email, 2);
-    const secondRow = await inviteLifecycle(first.code);
+    const secondRow = await inviteLifecycle(second.code);
     expect(secondResponse.status).toBe(200);
-    expect(second.code).toBe(first.code);
+    expect(second.code).not.toBe(first.code);
+    expect((await previewInvite(fixture, first.code)).status).toBe(404);
+    expect((await previewInvite(fixture, second.code)).status).toBe(200);
     expect(second.role).toBe('member');
     expect(secondMail.count).toBe(2);
     expect(await prisma.invite.count({ where: { tenantId: fixture.tenantId, email } })).toBe(1);
@@ -386,10 +390,10 @@ describe('invite expiry, status, and resend', () => {
     const nullExpiry = await createInviteRecord(fixture, `null-${crypto.randomUUID()}@example.test`);
     await prisma.$executeRaw`
       UPDATE "Invite" SET "expiresAt" = now() + interval '2 days', "lastSentAt" = now(),
-        "lastSendError" = 'not_delivered' WHERE "code" = ${pending.code}
+        "lastSendError" = 'not_delivered' WHERE "code" = ${hashInviteCode(pending.code)}
     `;
-    await prisma.$executeRaw`UPDATE "Invite" SET "expiresAt" = now() - interval '1 day' WHERE "code" = ${expired.code}`;
-    await prisma.$executeRaw`UPDATE "Invite" SET "usedAt" = now() WHERE "code" = ${accepted.code}`;
+    await prisma.$executeRaw`UPDATE "Invite" SET "expiresAt" = now() - interval '1 day' WHERE "code" = ${hashInviteCode(expired.code)}`;
+    await prisma.$executeRaw`UPDATE "Invite" SET "usedAt" = now() WHERE "code" = ${hashInviteCode(accepted.code)}`;
 
     const response = await listInvites(fixture, fixture.ownerId);
     const invites = response.body as ListedInvite[];
@@ -401,7 +405,7 @@ describe('invite expiry, status, and resend', () => {
     expect(response.status).toBe(200);
     expect(Object.keys(listedPending ?? {}).sort()).toEqual(inviteFields);
     expect(listedPending).toMatchObject({ id: pending.id, status: 'pending', lastSendError: 'not_delivered' });
-    expect(listedPending?.url).toContain(`?invite=${pending.code}`);
+    expect(listedPending).not.toHaveProperty('url');
     expect(listedExpired).toMatchObject({ id: expired.id, status: 'expired' });
     expect(listedAccepted).toMatchObject({ id: accepted.id, status: 'accepted' });
     expect(listedNullExpiry).toMatchObject({ id: nullExpiry.id, status: 'expired', expiresAt: null });
@@ -415,16 +419,18 @@ describe('invite expiry, status, and resend', () => {
     expect(first.emailSent).toBe(true);
     await waitForMail(email);
     const invite = await inviteByCode(first.code);
-    await prisma.$executeRaw`UPDATE "Invite" SET "expiresAt" = now() - interval '1 day' WHERE "code" = ${first.code}`;
+    await prisma.$executeRaw`UPDATE "Invite" SET "expiresAt" = now() - interval '1 day' WHERE "code" = ${hashInviteCode(first.code)}`;
     const before = await inviteLifecycle(first.code);
 
     const resentResponse = await inviteAction(fixture, fixture.ownerId, 'post', `/invites/${invite.id}/resend`);
     const resent = resentResponse.body as InviteResponse;
     await waitForMail(email, 2);
-    const after = await inviteLifecycle(first.code);
+    const after = await inviteLifecycle(resent.code);
     expect(resentResponse.status).toBe(200);
     expect(Object.keys(resent).sort()).toEqual(['code', 'role', 'inviteUrl', 'expiresAt', 'emailSent'].sort());
-    expect(resent.code).toBe(first.code);
+    expect(resent.code).not.toBe(first.code);
+    expect((await previewInvite(fixture, first.code)).status).toBe(404);
+    expect((await previewInvite(fixture, resent.code)).status).toBe(200);
     expect(new Date(resent.expiresAt).getTime()).toBeGreaterThan(Date.now());
     expect(resent.emailSent).toBe(true);
     expect(after.sendCount).toBe(before.sendCount + 1);
@@ -447,10 +453,11 @@ describe('invite expiry, status, and resend', () => {
     const response = await inviteAction(fixture, fixture.ownerId, 'post', `/invites/${invite.id}/resend`);
     const resent = response.body as InviteResponse;
     await waitForMail(email, 2);
-    const after = await inviteLifecycle(first.code);
+    const after = await inviteLifecycle(resent.code);
     const listed = await listInvites(fixture, fixture.ownerId);
     expect(response.status).toBe(200);
-    expect(resent.code).toBe(first.code);
+    expect(resent.code).not.toBe(first.code);
+    expect((await previewInvite(fixture, first.code)).status).toBe(404);
     expect(new Date(resent.expiresAt).getTime()).toBeGreaterThan(Date.now());
     expect(resent.emailSent).toBe(true);
     expect(after.sendCount).toBe(before.sendCount + 1);
@@ -485,7 +492,7 @@ describe('invite expiry, status, and resend', () => {
   it('rejects used, unknown, foreign, and member resends', async () => {
     const fixture = await createFixture();
     const used = await createInviteRecord(fixture, `used-${crypto.randomUUID()}@example.test`);
-    await prisma.$executeRaw`UPDATE "Invite" SET "usedAt" = now() WHERE "code" = ${used.code}`;
+    await prisma.$executeRaw`UPDATE "Invite" SET "usedAt" = now() WHERE "code" = ${hashInviteCode(used.code)}`;
     const usedResponse = await inviteAction(fixture, fixture.ownerId, 'post', `/invites/${used.id}/resend`);
     expect(usedResponse.status).toBe(400);
     expect(usedResponse.body).toEqual({ error: 'already used' });

@@ -30,6 +30,7 @@ import { isNativeClientRequest, getRequestToken, buildSigninResponseBody } from 
 import { recordAuthEvent } from '../../services/authEvents.js';
 import { getDeniedTenant, isTenantAccessDenied } from '../utils/tenantAccessState.js';
 import * as inviteLifecycle from '../utils/inviteLifecycle.js';
+import { hashInviteCode, newInviteCode } from '../utils/inviteCode.js';
 import { createOpenInvite } from '../utils/openInvite.js';
 
 const inviteSchema = z.object({
@@ -83,25 +84,33 @@ export async function handleAuthInvite(
     where: { tenantId: tenant.id, email: normalizedEmail, usedAt: null },
     orderBy: { createdAt: 'desc' },
   });
-  const invite = openInvite
-    ? await prisma.invite.update({
-        where: { id: openInvite.id },
-        data: { expiresAt: inviteLifecycle.inviteExpiry(), role: allowedRole },
-      })
-    : await createOpenInvite(prisma, {
-        tenantId: tenant.id,
-        email: normalizedEmail,
-        createdBy: auth.userId,
-        role: allowedRole,
-      });
-  const inviteUrl = buildPublicWebLink(baseUrl, `?invite=${invite.code}`);
+  let invite;
+  let rawCode: string;
+  if (openInvite) {
+    const rotated = newInviteCode();
+    rawCode = rotated.code;
+    invite = await prisma.invite.update({
+      where: { id: openInvite.id },
+      data: { code: rotated.codeHash, expiresAt: inviteLifecycle.inviteExpiry(), role: allowedRole },
+    });
+  } else {
+    const created = await createOpenInvite(prisma, {
+      tenantId: tenant.id,
+      email: normalizedEmail,
+      createdBy: auth.userId,
+      role: allowedRole,
+    });
+    invite = created.invite;
+    rawCode = created.rawCode;
+  }
+  const inviteUrl = buildPublicWebLink(baseUrl, `?invite=${rawCode}`);
   const emailSent = await inviteLifecycle.deliverInvite(prisma, {
     invite: { id: invite.id, email: invite.email, tenantId: invite.tenantId, expiresAt: invite.expiresAt },
     inviterUserId: auth.userId,
     tenantName: tenant.name,
     inviteUrl,
   });
-  res.json(inviteLifecycle.inviteResponse(invite, inviteUrl, emailSent));
+  res.json(inviteLifecycle.inviteResponse(invite, rawCode, inviteUrl, emailSent));
 }
 
 const registerSchema = z.object({
@@ -122,7 +131,7 @@ export async function handleAuthRegister(
     return;
   }
   const { code, name, email, password } = parse.data;
-  const invite = await prisma.invite.findUnique({ where: { code } });
+  const invite = await prisma.invite.findUnique({ where: { code: hashInviteCode(code) } });
   if (!invite || invite.usedAt) {
     res.status(400).json({ error: 'invite_unavailable' });
     return;

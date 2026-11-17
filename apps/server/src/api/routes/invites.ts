@@ -4,7 +4,7 @@ import type { Role } from '../../generated/prisma/index.js';
 import { logger } from '../../logger.js';
 import { z } from 'zod';
 import { requireAuth, requireVerificationAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
-import { buildPublicWebLink, publicWebBase, requirePublicWebBase } from '../utils/publicLinks.js';
+import { buildPublicWebLink, requirePublicWebBase } from '../utils/publicLinks.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import {
   inviteAcceptRateLimiter,
@@ -24,6 +24,7 @@ import {
 import { deliveringEmailModule, lockEmailAccount } from '../utils/emailProof.js';
 import { manualConfirmationEnabled } from '../utils/manualConfirmation.js';
 import { beginInviteVerification, verificationPending } from '../utils/inviteVerification.js';
+import { hashInviteCode, newInviteCode } from '../utils/inviteCode.js';
 import { establishSession } from '../utils/sessionAuth.js';
 import { recordAuthEvent } from '../../services/authEvents.js';
 import { buildSigninResponseBody, isNativeClientRequest } from './auth.helpers.js';
@@ -35,7 +36,6 @@ async function handleListInvites(prisma: PrismaClient, req: express.Request, res
   if (!admin) return;
   const { tenant } = admin;
   const list = await prisma.invite.findMany({ where: { tenantId: tenant.id }, orderBy: { createdAt: 'desc' } });
-  const baseUrl = publicWebBase();
   res.json(
     list.map((invite) => ({
       id: invite.id,
@@ -47,7 +47,6 @@ async function handleListInvites(prisma: PrismaClient, req: express.Request, res
       lastSendError: invite.lastSendError,
       createdAt: invite.createdAt,
       usedAt: invite.usedAt,
-      url: baseUrl ? buildPublicWebLink(baseUrl, `?invite=${invite.code}`) : null,
     })),
   );
 }
@@ -115,15 +114,19 @@ async function handleResendInvite(prisma: PrismaClient, req: express.Request, re
   }
   const baseUrl = requirePublicWebBase(res, 'invites.resend');
   if (!baseUrl) return;
-  const updated = await prisma.invite.update({ where: { id }, data: { expiresAt: inviteExpiry() } });
-  const inviteUrl = buildPublicWebLink(baseUrl, `?invite=${updated.code}`);
+  const rotated = newInviteCode();
+  const updated = await prisma.invite.update({
+    where: { id },
+    data: { code: rotated.codeHash, expiresAt: inviteExpiry() },
+  });
+  const inviteUrl = buildPublicWebLink(baseUrl, `?invite=${rotated.code}`);
   const emailSent = await deliverInvite(prisma, {
     invite: { id: updated.id, email: updated.email, tenantId: updated.tenantId, expiresAt: updated.expiresAt },
     inviterUserId: admin.auth.userId,
     tenantName: admin.tenant.name,
     inviteUrl,
   });
-  res.json(inviteResponse(updated, inviteUrl, emailSent));
+  res.json(inviteResponse(updated, rotated.code, inviteUrl, emailSent));
 }
 
 async function handlePublicInvitePreview(
@@ -137,7 +140,7 @@ async function handlePublicInvitePreview(
     return;
   }
   const invite = await prisma.invite.findUnique({
-    where: { code: parse.data.code },
+    where: { code: hashInviteCode(parse.data.code) },
     include: { tenant: { select: { name: true } } },
   });
   if (!invite) {
@@ -169,7 +172,7 @@ async function acceptInviteTransaction(
     const current = await tx.invite.findUnique({ where: { id: invite.id } });
     if (!account?.emailVerifiedAt || !current || !inviteEmailMatches(current.email, account.email))
       throw new InviteUnavailableError();
-    if (!(await consumeInvite(tx, code, userId, now))) throw new InviteUnavailableError();
+    if (!(await consumeInvite(tx, hashInviteCode(code), userId, now))) throw new InviteUnavailableError();
     const membership = await tx.membership.findUnique({
       where: { tenantId_userId: { tenantId: invite.tenantId, userId } },
     });
@@ -199,7 +202,7 @@ async function handleAcceptInvite(prisma: PrismaClient, req: express.Request, re
   }
   const { code } = parse.data;
   try {
-    const invite = await prisma.invite.findUnique({ where: { code } });
+    const invite = await prisma.invite.findUnique({ where: { code: hashInviteCode(code) } });
     if (!invite) {
       res.status(404).json({ error: 'not found' });
       return;

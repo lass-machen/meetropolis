@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { createPrismaClient } from '../../db.js';
 import { setAuthResolution } from '../utils/authState.js';
 import { handleAuthInvite } from './auth.signin.js';
+import { hashInviteCode } from '../utils/inviteCode.js';
 
 vi.mock('../../logger.js', () => ({
   logger: {
@@ -119,7 +120,7 @@ describe('open invite creation races', () => {
     const email = `direct-${crypto.randomUUID()}@example.test`;
     await prisma.invite.create({
       data: {
-        code: crypto.randomUUID().replaceAll('-', ''),
+        code: hashInviteCode(crypto.randomUUID().replaceAll('-', '')),
         email,
         createdBy: fixture.ownerId,
         tenantId: fixture.tenantId,
@@ -129,7 +130,7 @@ describe('open invite creation races', () => {
     await expect(
       prisma.invite.create({
         data: {
-          code: crypto.randomUUID().replaceAll('-', ''),
+          code: hashInviteCode(crypto.randomUUID().replaceAll('-', '')),
           email,
           createdBy: fixture.ownerId,
           tenantId: fixture.tenantId,

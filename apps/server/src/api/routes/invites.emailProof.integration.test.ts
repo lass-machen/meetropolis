@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createHttpFixture } from '../../../test/fixtures/httpFixture.js';
 import { registerAuthRoutes } from './auth.js';
 import { registerInviteRoutes } from './invites.js';
+import { hashInviteCode } from '../utils/inviteCode.js';
 
 const fixture = createHttpFixture();
 const originalBase = process.env.PUBLIC_BASE_URL;
@@ -23,16 +24,17 @@ afterAll(async () => {
 
 async function invite(email: string) {
   const { tenant } = await fixture.tenant();
+  const rawCode = crypto.randomBytes(12).toString('hex');
   const value = await fixture.prisma.invite.create({
     data: {
       tenantId: tenant.id,
       email,
-      code: crypto.randomBytes(12).toString('hex'),
+      code: hashInviteCode(rawCode),
       expiresAt: new Date(Date.now() + 3_600_000),
       role: 'admin',
     },
   });
-  return { tenant, value };
+  return { tenant, value: { ...value, code: rawCode } };
 }
 
 describe('invitation acceptance requires separate email proof', () => {

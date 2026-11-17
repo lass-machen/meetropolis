@@ -8,6 +8,7 @@ import { registerMiscRoutes } from '../../src/api/routes/misc.js';
 import { registerInviteRoutes } from '../../src/api/routes/invites.js';
 import { registerAdminPasswordResetRoutes } from '../../src/api/routes/admin.passwordReset.js';
 import { errorHandler } from '../../src/api/errorHandler.js';
+import { hashInviteCode } from '../../src/api/utils/inviteCode.js';
 
 export function createEmailProofFixture() {
   const originalBase = process.env.PUBLIC_BASE_URL;
@@ -30,7 +31,7 @@ export function createEmailProofFixture() {
       data: {
         tenantId: own.tenant.id,
         email: target,
-        code,
+        code: hashInviteCode(code),
         role: 'admin',
         expiresAt: new Date(Date.now() + 3_600_000),
       },

@@ -9,6 +9,7 @@ import { handleAuthInvite } from './auth.signin.js';
 import { registerAdminPasswordResetRoutes } from './admin.passwordReset.js';
 import { registerGuestRoutes } from './guests.js';
 import { registerMiscRoutes } from './misc.js';
+import { hashInviteCode } from '../utils/inviteCode.js';
 
 const capturedLogs = vi.hoisted(() => ({ events: [] as Array<{ level: string; value: unknown }> }));
 
@@ -106,7 +107,7 @@ async function createManualInvite(fixture: Fixture): Promise<string> {
   const code = crypto.randomUUID().replaceAll('-', '');
   const email = `listed-${crypto.randomUUID()}@example.test`;
   await prisma.invite.create({
-    data: { code, email, createdBy: fixture.adminId, tenantId: fixture.tenantId, role: 'member' },
+    data: { code: hashInviteCode(code), email, createdBy: fixture.adminId, tenantId: fixture.tenantId, role: 'member' },
   });
   return email;
 }
@@ -168,7 +169,7 @@ async function exerciseMissingBase(values: Record<PublicEnvKey, string | undefin
   expect.soft(inviteResponse.status).toBe(500);
   expect.soft(inviteResponse.body).toEqual({ error: 'public_base_url_missing' });
   expect.soft(inviteCountAfter - inviteCountBefore).toBe(0);
-  expect.soft(listedInvite?.url).toBeNull();
+  expect.soft(listedInvite?.url).toBeUndefined();
   expect.soft(resetResponse.status).toBe(500);
   expect.soft(resetResponse.body).toEqual({ error: 'public_base_url_missing' });
   expect.soft(resetCountAfterAdmin - resetCountBefore).toBe(0);
@@ -276,7 +277,7 @@ describe('public web links (real database)', () => {
     expect.soft(guest.body.magicLink.startsWith('https://public.example/#/guest?token=')).toBe(true);
     expect.soft(invite.status).toBe(200);
     expect.soft(invite.body.inviteUrl).toBe(`https://public.example/#/?invite=${invite.body.code}`);
-    expect.soft(listedInvite?.url).toBe(`https://public.example/#/?invite=${invite.body.code}`);
+    expect.soft(listedInvite?.url).toBeUndefined();
     expect.soft(reset.status).toBe(200);
     expect.soft(reset.body.resetUrl.startsWith('https://public.example/#/reset?token=')).toBe(true);
     expect.soft(forgot.status).toBe(200);
