@@ -318,6 +318,7 @@
   "billing.confirmCancel": "Möchtest du dein Abonnement wirklich kündigen? Du behältst den Zugang bis zum Ende des Abrechnungszeitraums.",
   "billing.cancelFailed": "Abonnement konnte nicht gekündigt werden",
   "billing.reactivateFailed": "Abonnement konnte nicht reaktiviert werden",
+  "billing.subscriptionEnded": "Das Abo ist beendet. Bitte wähle einen neuen Tarif.",
   "billing.loading": "Abrechnungsinformationen werden geladen…",
   "billing.tabOverview": "Übersicht",
   "billing.tabInvoices": "Rechnungen",

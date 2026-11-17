@@ -318,6 +318,7 @@
   "billing.confirmCancel": "Are you sure you want to cancel your subscription? You will retain access until the end of the billing period.",
   "billing.cancelFailed": "Failed to cancel subscription",
   "billing.reactivateFailed": "Failed to reactivate subscription",
+  "billing.subscriptionEnded": "Your subscription has ended. Please choose a new plan.",
   "billing.loading": "Loading billing information...",
   "billing.tabOverview": "Overview",
   "billing.tabInvoices": "Invoices",
