@@ -30,6 +30,21 @@ describe('toMemberAssetUrl', () => {
     expect(toMemberAssetUrl(`${API_BASE}/npc-media/x/y.bin`)).toBe(`${API_BASE}/member-assets/v1/npc-media/x/y.bin`);
   });
 
+  it('translates nested pack generation paths unchanged', () => {
+    expect(toMemberAssetUrl('/packs/abc/generations/g1/tiles/a.png')).toBe(
+      `${API_BASE}/member-assets/v1/packs/abc/generations/g1/tiles/a.png`,
+    );
+    expect(
+      toMemberAssetUrl('/packs/office-kit/generations/550e8400-e29b-41d4-a716-446655440000/chair.12ab34cd.png'),
+    ).toBe(
+      `${API_BASE}/member-assets/v1/packs/office-kit/generations/550e8400-e29b-41d4-a716-446655440000/chair.12ab34cd.png`,
+    );
+    expect(toMemberAssetUrl('/packs/office-kit/chair.12ab34cd.png')).toBe(
+      `${API_BASE}/member-assets/v1/packs/office-kit/chair.12ab34cd.png`,
+    );
+    expect(toMemberAssetUrl('/packs/abc/generations/../a.png')).toBeNull();
+  });
+
   it('drops query and fragment', () => {
     stubWindow();
     expect(toMemberAssetUrl('/packs/a.png?v=2#frag')).toBe(`${API_BASE}/member-assets/v1/packs/a.png`);
