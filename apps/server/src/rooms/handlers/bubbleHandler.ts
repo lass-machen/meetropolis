@@ -1,4 +1,4 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { logger } from '../../logger.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { canonicalGroupId } from '../utils/bubbleHelpers.js';

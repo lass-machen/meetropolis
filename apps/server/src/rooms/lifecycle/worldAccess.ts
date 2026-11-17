@@ -1,4 +1,4 @@
-import { ServerError, type Client } from 'colyseus';
+import { ServerError, type Client } from '@colyseus/core';
 import { logger } from '../../logger.js';
 import { createPrismaClient } from '../../db.js';
 import { hasTenantAccess } from '../../api/utils/tenantMembership.js';

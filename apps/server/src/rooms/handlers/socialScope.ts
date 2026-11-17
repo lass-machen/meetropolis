@@ -1,4 +1,4 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import type { ZoneLockInfo } from '@meetropolis/shared';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { logger } from '../../logger.js';

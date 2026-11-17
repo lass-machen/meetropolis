@@ -1,5 +1,5 @@
 import { StateView } from '@colyseus/schema';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import type { WorldRoom, Player } from '../WorldRoom.js';
 import { isWorldAuth } from './onAuth.js';
 

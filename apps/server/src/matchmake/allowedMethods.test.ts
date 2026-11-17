@@ -14,7 +14,7 @@ vi.mock('../logger.js', () => ({
 const createPrismaClientMock = vi.hoisted(() => vi.fn());
 vi.mock('../db.js', () => ({ createPrismaClient: createPrismaClientMock }));
 
-import { ServerError } from 'colyseus';
+import { ServerError } from '@colyseus/core';
 import {
   disposeAllRooms,
   makeFakePrisma,

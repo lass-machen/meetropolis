@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { LocalPresence } from 'colyseus';
+import { LocalPresence } from '@colyseus/core';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { logger } from '../../logger.js';
 import type { Role } from '../../generated/prisma/index.js';

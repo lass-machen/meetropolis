@@ -1,4 +1,4 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import type { TranscriptionModule } from '../../transcriptionLoader.js';
 import type { WorldRoom } from '../WorldRoom.js';

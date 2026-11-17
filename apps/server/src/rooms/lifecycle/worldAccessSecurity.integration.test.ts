@@ -30,7 +30,7 @@ import crypto from 'crypto';
 import express from 'express';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Client, type Room } from '@colyseus/sdk';
-import type { AuthContext } from 'colyseus';
+import type { AuthContext } from '@colyseus/core';
 import { MIN_ZONE_PRIVACY_CLIENT_VERSION, ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
 import { createPrismaClient } from '../../db.js';
 import { registerApi } from '../../api.js';

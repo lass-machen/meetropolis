@@ -1,4 +1,4 @@
-import { ServerError, type AuthContext } from 'colyseus';
+import { ServerError, type AuthContext } from '@colyseus/core';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { createPrismaClient } from '../../db.js';
 import type { RoomOptions } from '../WorldRoom.js';

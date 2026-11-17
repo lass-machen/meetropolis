@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { AuthContext } from 'colyseus';
+import type { AuthContext } from '@colyseus/core';
 import { ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
 import type { Role } from '../../generated/prisma/index.js';
 import { createPrismaClient } from '../../db.js';

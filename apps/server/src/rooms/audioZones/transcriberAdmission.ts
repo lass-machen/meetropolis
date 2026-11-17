@@ -24,7 +24,7 @@
  * The isolated-island rule needs the island and lives in buildPushPayloads.
  */
 
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { getTranscriptionModuleSync } from '../../transcriptionLoader.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { getRoomTenantSlug } from '../handlers/zoneLockHandler.js';

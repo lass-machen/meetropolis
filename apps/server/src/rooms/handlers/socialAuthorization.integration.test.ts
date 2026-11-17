@@ -12,7 +12,7 @@
  */
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { matchMaker } from 'colyseus';
+import { matchMaker } from '@colyseus/core';
 import { Client, type Room } from '@colyseus/sdk';
 import { ZONE_PRIVACY_PROTOCOL_VERSION, type ZoneLockInfo } from '@meetropolis/shared';
 import crypto from 'node:crypto';

@@ -4,7 +4,7 @@
  * unvalidated (or foreign) custom avatar.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import {

@@ -1,4 +1,4 @@
-import { ServerError, matchMaker } from 'colyseus';
+import { ServerError, matchMaker } from '@colyseus/core';
 import type { PrismaClient } from '../generated/prisma/index.js';
 import { assertAllowedMatchmakeMethod } from './allowedMethods.js';
 import { logger } from '../logger.js';

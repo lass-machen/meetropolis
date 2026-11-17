@@ -12,7 +12,7 @@
  * zone-privacy version. NPC joins are a service principal and do not use
  * that version check.
  */
-import { ServerError, type AuthContext } from 'colyseus';
+import { ServerError, type AuthContext } from '@colyseus/core';
 import { logger } from '../../logger.js';
 import { verifyAuthJwt } from '../../api/utils/authHelpers.js';
 import { validateTenantSessionFresh } from '../../api/utils/sessionAuth.js';

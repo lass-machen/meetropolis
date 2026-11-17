@@ -19,7 +19,7 @@ vi.mock('../utils/broadcastHelpers.js', () => ({
 import { handleDndStatus } from './dndHandler.js';
 import { logger } from '../../logger.js';
 import type { WorldRoom } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 
 interface FakePlayer {
   dnd: boolean;
