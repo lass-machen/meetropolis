@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Tabs } from '../../system';
-import type { TabItem } from '../../system';
 import { useSpriteCatalog } from './useSpriteCatalog';
 import { useAvatarDraft, type AvatarSavedHandler } from './useAvatarDraft';
 import { EDITOR_TABS } from './editorLayout';
@@ -9,8 +8,6 @@ import { SlotPicker } from './SlotPicker';
 import { AvatarLivePreview } from './AvatarLivePreview';
 import { AvatarStatus } from './AvatarStatus';
 import './avatarEditor.css';
-
-const TAB_ITEMS: TabItem[] = EDITOR_TABS.map((tab) => ({ key: tab.key, label: tab.label }));
 
 /**
  * In-app avatar editor: category tabs over a large live preview and a grid of
@@ -40,7 +37,12 @@ export function AvatarEditor({ onSaved }: { onSaved: AvatarSavedHandler }) {
 
   return (
     <div>
-      <Tabs items={TAB_ITEMS} activeKey={tab} onChange={setTab} style={{ marginBottom: 16 }} />
+      <Tabs
+        items={EDITOR_TABS.map((entry) => ({ key: entry.key, label: t(entry.labelKey) }))}
+        activeKey={tab}
+        onChange={setTab}
+        style={{ marginBottom: 16 }}
+      />
       <div className="av-ed">
         <div className="av-ed__preview">
           <AvatarLivePreview catalog={catalog} config={config} />

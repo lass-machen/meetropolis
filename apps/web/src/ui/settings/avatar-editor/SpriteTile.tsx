@@ -1,4 +1,5 @@
 import { Ban } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { AvatarConfig, SpriteCatalog } from '@meetropolis/shared';
 import { OptionTile } from './OptionTile';
 import { PixelCanvas } from './PixelCanvas';
@@ -33,13 +34,14 @@ export function SpriteTile({
   none?: boolean | undefined;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const { frame_w: fw, frame_h: fh } = catalog.format;
   const frame = frontIdleFrame(catalog, previewConfig);
 
   return (
     <OptionTile selected={selected} disabled={disabled} label={label} none={none} onClick={onClick}>
       {frame === null ? (
-        <span className="av-ed__tile-unavailable" role="img" aria-label={`${label}: nicht verfügbar`}>
+        <span className="av-ed__tile-unavailable" role="img" aria-label={t('avatarEditor.unavailableItem', { label })}>
           <Ban size={24} strokeWidth={1.5} aria-hidden="true" />
         </span>
       ) : (

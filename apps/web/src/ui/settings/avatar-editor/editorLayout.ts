@@ -14,14 +14,14 @@ import { SLOT_GROUPS, isApplicable, type SlotGroup } from './slotConfig';
 
 export interface EditorTab {
   key: string;
-  label: string;
+  labelKey: string;
   fields: string[];
 }
 
 export const EDITOR_TABS: EditorTab[] = [
-  { key: 'body', label: 'Körper', fields: ['skin', 'face', 'hair', 'hair_color'] },
-  { key: 'clothing', label: 'Kleidung', fields: ['outfit', 'top', 'pants', 'shoes'] },
-  { key: 'extras', label: 'Extras', fields: ['beard', 'beard_color', 'glasses', 'hat', 'misc'] },
+  { key: 'body', labelKey: 'avatarEditor.tab.body', fields: ['skin', 'face', 'hair', 'hair_color'] },
+  { key: 'clothing', labelKey: 'avatarEditor.tab.clothing', fields: ['outfit', 'top', 'pants', 'shoes'] },
+  { key: 'extras', labelKey: 'avatarEditor.tab.extras', fields: ['beard', 'beard_color', 'glasses', 'hat', 'misc'] },
 ];
 
 // Slots the user picks as a colour. `top` is palette-driven too, but its values
