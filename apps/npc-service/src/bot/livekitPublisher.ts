@@ -1,6 +1,6 @@
 import type { NpcSpawnCommand } from '@meetropolis/shared';
 import { logger } from '../index.js';
-import { npcVideoGrant } from './livekitGrant.js';
+import { npcRoomConnectOptions, npcVideoGrant } from './livekitGrant.js';
 import { parseWavFrames, transcodeToPcm } from './mediaPlayer.js';
 
 // Lazy imports for @livekit/rtc-node (may not be available in all environments)
@@ -47,10 +47,7 @@ export class LivekitPublisher {
 
       this.room = new lk.Room();
       logger.info(`[LivekitPublisher ${identity}] Connecting to ${livekitUrl} room=${roomName}...`);
-      await this.room.connect(livekitUrl, token, {
-        autoSubscribe: false,
-        dynacast: false,
-      });
+      await this.room.connect(livekitUrl, token, npcRoomConnectOptions);
       this.connected = true;
       logger.info(`[LivekitPublisher ${identity}] Connected to room ${roomName}`);
     } catch (e) {

@@ -14,3 +14,7 @@ export function npcVideoGrant(roomName: string): VideoGrant {
     canPublishData: false,
   };
 }
+
+// NPC bots only publish. They never subscribe to other participants on their
+// own, so no participant's media reaches a bot without an explicit request.
+export const npcRoomConnectOptions = { autoSubscribe: false, dynacast: false } as const;

@@ -1,6 +1,6 @@
 import { AccessToken, TokenVerifier } from 'livekit-server-sdk';
 import { describe, expect, it } from 'vitest';
-import { npcVideoGrant } from './livekitGrant.js';
+import { npcRoomConnectOptions, npcVideoGrant } from './livekitGrant.js';
 
 const TEST_API_KEY = 'test-key';
 const TEST_API_SECRET = 'test-secret-with-more-than-32-characters';
@@ -26,5 +26,11 @@ describe('npcVideoGrant', () => {
     expect(claims.video?.canPublishData).toBe(false);
     expect(claims.video?.canPublish).toBe(true);
     expect(claims.video?.canSubscribe).toBe(true);
+  });
+});
+
+describe('npcRoomConnectOptions', () => {
+  it('never subscribes to other participants on its own', () => {
+    expect(npcRoomConnectOptions).toEqual({ autoSubscribe: false, dynacast: false });
   });
 });
