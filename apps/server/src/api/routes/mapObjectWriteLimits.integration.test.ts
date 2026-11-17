@@ -136,7 +136,7 @@ async function makeSuperAdmin() {
 describe('map object write limits against a real database', () => {
   it('admits exactly one of two concurrent colliding writes at the map budget', async () => {
     const { tenant } = await fixture.tenant();
-    const caller = await fixture.caller(tenant, 'member');
+    const caller = await fixture.caller(tenant, 'admin');
     const map = await makeMap(tenant.id);
     const packUuid = await makePack();
     for (let index = 0; index < 15; index += 1) {
@@ -155,7 +155,7 @@ describe('map object write limits against a real database', () => {
 
   it('rejects PATCH on an oversized legacy object without changing its row', async () => {
     const { tenant } = await fixture.tenant();
-    const caller = await fixture.caller(tenant, 'member');
+    const caller = await fixture.caller(tenant, 'admin');
     const map = await makeMap(tenant.id);
     const packUuid = await makePack();
     const stored = await makeStoredObject(map.id, packUuid, { width: 1040, tileX: 3, tileY: 4 });
@@ -172,7 +172,7 @@ describe('map object write limits against a real database', () => {
 
   it('deletes one object from a map above the collision budget', async () => {
     const { tenant } = await fixture.tenant();
-    const caller = await fixture.caller(tenant, 'member');
+    const caller = await fixture.caller(tenant, 'admin');
     const map = await makeMap(tenant.id);
     const packUuid = await makePack();
     const stored = [];

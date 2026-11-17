@@ -84,7 +84,7 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
       findUnique: vi.fn(({ where }: { where: { tenantId_userId: { tenantId: string; userId: string } } }) => {
         if (membershipThrows) return Promise.reject(new Error('db down'));
         const { tenantId, userId } = where.tenantId_userId;
-        return Promise.resolve(MEMBERSHIPS.has(`${tenantId}:${userId}`) ? { role: 'member' } : null);
+        return Promise.resolve(MEMBERSHIPS.has(`${tenantId}:${userId}`) ? { role: 'admin' } : null);
       }),
     },
     apiToken: {
@@ -341,7 +341,7 @@ describe('map object mutations: membership-scoped, not merely authenticated', ()
     expect(prisma.mapObject.delete).not.toHaveBeenCalled();
   });
 
-  it('lets a member of the owning tenant place an object', async () => {
+  it('lets an admin of the owning tenant place an object', async () => {
     const prisma = makePrisma();
     const app = makeApp(prisma);
     const res = await request(app)

@@ -86,11 +86,13 @@ type AuthGate =
  * scope closes on the palette surface. The read path previously had no
  * authentication at all.
  *
- * Any membership role qualifies, matching the uniform read policy of
+ * Any membership role may read, matching the uniform read policy of
  * maps.read.ts and the tileset policy of maps.editor.ts: objects are fetched on
- * every ordinary world join, not only inside the editor. A missing tenant, a
- * missing membership and an unknown map all answer generically (400/403/404),
- * so map ids and tenants stay non-enumerable.
+ * every ordinary world join, not only inside the editor. Writes follow the
+ * editor policy (maps.editor.ts, editorAuthorization.ts): only owners and
+ * admins may create, change or delete objects. A missing tenant, a missing
+ * membership and an unknown map all answer generically (400/403/404), so map
+ * ids and tenants stay non-enumerable.
  */
 async function gateRequest(prisma: PrismaClient, req: express.Request): Promise<AuthGate> {
   const auth = requireAuth(req) ?? (await requireApiToken(req, prisma));
@@ -100,6 +102,9 @@ async function gateRequest(prisma: PrismaClient, req: express.Request): Promise<
   try {
     const membership = await requireMembership(req, auth.userId, prisma);
     if (!membership) return { ok: false, status: 403, error: 'forbidden' };
+    if (req.method !== 'GET' && membership.role !== 'owner' && membership.role !== 'admin') {
+      return { ok: false, status: 403, error: 'forbidden - admin required' };
+    }
   } catch (e: unknown) {
     logger.error('[MapObjects] membership check failed', e);
     return { ok: false, status: 500, error: 'internal_error' };

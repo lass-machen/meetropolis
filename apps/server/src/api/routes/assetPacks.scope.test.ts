@@ -150,7 +150,7 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
           const role = INTERNAL_ROLES[userId];
           return Promise.resolve(role ? { role } : null);
         }
-        return Promise.resolve(TENANT_MEMBERSHIPS.has(`${tenantId}:${userId}`) ? { role: 'member' } : null);
+        return Promise.resolve(TENANT_MEMBERSHIPS.has(`${tenantId}:${userId}`) ? { role: 'admin' } : null);
       }),
     },
     apiToken: {

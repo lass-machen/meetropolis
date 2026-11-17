@@ -60,7 +60,7 @@ function makePrisma(existing: Record<string, unknown>): PrismaClient {
     membership: {
       findUnique: vi.fn(({ where }: { where: { tenantId_userId: { tenantId: string; userId: string } } }) => {
         const { tenantId, userId } = where.tenantId_userId;
-        return Promise.resolve(MEMBERSHIPS.has(`${tenantId}:${userId}`) ? { role: 'member' } : null);
+        return Promise.resolve(MEMBERSHIPS.has(`${tenantId}:${userId}`) ? { role: 'admin' } : null);
       }),
     },
     apiToken: {
