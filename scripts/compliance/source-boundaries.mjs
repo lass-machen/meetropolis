@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto';
 import { collectSourceImports } from './source-imports.mjs';
 import { readSourceImportPolicy } from './source-policy.mjs';
+import { isForbiddenOrganizationRepository } from './source-repositories.mjs';
 
 const DATA_INVALID_CODE = 'COMPLIANCE_DATA_INVALID';
 const DATA_INVALID_MESSAGE = 'invalid data: the compliance data is missing, incomplete or violates the expected schema';
@@ -280,7 +281,9 @@ export function checkSourceBoundaries(input = {}) {
 }
 
 // private closed-source packages must not appear as dependencies of the
-// public repository, neither in manifests nor in lockfiles.
+// public repository, neither in manifests nor in lockfiles; the same holds
+// for dependency values and lockfile resolved/version entries that point
+// at a repository of a configured organization without being allowlisted.
 function checkManifestFiles(files, policy, issues) {
   const seen = new Set();
   for (const [filePath, bytes] of files) {
@@ -344,6 +347,11 @@ function checkDependencyMap(holder, policy, issues, seen, code, filePath, source
     for (const [name, value] of Object.entries(entries)) {
       if (isPrivateDependency(name, value, policy)) {
         pushManifestIssue(issues, seen, code, filePath, name, source);
+      } else if (
+        typeof value === 'string' &&
+        isForbiddenOrganizationRepository(value, policy.organizationRepositories)
+      ) {
+        pushManifestIssue(issues, seen, code, filePath, name, source);
       }
     }
   }
@@ -370,6 +378,15 @@ function checkLockDocument(filePath, source, policy, issues, seen) {
     if (!isPlainObject(entry)) continue;
     if (typeof entry.name === 'string' && isProtected(normalizeSpecifier(entry.name), policy)) {
       pushManifestIssue(issues, seen, LOCK_PRIVATE, filePath, entry.name, source);
+    }
+    for (const field of ['resolved', 'version']) {
+      const fieldValue = entry[field];
+      if (
+        typeof fieldValue === 'string' &&
+        isForbiddenOrganizationRepository(fieldValue, policy.organizationRepositories)
+      ) {
+        pushManifestIssue(issues, seen, LOCK_PRIVATE, filePath, key, source);
+      }
     }
     checkDependencyMap(entry, policy, issues, seen, LOCK_PRIVATE, filePath, source);
   }

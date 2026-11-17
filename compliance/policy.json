@@ -311,6 +311,10 @@
     ],
     "protectedScopes": ["@signalyr"],
     "forbiddenWebScopes": ["@tauri-apps"],
+    "organizationRepositories": {
+      "owners": ["lass-machen"],
+      "allowedPublic": ["lass-machen/meetropolis"]
+    },
     "allowedDynamicImports": [
       { "path": "apps/server/src/tenancyLoader.ts", "specifier": "@meetropolis/tenancy" },
       { "path": "apps/server/src/billingLoader.ts", "specifier": "@meetropolis/billing" },

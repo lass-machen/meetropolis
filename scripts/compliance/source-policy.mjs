@@ -18,11 +18,13 @@ const SOURCE_IMPORT_FIELDS = [
   'protectedPackageFamilies',
   'protectedScopes',
   'forbiddenWebScopes',
+  'organizationRepositories',
   'allowedDynamicImports',
   'pinnedFiles',
   'pinnedDynamicImports',
 ];
 const ALLOW_ENTRY_FIELDS = ['path', 'specifier'];
+const ORGANIZATION_REPOSITORIES_FIELDS = ['owners', 'allowedPublic'];
 const PIN_FILE_FIELDS = ['path', 'sha256', 'reason'];
 const PIN_DYNAMIC_FIELDS = ['path', 'sha256', 'kind', 'argumentKind', 'line', 'targetPath', 'reason'];
 
@@ -116,6 +118,29 @@ function isReason(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+// Strict lowercase organization owner: starts and ends alphanumeric,
+// hyphens only in between.
+function isOrganizationOwner(value) {
+  return typeof value === 'string' && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(value);
+}
+
+// Strict lowercase 'owner/repo' repository path with exactly one slash.
+function isOrganizationRepository(value) {
+  return typeof value === 'string' && /^[a-z0-9-]+\/[a-z0-9._-]+$/.test(value);
+}
+
+function readOrganizationRepositories(value) {
+  if (!hasExactKeys(value, ORGANIZATION_REPOSITORIES_FIELDS)) fail();
+  const owners = uniqueStrings(value.owners, isOrganizationOwner);
+  const allowedPublic = uniqueStrings(value.allowedPublic, isOrganizationRepository);
+  if (owners === null || owners.length === 0) fail();
+  if (allowedPublic === null) fail();
+  for (const entry of allowedPublic) {
+    if (!owners.includes(entry.split('/')[0])) fail();
+  }
+  return { owners, allowedPublic };
+}
+
 function isSha256(value) {
   return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value) && value !== ZERO_DIGEST;
 }
@@ -191,7 +216,7 @@ function readPinDynamic(entry, context) {
 }
 
 // Reads the source import policy of a parsed policy object and returns
-// a new normalized sourceImports structure with the same seven fields.
+// a new normalized sourceImports structure with the same eight fields.
 // Throws the constant data error on any violation.
 export function readSourceImportPolicy(policy) {
   if (!isPlainObject(policy)) fail();
@@ -212,6 +237,7 @@ export function readSourceImportPolicy(policy) {
   }
   if (!scopes.includes(SIGNALYR_SCOPE)) fail();
   if (!webScopes.includes(TAURI_SCOPE)) fail();
+  const organizationRepositories = readOrganizationRepositories(source.organizationRepositories);
 
   const context = { roots, families, scopes, webScopes, seenPaths: new Set() };
   if (!isDenseArray(source.allowedDynamicImports)) fail();
@@ -236,6 +262,7 @@ export function readSourceImportPolicy(policy) {
     protectedPackageFamilies: families,
     protectedScopes: scopes,
     forbiddenWebScopes: webScopes,
+    organizationRepositories,
     allowedDynamicImports,
     pinnedFiles,
     pinnedDynamicImports,

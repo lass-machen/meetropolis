@@ -46,6 +46,7 @@ describe('readSourceImportPolicy happy path', () => {
     assert.deepEqual(Object.keys(result).sort(), [
       'allowedDynamicImports',
       'forbiddenWebScopes',
+      'organizationRepositories',
       'pinnedDynamicImports',
       'pinnedFiles',
       'protectedPackageFamilies',
@@ -393,5 +394,73 @@ describe('readSourceImportPolicy semantics', () => {
     const policy = readRealPolicy();
     policy.sourceImports.allowedDynamicImports[0].specifier = '@evil/MARKER-ROOT';
     assertInvalid(() => readSourceImportPolicy(policy), ['@evil/MARKER-ROOT', 'MARKER-ROOT']);
+  });
+});
+
+describe('readSourceImportPolicy organization repositories', () => {
+  function baseOrgPolicy() {
+    const policy = readRealPolicy();
+    policy.sourceImports.organizationRepositories = {
+      owners: ['lass-machen'],
+      allowedPublic: ['lass-machen/example-open'],
+    };
+    return policy;
+  }
+
+  it('rejects a missing organizationRepositories field', () => {
+    const policy = readRealPolicy();
+    delete policy.sourceImports.organizationRepositories;
+    assertInvalid(() => readSourceImportPolicy(policy));
+  });
+
+  it('rejects an organizationRepositories record with an extra key', () => {
+    const policy = baseOrgPolicy();
+    policy.sourceImports.organizationRepositories.extra = true;
+    assertInvalid(() => readSourceImportPolicy(policy), ['extra']);
+  });
+
+  it('rejects empty owners', () => {
+    const policy = baseOrgPolicy();
+    policy.sourceImports.organizationRepositories = { owners: [], allowedPublic: [] };
+    assertInvalid(() => readSourceImportPolicy(policy));
+  });
+
+  it('rejects an invalid owner', () => {
+    const policy = baseOrgPolicy();
+    policy.sourceImports.organizationRepositories = { owners: ['Lass-Machen'], allowedPublic: [] };
+    assertInvalid(() => readSourceImportPolicy(policy), ['Lass-Machen']);
+  });
+
+  it('rejects duplicate owners', () => {
+    const policy = baseOrgPolicy();
+    policy.sourceImports.organizationRepositories = {
+      owners: ['lass-machen', 'lass-machen'],
+      allowedPublic: [],
+    };
+    assertInvalid(() => readSourceImportPolicy(policy), ['lass-machen']);
+  });
+
+  it('rejects an allowedPublic entry with a foreign owner', () => {
+    const policy = baseOrgPolicy();
+    policy.sourceImports.organizationRepositories = {
+      owners: ['lass-machen'],
+      allowedPublic: ['other-org/repo'],
+    };
+    assertInvalid(() => readSourceImportPolicy(policy), ['other-org/repo']);
+  });
+
+  it('returns sorted organizationRepositories without mutating the input', () => {
+    const policy = baseOrgPolicy();
+    policy.sourceImports.organizationRepositories = {
+      owners: ['zeta-owner', 'lass-machen'],
+      allowedPublic: ['zeta-owner/zebra', 'lass-machen/aperture'],
+    };
+    const snapshot = clonePolicy(policy);
+    const result = readSourceImportPolicy(policy);
+    assert.deepEqual(policy, snapshot);
+    assert.deepEqual(result.organizationRepositories, {
+      owners: ['lass-machen', 'zeta-owner'],
+      allowedPublic: ['lass-machen/aperture', 'zeta-owner/zebra'],
+    });
   });
 });

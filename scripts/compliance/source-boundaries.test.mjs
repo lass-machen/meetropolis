@@ -627,3 +627,79 @@ describe('checkSourceBoundaries manifests and lockfiles', () => {
     assert.deepEqual(codes, []);
   });
 });
+
+describe('checkSourceBoundaries organization repositories', () => {
+  it('reports a github shorthand dependency in package.json', () => {
+    const content =
+      '{\n  "name": "fixture",\n  "dependencies": {\n    "x": "github:lass-machen/example-closed"\n  }\n}\n';
+    const result = run(manifestEntries({ 'package.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_MANIFEST_PRIVATE']);
+    assert.equal(result.issues[0].path, 'package.json');
+  });
+
+  it('reports a git ssh dependency in package.json', () => {
+    const content =
+      '{\n  "name": "fixture",\n  "dependencies": {\n    "x": "git+ssh://git@github.com/lass-machen/example-closed.git#abc"\n  }\n}\n';
+    const result = run(manifestEntries({ 'package.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_MANIFEST_PRIVATE']);
+    assert.equal(result.issues[0].path, 'package.json');
+  });
+
+  it('reports a github archive url dependency in package.json', () => {
+    const content =
+      '{\n  "name": "fixture",\n  "dependencies": {\n    "x": "https://github.com/lass-machen/example-closed/archive/main.tar.gz"\n  }\n}\n';
+    const result = run(manifestEntries({ 'package.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_MANIFEST_PRIVATE']);
+  });
+
+  it('reports a shorthand dependency in package.json', () => {
+    const content =
+      '{\n  "name": "fixture",\n  "dependencies": {\n    "x": "lass-machen/example-closed#main"\n  }\n}\n';
+    const result = run(manifestEntries({ 'package.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_MANIFEST_PRIVATE']);
+    assert.equal(result.issues[0].path, 'package.json');
+  });
+
+  it('leaves an allowlisted repository dependency alone', () => {
+    const content = '{\n  "name": "fixture",\n  "dependencies": {\n    "x": "github:lass-machen/meetropolis"\n  }\n}\n';
+    const result = run(manifestEntries({ 'package.json': content }));
+    assert.deepEqual(result.issues, []);
+  });
+
+  it('leaves a foreign organization dependency alone', () => {
+    const content =
+      '{\n  "name": "fixture",\n  "dependencies": {\n    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.57.0"\n  }\n}\n';
+    const result = run(manifestEntries({ 'package.json': content }));
+    assert.deepEqual(result.issues, []);
+  });
+
+  it('reports an uppercase organization dependency in package.json', () => {
+    const content =
+      '{\n  "name": "fixture",\n  "dependencies": {\n    "x": "github:Lass-Machen/Example-Closed"\n  }\n}\n';
+    const result = run(manifestEntries({ 'package.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_MANIFEST_PRIVATE']);
+    assert.equal(result.issues[0].path, 'package.json');
+  });
+
+  it('reports a forbidden resolved url in package-lock.json', () => {
+    const content =
+      '{\n  "name": "fixture",\n  "packages": {\n    "": {},\n    "node_modules/x": {\n      "resolved": "git+ssh://git@github.com/lass-machen/example-closed.git#abc"\n    }\n  }\n}\n';
+    const result = run(manifestEntries({ 'package-lock.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_LOCK_PRIVATE']);
+    assert.equal(result.issues[0].path, 'package-lock.json');
+  });
+
+  it('leaves public resolved urls in package-lock.json alone', () => {
+    const content =
+      '{\n  "name": "fixture",\n  "packages": {\n    "": {},\n    "node_modules/x": {\n      "resolved": "https://registry.npmjs.org/x/-/x-1.0.0.tgz"\n    },\n    "node_modules/uwebsockets": {\n      "resolved": "github:uNetworking/uWebSockets.js#v20.57.0"\n    }\n  }\n}\n';
+    const result = run(manifestEntries({ 'package-lock.json': content }));
+    assert.deepEqual(result.issues, []);
+  });
+
+  it('fails a policy without organizationRepositories', () => {
+    const parsed = JSON.parse(manifestPolicy('export {};\n').toString('utf8'));
+    delete parsed.sourceImports.organizationRepositories;
+    const without = Buffer.from(JSON.stringify(parsed), 'utf8');
+    assertInvalid(() => run({ [POLICY_PATH]: without, [PLUGIN_PATH]: 'export {};\n' }), []);
+  });
+});
