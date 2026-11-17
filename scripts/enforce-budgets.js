@@ -134,6 +134,16 @@ function countBracesOnLine(line) {
   return { opens, closes };
 }
 
+function countParenDepthChange(line) {
+  // crude like countBracesOnLine (ignores strings/comments)
+  let delta = 0;
+  for (const ch of line) {
+    if (ch === '(') delta += 1;
+    if (ch === ')') delta -= 1;
+  }
+  return delta;
+}
+
 function analyzeFunctions(lines, limit) {
   const violations = [];
   let i = 0;
@@ -148,9 +158,13 @@ function analyzeFunctions(lines, limit) {
       let j = i;
       let depth = 0;
       let started = false;
+      // Braces inside the parameter list (e.g. a "= {}" default) are not
+      // the function body; only braces at paren depth 0 start the body.
+      let parenDepth = 0;
       for (; j < n; j++) {
+        parenDepth += countParenDepthChange(lines[j]);
         const { opens, closes } = countBracesOnLine(lines[j]);
-        if (!started && opens > 0) {
+        if (!started && opens > 0 && parenDepth === 0) {
           started = true;
           depth = opens - closes;
           startLine = j;
