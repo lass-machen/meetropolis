@@ -20,6 +20,8 @@ export function broadcastMapUpdate(tenantSlug: string, type: string, payload: un
   } else {
     const rooms = Array.from((global.activeWorldRooms || new Set()).values());
     for (const room of rooms) {
+      const roomTenant = (room.metadata as { tenant?: string } | undefined)?.tenant;
+      if (roomTenant !== tenantSlug) continue;
       try {
         room.broadcast?.(type, payload);
       } catch (e: unknown) {
