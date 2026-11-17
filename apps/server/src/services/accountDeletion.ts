@@ -9,6 +9,7 @@ import {
   resolveTenantDeletionOptions,
 } from './tenantDeletionPlanning.js';
 import { logger } from '../logger.js';
+import { acquirePackAdvisoryLocks } from '../api/utils/advisoryLocks.js';
 import { revokeSessionsForUserInTx } from '../api/utils/sessionAuth.js';
 import { invalidateSessionsForUser } from '../api/utils/sessionCache.js';
 import { customAvatarPacksDir, deleteCustomAvatarFiles } from './avatarComposer.js';
@@ -248,6 +249,10 @@ export async function deleteTenantWithMembers(
         await tx.map.deleteMany({ where: { tenantId } });
         if (npcIds.length > 0) await tx.npcMediaFile.deleteMany({ where: { npcId: { in: npcIds } } });
         await tx.npc.deleteMany({ where: { tenantId } });
+        const packUuids = (await tx.assetPack.findMany({ where: { tenantId }, select: { uuid: true } })).map(
+          (p) => p.uuid,
+        );
+        await acquirePackAdvisoryLocks(tx, packUuids);
         await tx.assetPack.deleteMany({ where: { tenantId } });
         await tx.avatarPack.deleteMany({ where: { tenantId } });
         await tx.customAvatar.deleteMany({ where: { tenantId } });
