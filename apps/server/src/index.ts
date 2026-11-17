@@ -50,6 +50,8 @@ import {
   keepsOwnCorsContract,
   resolveOriginPolicy,
 } from './ops/originPolicy.js';
+import { createClientCompatibilityMiddleware } from './ops/clientCompatibility.js';
+import { createLegacyAssetGuard } from './ops/memberAssetRoutes.js';
 import { isRestorePending } from './services/tenantDeletionRestoreMarker.js';
 import { checkDeletionJournalConfig } from './services/deletionJournalConfig.js';
 import { tenantMiddleware } from './tenancy.js';
@@ -181,6 +183,10 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   next();
 });
 
+// Outdated desktop apps get 426 once MEMBER_ASSETS_ENFORCE is on; runs after
+// the CORS headers so the desktop webview can read the answer.
+app.use(createClientCompatibilityMiddleware({ policy: originPolicy }));
+
 app.use(cookieParser());
 
 // Enterprise billing: install raw-body middleware for /billing/webhook BEFORE
@@ -234,6 +240,7 @@ try {
 }
 app.use(
   '/packs',
+  createLegacyAssetGuard(),
   express.static(packsDir, {
     maxAge: '365d',
     immutable: true,
