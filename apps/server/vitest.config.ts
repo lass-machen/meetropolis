@@ -9,6 +9,7 @@ const databaseTestFiles = ['src/**/*.integration.test.ts'];
 const exclusiveTestFiles = [
   'src/services/restoreReplayTokenCleanup.integration.test.ts',
   'src/services/accountDeletionJournal.integration.test.ts',
+  'src/services/tenantDeletionCopyLifetime.integration.test.ts',
   'src/services/accountDeletion.integration.test.ts',
   'src/api/routes/invites.integration.test.ts',
   'src/api/routes/auth.flow.integration.test.ts',
