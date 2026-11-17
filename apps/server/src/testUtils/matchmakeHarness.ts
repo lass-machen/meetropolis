@@ -12,7 +12,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
-import { Server as ColyseusServer, matchMaker } from '@colyseus/core';
+import { Server as ColyseusServer, matchMaker, type MatchMakerDriver, type Presence } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { WorldRoom } from '../rooms/WorldRoom.js';
 import { installMatchmakeGuard } from '../matchmake/guard.js';
@@ -54,6 +54,13 @@ export interface StartOptions {
    * and before the HTTP server is created.
    */
   configureApp?: (app: express.Express) => void;
+  /** Bind port. Default 0 (ephemeral). */
+  port?: number;
+  /**
+   * Colyseus presence, match-maker driver and public address. Spread into
+   * the server constructor. Omitted in single-process tests.
+   */
+  scaling?: { presence?: Presence; driver?: MatchMakerDriver; publicAddress?: string };
 }
 
 export async function startMatchmakeServer(options: StartOptions = {}): Promise<MatchmakeTestServer> {
@@ -69,10 +76,11 @@ export async function startMatchmakeServer(options: StartOptions = {}): Promise<
     transport: new WebSocketTransport({ server: httpServer }),
     gracefullyShutdown: false,
     greet: false,
+    ...options.scaling,
   });
   gameServer.define('world', WorldRoom).filterBy(['tenant']);
   const uninstallValidation = installPartitionKeyValidation(options.tenantExists ?? (() => Promise.resolve(true)));
-  await gameServer.listen(0, '127.0.0.1');
+  await gameServer.listen(options.port ?? 0, '127.0.0.1');
   if (options.guard !== false) {
     installMatchmakeGuard(httpServer, {
       trustProxy,
