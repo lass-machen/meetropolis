@@ -43,7 +43,7 @@ function errorText(error: unknown): string {
 }
 
 /** Tenant slug from `<slug>:world`; every other room name is out of scope. */
-function parseWorldSlug(roomName: string): string | null {
+export function parseWorldSlug(roomName: string): string | null {
   const at = roomName.lastIndexOf(':');
   if (at <= 0 || roomName.slice(at + 1) !== WORLD_SUBROOM) return null;
   return roomName.slice(0, at);

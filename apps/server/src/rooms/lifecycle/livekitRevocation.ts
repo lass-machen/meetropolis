@@ -1,6 +1,7 @@
 import { RoomServiceClient } from 'livekit-server-sdk';
 import { logger } from '../../logger.js';
 import { mapLivekitUrlToHttp } from '../audioZones/livekitAdmin.js';
+import { parseWorldSlug } from './avAccessReconciler.js';
 
 /** Outcome of one privileged removal attempt: retry every `failed`. */
 export type ConfirmedRemoval = 'removed' | 'absent' | 'failed';
@@ -49,6 +50,23 @@ export async function removeParticipantConfirmed(roomName: string, identity: str
     if (isAbsentError(error)) return 'absent';
     logger.warn({ event: 'livekit.revoke_failed', roomName, error: errorText(error) });
     return 'failed';
+  }
+}
+
+/**
+ * Names of every live `<slug>:world` room, so callers can queue removals
+ * beyond a user's own memberships. Never throws: without configuration or
+ * on error the result is an empty list.
+ */
+export async function listWorldRoomNames(): Promise<string[]> {
+  const client = createConfirmedService();
+  if (!client) return [];
+  try {
+    const rooms = await client.listRooms();
+    return rooms.map((room) => room.name).filter((name) => parseWorldSlug(name) !== null);
+  } catch (error: unknown) {
+    logger.warn({ event: 'livekit.list_rooms_failed', error: errorText(error) });
+    return [];
   }
 }
 
