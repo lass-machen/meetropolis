@@ -80,6 +80,12 @@ export interface DesktopModule {
   UpdateBanner: ComponentType<Record<string, never>>;
   /** Open a URL in the external browser via the Tauri shell plugin. */
   openExternal: (url: string) => Promise<void>;
+  /**
+   * Trigger an immediate desktop update check so the update banner can
+   * appear without waiting for the next scheduled check. Optional: older
+   * desktop builds do not provide it, so callers must invoke it optionally.
+   */
+  checkForDesktopUpdate?: () => Promise<void>;
   /** Set the auth token used by Tauri clients that cannot rely on cookies. */
   setDesktopAuthToken: (token: string | null) => void;
   /**

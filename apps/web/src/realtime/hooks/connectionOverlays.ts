@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createRoot } from 'react-dom/client';
 import { Plug, Timer, TriangleAlert } from 'lucide-react';
 import i18n from '../../app/providers/i18n';
+import { getDesktopModule, isDesktopEnvironment } from '../../lib/desktopLoader';
 import { getEnterpriseWebModule } from '../../lib/enterpriseWebLoader';
 import type { TranscriptionConsentGateProps } from '../../lib/enterpriseWebLoader';
 
@@ -97,7 +98,18 @@ export function showAuthExpiredOverlay(apiBase: string): void {
 export function showClientTooOldOverlay(options?: { assetUpdate?: boolean }): void {
   try {
     const titleKey = options?.assetUpdate ? 'assetUpdate.title' : 'realtime.clientTooOld.title';
-    const descriptionKey = options?.assetUpdate ? 'assetUpdate.description' : 'realtime.clientTooOld.description';
+    let descriptionKey = options?.assetUpdate ? 'assetUpdate.description' : 'realtime.clientTooOld.description';
+    if (options?.assetUpdate) {
+      if (isDesktopEnvironment()) {
+        // Trigger the desktop app's own update check right away so its
+        // existing update banner appears; older builds lack the function.
+        void getDesktopModule()
+          .then((desktopModule) => desktopModule?.checkForDesktopUpdate?.())
+          .catch(() => {});
+      } else {
+        descriptionKey = 'assetUpdate.reloadDescription';
+      }
+    }
     const host = document.createElement('div');
     host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;';
     host.innerHTML = `

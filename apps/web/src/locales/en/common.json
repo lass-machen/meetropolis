@@ -718,6 +718,7 @@
   "realtime.clientTooOld.button": "Reload",
   "assetUpdate.title": "Update required",
   "assetUpdate.description": "Please update. This desktop version does not support protected files yet. Open the update notice and choose \"Update now\". If no update is shown, restart the app.",
+  "assetUpdate.reloadDescription": "Please reload the page to use the current version.",
   "realtime.limit.retry": "Retry",
   "realtime.limit.trialExpired.title": "Trial Expired",
   "realtime.limit.trialExpired.description": "Your free trial has ended. Please subscribe to continue using the service.",

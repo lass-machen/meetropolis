@@ -718,6 +718,7 @@
   "realtime.clientTooOld.button": "Neu laden",
   "assetUpdate.title": "Update erforderlich",
   "assetUpdate.description": "Bitte aktualisieren. Diese Desktop-Version unterstützt die geschützten Dateien noch nicht. Öffne den vorhandenen Update-Hinweis und wähle ›Jetzt aktualisieren‹. Falls kein Update angezeigt wird, starte die App neu.",
+  "assetUpdate.reloadDescription": "Bitte lade die Seite neu, um die aktuelle Version zu verwenden.",
   "realtime.limit.retry": "Erneut versuchen",
   "realtime.limit.trialExpired.title": "Testphase abgelaufen",
   "realtime.limit.trialExpired.description": "Eure Testphase ist beendet. Bitte schließt ein Abonnement ab, um den Dienst weiter zu nutzen.",
