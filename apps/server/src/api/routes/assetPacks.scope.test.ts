@@ -455,6 +455,22 @@ describe('AssetPack write routes stay super-admin-only', () => {
     expect(res.status).toBe(403);
   });
 
+  it('never archives a pack when the pack advisory lock cannot be acquired', async () => {
+    // D535: das Archiv-Update läuft in eigener TX unter dem gemeinsamen
+    // Pack-Advisory-Lock. Schlägt die Sperre fehl, darf kein Update stattfinden.
+    const prisma = makePrisma();
+    vi.mocked(prisma.$queryRaw).mockRejectedValueOnce(new Error('lock unavailable'));
+    const app = makeApp(prisma);
+
+    const res = await request(app)
+      .patch('/asset-packs/pixel-agents-furniture/archive')
+      .set('Authorization', sessionBearer('owner-root'))
+      .send({ archived: true });
+
+    expect(res.status).toBe(500);
+    expect(prisma.assetPack.update).not.toHaveBeenCalled();
+  });
+
   it('lets a platform owner archive and restore a pack by UUID', async () => {
     const prisma = makePrisma();
     const app = makeApp(prisma);
