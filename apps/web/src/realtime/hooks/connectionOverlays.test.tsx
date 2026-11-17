@@ -69,6 +69,27 @@ describe('connection overlay min-width', () => {
   });
 });
 
+describe('showClientTooOldOverlay', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('renders the default keys without options', async () => {
+    showClientTooOldOverlay();
+
+    await waitFor(() => expect(screen.getByText('realtime.clientTooOld.title')).toBeTruthy());
+    expect(screen.getByText('realtime.clientTooOld.description')).toBeTruthy();
+    expect(screen.getByText('realtime.clientTooOld.button')).toBeTruthy();
+  });
+
+  it('renders the asset-update keys with the assetUpdate option', async () => {
+    showClientTooOldOverlay({ assetUpdate: true });
+
+    await waitFor(() => expect(screen.getByText('assetUpdate.title')).toBeTruthy());
+    expect(screen.getByText('assetUpdate.description')).toBeTruthy();
+    expect(screen.getByText('realtime.clientTooOld.button')).toBeTruthy();
+    expect(screen.queryByText('realtime.clientTooOld.title')).toBeNull();
+  });
+});
+
 describe('showTranscriptionConsentOverlay', () => {
   beforeEach(() => vi.clearAllMocks());
 

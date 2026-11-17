@@ -68,6 +68,20 @@ describe('translateApiError', () => {
     });
   });
 
+  describe('client_update_required (protected member-asset files)', () => {
+    it('returns the locale text for { code: "client_update_required", message }', () => {
+      translations['apiError.client_update_required'] =
+        'Bitte aktualisieren. Diese Desktop-Version unterstützt die geschützten Dateien noch nicht.';
+      try {
+        expect(translateApiError({ code: 'client_update_required', message: 'x' })).toBe(
+          'Bitte aktualisieren. Diese Desktop-Version unterstützt die geschützten Dateien noch nicht.',
+        );
+      } finally {
+        delete translations['apiError.client_update_required'];
+      }
+    });
+  });
+
   describe('malformed / missing bodies never call a string method on a non-string', () => {
     it.each([
       ['undefined', undefined],

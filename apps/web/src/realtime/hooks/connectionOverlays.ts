@@ -94,15 +94,17 @@ export function showAuthExpiredOverlay(apiBase: string): void {
 // see rooms/lifecycle/onAuth.ts). Should not happen for an up-to-date OSS
 // build (colyseus.ts always sends the current constant); guards against an
 // endless reconnect loop if it ever does (e.g. a stale cached bundle).
-export function showClientTooOldOverlay(): void {
+export function showClientTooOldOverlay(options?: { assetUpdate?: boolean }): void {
   try {
+    const titleKey = options?.assetUpdate ? 'assetUpdate.title' : 'realtime.clientTooOld.title';
+    const descriptionKey = options?.assetUpdate ? 'assetUpdate.description' : 'realtime.clientTooOld.description';
     const host = document.createElement('div');
     host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;';
     host.innerHTML = `
       <div style="min-width:min(320px, calc(100vw - 82px));max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(239,68,68,0.5);background:rgba(239,68,68,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
         <div style="display:flex;justify-content:center;margin-bottom:12px;">${ALERT_ICON_SVG}</div>
-        <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('realtime.clientTooOld.title')}</div>
-        <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">${i18n.t('realtime.clientTooOld.description')}</div>
+        <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t(titleKey)}</div>
+        <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">${i18n.t(descriptionKey)}</div>
         <button data-client-too-old-ok style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent,#3b82f6);color:white;cursor:pointer;font-weight:600;">${i18n.t('realtime.clientTooOld.button')}</button>
       </div>`;
     document.body.appendChild(host);
