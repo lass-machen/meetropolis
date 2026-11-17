@@ -235,7 +235,16 @@ export class WorldRoom extends Room<{ state: WorldState }> {
 
   // Editor updates can set the default spawn live.
   // Public API used by api/utils/broadcast.ts (see types/global.d.ts).
-  public setDefaultSpawn(mapId: string, pos: { x: number; y: number }): void {
+  public setDefaultSpawn(mapId: string, pos: { x: number; y: number } | null): void {
+    // Null clears the default spawn of running rooms.
+    if (pos === null) {
+      this.defaultSpawn = null;
+      const cached = this.mapCache.get(mapId);
+      if (cached) {
+        cached.defaultSpawn = null;
+      }
+      return;
+    }
     const s = sanitizePositionForMap(this, pos.x, pos.y, mapId);
     this.defaultSpawn = s;
     const cached = this.mapCache.get(mapId);

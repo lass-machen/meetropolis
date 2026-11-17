@@ -92,6 +92,10 @@ describe('editor state schema', () => {
     expect(editorStateSchema.safeParse(body).success).toBe(false);
   });
 
+  it('accepts spawn null to remove the spawn', () => {
+    expect(editorStateSchema.safeParse({ spawn: null }).success).toBe(true);
+  });
+
   it('keeps a zone id and a null capacity and drops an unknown key', () => {
     const parsed = editorStateSchema.safeParse({
       zones: [

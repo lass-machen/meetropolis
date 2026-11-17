@@ -31,7 +31,7 @@ export function broadcastMapUpdate(tenantSlug: string, type: string, payload: un
   }
 }
 
-export function broadcastSpawnUpdate(mapId: string, spawn: { x: number; y: number }): void {
+export function broadcastSpawnUpdate(mapId: string, spawn: { x: number; y: number } | null): void {
   const rooms = Array.from((global.activeWorldRooms || new Set()).values());
   for (const room of rooms) {
     try {

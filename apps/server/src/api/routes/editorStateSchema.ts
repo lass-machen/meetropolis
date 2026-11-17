@@ -65,14 +65,13 @@ const spawnSchema = z.object({
 });
 
 // replaceZones is the existing clear-and-replace flag on the editor-state route.
-export const editorStateSchema = z
-  .object({
-    tilesets: z.array(editorTilesetSchema).max(MAX_EDITOR_TILESETS).optional(),
-    zones: z.array(editorZoneSchema).max(MAX_EDITOR_ZONES).optional(),
-    backgroundColor: z
-      .string()
-      .regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/)
-      .optional(),
-    replaceZones: z.boolean().optional(),
-    spawn: spawnSchema.optional(),
-  });
+export const editorStateSchema = z.object({
+  tilesets: z.array(editorTilesetSchema).max(MAX_EDITOR_TILESETS).optional(),
+  zones: z.array(editorZoneSchema).max(MAX_EDITOR_ZONES).optional(),
+  backgroundColor: z
+    .string()
+    .regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/)
+    .optional(),
+  replaceZones: z.boolean().optional(),
+  spawn: spawnSchema.nullable().optional(),
+});

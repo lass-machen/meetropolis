@@ -179,7 +179,8 @@ export async function handleEditorStatePut(
           ...currentMeta,
           tilesets: tilesets ?? currentMeta.tilesets ?? [],
           backgroundColor: backgroundColor ?? currentMeta.backgroundColor ?? undefined,
-          spawn: spawn ?? currentMeta.spawn ?? undefined,
+          // Null removes the saved spawn, undefined keeps it.
+          spawn: spawn === null ? undefined : (spawn ?? currentMeta.spawn ?? undefined),
         } as Prisma.InputJsonValue,
       },
     });
@@ -191,6 +192,9 @@ export async function handleEditorStatePut(
   if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
     broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'spawn', pos: spawn, mapId: map.id, mapName: map.name });
     broadcastSpawnUpdate(map.id, spawn);
+  } else if (spawn === null) {
+    // Removal clears the default spawn of running rooms without an editor_update.
+    broadcastSpawnUpdate(map.id, null);
   }
 
   if (tilesets || zones || backgroundColor || replaceZones) {
