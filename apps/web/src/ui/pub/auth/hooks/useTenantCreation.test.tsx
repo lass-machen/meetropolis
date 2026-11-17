@@ -332,6 +332,23 @@ describe('useTenantCreation — ads attribution handover', () => {
     expect(body).not.toHaveProperty('attribution');
   });
 
+  it('reports the signup conversion once after a successful signup', async () => {
+    // Conversion reporting stands on its own: no attribution getter here,
+    // so the test pins that a successful signup alone triggers exactly one
+    // report with the ads config from the store.
+    const reportSignupConversion = vi.fn();
+    getBrandModuleMock.mockResolvedValue({ reportSignupConversion });
+    usePublicConfigStore.setState({ ads });
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ ok: true, tenant: { id: 't1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTenantCreation(makeArgs()));
+    await result.current({ tierKey: null, b2b: null });
+
+    expect(reportSignupConversion).toHaveBeenCalledTimes(1);
+    expect(reportSignupConversion).toHaveBeenCalledWith(ads);
+  });
+
   it('does not report a conversion when the signup fails', async () => {
     const reportSignupConversion = vi.fn();
     getBrandModuleMock.mockResolvedValue({
