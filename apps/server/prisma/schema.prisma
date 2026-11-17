@@ -160,11 +160,18 @@ model EmailVerification {
   createdAt DateTime @default(now())
 }
 
+enum ApiTokenScope {
+  read
+  write
+}
+
 model ApiToken {
   id         String   @id @default(cuid())
   user       User     @relation(fields: [userId], references: [id])
   userId     String
   name       String?
+  // read tokens may only use safe methods (GET, HEAD, OPTIONS); write tokens may also change data; neither reaches account, token management or platform administration routes.
+  scope      ApiTokenScope @default(read)
   hash       String   @unique
   lastUsedAt DateTime?
   createdAt  DateTime @default(now())

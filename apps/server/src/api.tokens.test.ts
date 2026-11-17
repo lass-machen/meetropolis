@@ -14,6 +14,7 @@ type TokenRec = {
   userId: string;
   name?: string | null;
   hash: string;
+  scope: 'read' | 'write';
   lastUsedAt?: Date | null;
   createdAt: Date;
 };
@@ -29,12 +30,14 @@ const mem: { tokens: TokenRec[]; sessions: Map<string, SessionRec> } = { tokens:
 vi.mock('./generated/prisma/index.js', () => {
   class PrismaClientMock {
     apiToken = {
-      create({ data }: { data: { userId: string; name?: string; hash: string } }) {
+      create({ data }: { data: { userId: string; name?: string; hash: string; scope?: 'read' | 'write' } }) {
         const rec: TokenRec = {
           id: `tok_${Math.random().toString(36).slice(2, 10)}`,
           userId: data.userId,
           name: data.name,
           hash: data.hash,
+          // Mirrors the future database default: missing scope becomes 'read'.
+          scope: data.scope ?? 'read',
           createdAt: new Date(),
           lastUsedAt: null,
         };
@@ -183,5 +186,111 @@ describe('API Tokens & Controls', () => {
     const ctrlRes = await request(app).post('/controls').set('Authorization', `Bearer ${rawToken}`).send({ dnd: true });
     // Token no longer valid -> unauthorized
     expect(ctrlRes.status).toBe(401);
+  });
+});
+
+describe('api token scope', () => {
+  beforeEach(() => {
+    mem.tokens = [];
+    mem.sessions.clear();
+    clearSessionCache();
+    (globalThis as any).gameServer = { matchMaker: { query: () => [] } };
+  });
+
+  it('defaults to read scope when no scope is given', async () => {
+    const app = await createApp();
+    const jwtToken = signSession('user-1');
+
+    const createRes = await request(app)
+      .post('/api-tokens')
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ name: 'No Scope' });
+    expect(createRes.status).toBe(200);
+    // The response exposes the effective scope.
+    expect(createRes.body.scope).toBe('read');
+    // The stored record keeps the same default.
+    expect(mem.tokens).toHaveLength(1);
+    expect(mem.tokens[0].scope).toBe('read');
+  });
+
+  it('creates a token with write scope when requested', async () => {
+    const app = await createApp();
+    const jwtToken = signSession('user-1');
+
+    const createRes = await request(app)
+      .post('/api-tokens')
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ name: 'Writer', scope: 'write' });
+    expect(createRes.status).toBe(200);
+    expect(createRes.body.scope).toBe('write');
+    expect(mem.tokens).toHaveLength(1);
+    expect(mem.tokens[0].scope).toBe('write');
+  });
+
+  it('creates a token with read scope when requested explicitly', async () => {
+    const app = await createApp();
+    const jwtToken = signSession('user-1');
+
+    const createRes = await request(app)
+      .post('/api-tokens')
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ name: 'Reader', scope: 'read' });
+    expect(createRes.status).toBe(200);
+    expect(createRes.body.scope).toBe('read');
+    expect(mem.tokens).toHaveLength(1);
+    expect(mem.tokens[0].scope).toBe('read');
+  });
+
+  it('rejects an unknown scope string', async () => {
+    const app = await createApp();
+    const jwtToken = signSession('user-1');
+
+    const createRes = await request(app)
+      .post('/api-tokens')
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ name: 'Bogus', scope: 'admin' });
+    expect(createRes.status).toBe(400);
+    // Nothing is persisted on validation failure.
+    expect(mem.tokens).toHaveLength(0);
+  });
+
+  it('rejects a non-string scope value', async () => {
+    const app = await createApp();
+    const jwtToken = signSession('user-1');
+
+    const createRes = await request(app)
+      .post('/api-tokens')
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ name: 'Numeric', scope: 1 });
+    expect(createRes.status).toBe(400);
+    expect(mem.tokens).toHaveLength(0);
+  });
+
+  it('lists the stored scope without leaking secrets', async () => {
+    const app = await createApp();
+    const jwtToken = signSession('user-1');
+
+    await request(app)
+      .post('/api-tokens')
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ name: 'First' });
+    await request(app)
+      .post('/api-tokens')
+      .set('Authorization', `Bearer ${jwtToken}`)
+      .send({ name: 'Second', scope: 'write' });
+
+    const listRes = await request(app).get('/api-tokens').set('Authorization', `Bearer ${jwtToken}`);
+    expect(listRes.status).toBe(200);
+    expect(Array.isArray(listRes.body)).toBe(true);
+    expect(listRes.body).toHaveLength(mem.tokens.length);
+    // Every listed token carries its stored scope ...
+    for (const entry of listRes.body) {
+      const stored = mem.tokens.find((t) => t.id === entry.id);
+      expect(stored).toBeTruthy();
+      expect(entry.scope).toBe(stored!.scope);
+      // ... but never secret material.
+      expect(entry).not.toHaveProperty('hash');
+      expect(entry).not.toHaveProperty('token');
+    }
   });
 });
