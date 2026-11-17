@@ -78,15 +78,26 @@ export async function registerInvitedUser(
       data: { email: normalizeEmailForStorage(args.email), name: args.name, passwordHash: args.passwordHash },
     });
     const invite = await tx.invite.findUnique({ where: { code: args.code } });
-    if (!invite || deriveInviteStatus(invite, args.now) !== 'pending' || !inviteEmailMatches(invite.email, user.email)) {
+    if (
+      !invite ||
+      deriveInviteStatus(invite, args.now) !== 'pending' ||
+      !inviteEmailMatches(invite.email, user.email)
+    ) {
       throw new InviteUnavailableError();
     }
     // Create the binding atomically with the account. This record cannot be redeemed;
     // the subsequent delivery creates the actual mailbox proof.
-    await tx.emailVerification.create({ data: {
-      userId: user.id, email: user.email, sourceEmail: user.email, purpose: 'invite', inviteId: invite.id,
-      token: crypto.createHash('sha256').update(crypto.randomBytes(32)).digest('hex'), expiresAt: args.now,
-    } });
+    await tx.emailVerification.create({
+      data: {
+        userId: user.id,
+        email: user.email,
+        sourceEmail: user.email,
+        purpose: 'invite',
+        inviteId: invite.id,
+        token: crypto.createHash('sha256').update(crypto.randomBytes(32)).digest('hex'),
+        expiresAt: args.now,
+      },
+    });
     return user;
   });
 }
