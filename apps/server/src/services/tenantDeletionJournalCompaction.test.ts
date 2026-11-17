@@ -26,6 +26,7 @@ const AT = '2026-03-01T10:00:00.000Z';
 const JOURNAL_UNTIL = '2026-03-02T10:00:00.000Z';
 const LIFECYCLE: JournalEntryType[] = ['intent', 'commit', 'completed'];
 const PAIR: JournalEntryType[] = ['intent', 'commit'];
+const ZERO_HEAD = '0'.repeat(64);
 
 interface JournalPaths {
   journal: string;
@@ -68,6 +69,40 @@ async function appendEntries(dir: string, key: string, types: JournalEntryType[]
   }
 }
 
+/**
+ * Fixture writer for an uncompacted journal: appends the entries of one key with
+ * the line layout of the journal writer, but without its lock and disk flushes.
+ * The flushes are the slow part of the production writer and are not what these
+ * cases check; appendEntries stays in use where an append is the behaviour under test.
+ */
+async function writeEntries(dir: string, key: string, types: JournalEntryType[]): Promise<void> {
+  const journalPath = path.join(dir, JOURNAL_FILE);
+  const lines = (await exists(journalPath)) ? splitLines(await readText(journalPath)) : [];
+  for (const type of types) {
+    const prev = lines.length === 0 ? ZERO_HEAD : expectedLineHash(lines[lines.length - 1]);
+    const record = {
+      v: 1,
+      seq: lines.length + 1,
+      prev,
+      type,
+      key,
+      tenantRef: TENANT_REF,
+      at: AT,
+      ...(type === 'intent' ? { journalUntil: JOURNAL_UNTIL } : {}),
+    };
+    lines.push(`${JSON.stringify(record)}\n`);
+  }
+  const checkpoint = {
+    v: 1,
+    seq: lines.length,
+    head: expectedLineHash(lines[lines.length - 1]),
+    baseSeq: 0,
+    baseHead: ZERO_HEAD,
+  };
+  await fs.writeFile(journalPath, lines.join(''), 'utf8');
+  await fs.writeFile(path.join(dir, CHECKPOINT_FILE), JSON.stringify(checkpoint), 'utf8');
+}
+
 async function readText(filePath: string): Promise<string> {
   return fs.readFile(filePath, 'utf8');
 }
@@ -101,8 +136,8 @@ describe('compactJournalPrefix', () => {
   it('drops a removable key prefix and keeps the remaining lines byte-identical', async () => {
     const dir = await createJournalDir();
     const paths = journalPaths(dir);
-    await appendEntries(dir, KEY_A, LIFECYCLE);
-    await appendEntries(dir, KEY_B, PAIR);
+    await writeEntries(dir, KEY_A, LIFECYCLE);
+    await writeEntries(dir, KEY_B, PAIR);
     const before = await loadRequired(dir);
     const originalLines = splitLines(await readText(paths.journal));
     expect(originalLines).toHaveLength(5);
@@ -126,8 +161,8 @@ describe('compactJournalPrefix', () => {
   it('leaves both files untouched when the first journal key is kept', async () => {
     const dir = await createJournalDir();
     const paths = journalPaths(dir);
-    await appendEntries(dir, KEY_A, LIFECYCLE);
-    await appendEntries(dir, KEY_B, PAIR);
+    await writeEntries(dir, KEY_A, LIFECYCLE);
+    await writeEntries(dir, KEY_B, PAIR);
     const journalBefore = await readText(paths.journal);
     const checkpointBefore = await readText(paths.checkpoint);
 
@@ -143,9 +178,9 @@ describe('compactJournalPrefix', () => {
   it('keeps a removable key that still has a line behind a kept key', async () => {
     const dir = await createJournalDir();
     const paths = journalPaths(dir);
-    await appendEntries(dir, KEY_A, ['intent']);
-    await appendEntries(dir, KEY_B, ['intent']);
-    await appendEntries(dir, KEY_A, ['commit']);
+    await writeEntries(dir, KEY_A, ['intent']);
+    await writeEntries(dir, KEY_B, ['intent']);
+    await writeEntries(dir, KEY_A, ['commit']);
     const journalBefore = await readText(paths.journal);
     const checkpointBefore = await readText(paths.checkpoint);
 
@@ -162,7 +197,7 @@ describe('compactJournalPrefix on a fully removable journal', () => {
   it('empties the journal and keeps the chain appendable from the new base', async () => {
     const dir = await createJournalDir();
     const paths = journalPaths(dir);
-    await appendEntries(dir, KEY_A, LIFECYCLE);
+    await writeEntries(dir, KEY_A, LIFECYCLE);
     const originalLines = splitLines(await readText(paths.journal));
 
     const result = await compactJournalPrefix(dir, (key) => key === KEY_A);
@@ -193,8 +228,8 @@ describe('readJournalSnapshot after an interrupted compaction', () => {
   it('adopts the compact checkpoint after a crash between the two renames', async () => {
     const dir = await createJournalDir();
     const paths = journalPaths(dir);
-    await appendEntries(dir, KEY_A, LIFECYCLE);
-    await appendEntries(dir, KEY_B, PAIR);
+    await writeEntries(dir, KEY_A, LIFECYCLE);
+    await writeEntries(dir, KEY_B, PAIR);
     const oldCheckpoint = await readText(paths.checkpoint);
     await compactJournalPrefix(dir, (key) => key === KEY_A);
     // The compaction ran to completion. Rebuild the state of a crash after the
@@ -220,9 +255,9 @@ describe('removeCompactionLeftovers', () => {
   it('ignores a stale compact checkpoint next to a valid checkpoint and removes both leftovers', async () => {
     const dir = await createJournalDir();
     const paths = journalPaths(dir);
-    await appendEntries(dir, KEY_A, LIFECYCLE);
+    await writeEntries(dir, KEY_A, LIFECYCLE);
     const staleCheckpoint = await readText(paths.checkpoint);
-    await appendEntries(dir, KEY_B, PAIR);
+    await writeEntries(dir, KEY_B, PAIR);
     await fs.writeFile(paths.compactCheckpoint, staleCheckpoint);
     await fs.copyFile(paths.journal, paths.compactJournal);
     const journalBefore = await readText(paths.journal);
@@ -244,12 +279,12 @@ describe('removeCompactionLeftovers', () => {
   it('keeps everything in place when neither checkpoint fits the journal', async () => {
     const dir = await createJournalDir();
     const paths = journalPaths(dir);
-    await appendEntries(dir, KEY_A, LIFECYCLE);
-    await appendEntries(dir, KEY_B, PAIR);
+    await writeEntries(dir, KEY_A, LIFECYCLE);
+    await writeEntries(dir, KEY_B, PAIR);
     const foreignLong = await createJournalDir();
-    await appendEntries(foreignLong, KEY_X, PAIR);
+    await writeEntries(foreignLong, KEY_X, PAIR);
     const foreignShort = await createJournalDir();
-    await appendEntries(foreignShort, KEY_X, ['intent']);
+    await writeEntries(foreignShort, KEY_X, ['intent']);
     await fs.copyFile(path.join(foreignLong, CHECKPOINT_FILE), paths.checkpoint);
     await fs.copyFile(path.join(foreignShort, CHECKPOINT_FILE), paths.compactCheckpoint);
     await fs.copyFile(paths.journal, paths.compactJournal);
