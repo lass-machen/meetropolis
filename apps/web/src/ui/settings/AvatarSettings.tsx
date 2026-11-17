@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { DEFAULT_AVATARS, fallbackAvatarSpriteUrl } from '../../lib/defaultAvatars';
 import { logger } from '../../lib/logger';
+import { Alert, Button } from '../system';
 
 function resolveUrl(url: string): string {
   if (url.startsWith('/')) return `${getApiBaseFromWindow()}${url}`;
@@ -71,62 +73,89 @@ function mapPackToAvatars(packs: unknown): AvatarOption[] {
 function useAvatarOptions(apiBase: string) {
   const [avatars, setAvatars] = React.useState<AvatarOption[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [loadFailed, setLoadFailed] = React.useState(false);
 
-  React.useEffect(() => {
-    const fetchAvatars = async () => {
-      try {
-        const res = await fetch(`${apiBase}/avatar-packs`, { credentials: 'include' });
-        if (res.ok) {
-          const packs = (await res.json()) as unknown;
-          const list = mapPackToAvatars(packs);
-          if (list.length === 0) list.push(DEFAULT_AVATAR);
-          setAvatars(list);
-        }
-      } catch (err) {
-        logger.warn('[AvatarSettings] Failed to fetch avatar packs:', err);
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setLoadFailed(false);
+    try {
+      const res = await fetch(`${apiBase}/avatar-packs`, { credentials: 'include' });
+      if (!res.ok) {
+        setLoadFailed(true);
         setAvatars([DEFAULT_AVATAR]);
-      } finally {
-        setLoading(false);
+        return;
       }
-    };
-    void fetchAvatars();
+      const packs = (await res.json()) as unknown;
+      const list = mapPackToAvatars(packs);
+      if (list.length === 0) list.push(DEFAULT_AVATAR);
+      setAvatars(list);
+    } catch (err) {
+      logger.warn('[AvatarSettings] Failed to fetch avatar packs:', err);
+      setLoadFailed(true);
+      setAvatars([DEFAULT_AVATAR]);
+    } finally {
+      setLoading(false);
+    }
   }, [apiBase]);
 
-  return { avatars, loading };
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { avatars, loading, loadFailed, retry: load };
 }
 
 export function AvatarSettings({ currentAvatarId, onAvatarChange }: AvatarSettingsProps) {
+  const { t } = useTranslation();
   const apiBase = getApiBaseFromWindow();
-  const { avatars, loading } = useAvatarOptions(apiBase);
+  const { avatars, loading, loadFailed, retry } = useAvatarOptions(apiBase);
 
   if (loading) {
-    return <div style={styles.loading}>Loading avatars...</div>;
+    return <div style={styles.loading}>{t('avatarSettings.loading')}</div>;
   }
 
   return (
-    <div style={styles.grid}>
-      {avatars.map((av) => (
-        <button
-          key={av.id}
-          type="button"
-          onClick={() => onAvatarChange(av.id)}
-          style={{
-            ...styles.card,
-            ...(av.id === currentAvatarId ? styles.cardSelected : {}),
-          }}
-          title={av.displayName}
-        >
-          <AvatarPreview
-            spriteUrl={av.spriteUrl}
-            frameWidth={av.frameWidth}
-            frameHeight={av.frameHeight}
-            idleRow={av.idleRow}
-            {...(av.previewUrl != null ? { previewUrl: av.previewUrl } : {})}
-          />
-          <div style={styles.cardLabel}>{av.displayName}</div>
-        </button>
-      ))}
-    </div>
+    <>
+      {loadFailed && (
+        <div>
+          <Alert intent="error" style={{ marginBottom: 12 }}>
+            {t('avatarSettings.loadFailed')}
+          </Alert>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              void retry();
+            }}
+          >
+            {t('avatarSettings.retry')}
+          </Button>
+        </div>
+      )}
+      <div style={styles.grid}>
+        {avatars.map((av) => (
+          <button
+            key={av.id}
+            type="button"
+            onClick={() => onAvatarChange(av.id)}
+            style={{
+              ...styles.card,
+              ...(av.id === currentAvatarId ? styles.cardSelected : {}),
+            }}
+            title={av.displayName}
+          >
+            <AvatarPreview
+              spriteUrl={av.spriteUrl}
+              frameWidth={av.frameWidth}
+              frameHeight={av.frameHeight}
+              idleRow={av.idleRow}
+              {...(av.previewUrl != null ? { previewUrl: av.previewUrl } : {})}
+            />
+            <div style={styles.cardLabel}>{av.displayName}</div>
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 
