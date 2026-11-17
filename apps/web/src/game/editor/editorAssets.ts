@@ -4,6 +4,7 @@
 
 import Phaser from 'phaser';
 import { lookupDirectionalImage } from '../../lib/directionalImageRegistry';
+import { loadMemberImage } from '../services/assetLoader';
 import type { MainSceneLike } from '../types/scene';
 
 function clearAssetPreview(scene: MainSceneLike): void {
@@ -102,15 +103,21 @@ export function setAssetPreview(
     if (scene.ghostSprite) {
       scene.ghostSprite.setVisible(false);
     }
-    scene.textures.once('addtexture', (k: string) => {
-      if (k === newKey) place();
-    });
     if (resolvedUrl.startsWith('data:')) {
+      scene.textures.once('addtexture', (k: string) => {
+        if (k === newKey) place();
+      });
       scene.textures.addBase64(newKey, resolvedUrl);
     } else {
-      scene.load.setCORS('anonymous');
-      scene.load.image(newKey, resolvedUrl);
-      scene.load.start();
+      // Stored pack and npc-media references load with member auth; the
+      // helper resolves only after the texture completed.
+      void loadMemberImage(scene, newKey, resolvedUrl)
+        .then(() => {
+          place();
+        })
+        .catch(() => {
+          // A missing ghost preview is not critical; it stays hidden.
+        });
     }
   }
 }

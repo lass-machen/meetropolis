@@ -2,6 +2,8 @@
  * Tileset Utilities
  */
 
+import { loadMemberImageElement } from './memberImage';
+
 export type SplitTile = {
   id: string;
   dataUrl: string;
@@ -24,67 +26,56 @@ export function splitTilesetImage(
     spacing?: number;
   },
 ): Promise<SplitTile[]> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const margin = config.margin || 0;
-        const spacing = config.spacing || 0;
-        const tileWidth = config.tileWidth;
-        const tileHeight = config.tileHeight;
+  return (async (): Promise<SplitTile[]> => {
+    // Stored pack and npc-media references load with member auth; blob and
+    // data URLs pass through the helper untouched. The release runs once
+    // every tile is drawn (or when splitting fails).
+    const { image, release } = await loadMemberImageElement(dataUrl);
+    try {
+      const margin = config.margin || 0;
+      const spacing = config.spacing || 0;
+      const tileWidth = config.tileWidth;
+      const tileHeight = config.tileHeight;
 
-        const cols = Math.max(1, Math.floor((img.width - margin + spacing) / (tileWidth + spacing)));
-        const rows = Math.max(1, Math.floor((img.height - margin + spacing) / (tileHeight + spacing)));
-        const tiles: SplitTile[] = [];
+      const cols = Math.max(1, Math.floor((image.width - margin + spacing) / (tileWidth + spacing)));
+      const rows = Math.max(1, Math.floor((image.height - margin + spacing) / (tileHeight + spacing)));
+      const tiles: SplitTile[] = [];
 
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Could not get 2D context'));
-          return;
-        }
-
-        canvas.width = tileWidth;
-        canvas.height = tileHeight;
-
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            const sx = margin + c * (tileWidth + spacing);
-            const sy = margin + r * (tileHeight + spacing);
-
-            // Clear canvas for transparency support
-            ctx.clearRect(0, 0, tileWidth, tileHeight);
-
-            // Draw the specific tile
-            ctx.drawImage(img, sx, sy, tileWidth, tileHeight, 0, 0, tileWidth, tileHeight);
-
-            const tileDataUrl = canvas.toDataURL('image/png');
-            tiles.push({
-              id: `${r}:${c}`,
-              dataUrl: tileDataUrl,
-              x: c * tileWidth,
-              y: r * tileHeight,
-              row: r,
-              col: c,
-            });
-          }
-        }
-
-        resolve(tiles);
-      } catch (e) {
-        reject(e instanceof Error ? e : new Error(String(e)));
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Could not get 2D context');
       }
-    };
 
-    img.onerror = () => {
-      reject(new Error('Failed to load image'));
-    };
+      canvas.width = tileWidth;
+      canvas.height = tileHeight;
 
-    // Cross-origin images (e.g. absolute URLs for Tauri) need this
-    // attribute to be drawable on canvas without tainting it.
-    if (dataUrl && !dataUrl.startsWith('data:')) {
-      img.crossOrigin = 'anonymous';
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const sx = margin + c * (tileWidth + spacing);
+          const sy = margin + r * (tileHeight + spacing);
+
+          // Clear canvas for transparency support
+          ctx.clearRect(0, 0, tileWidth, tileHeight);
+
+          // Draw the specific tile
+          ctx.drawImage(image, sx, sy, tileWidth, tileHeight, 0, 0, tileWidth, tileHeight);
+
+          const tileDataUrl = canvas.toDataURL('image/png');
+          tiles.push({
+            id: `${r}:${c}`,
+            dataUrl: tileDataUrl,
+            x: c * tileWidth,
+            y: r * tileHeight,
+            row: r,
+            col: c,
+          });
+        }
+      }
+
+      return tiles;
+    } finally {
+      release();
     }
-    img.src = dataUrl;
-  });
+  })();
 }
