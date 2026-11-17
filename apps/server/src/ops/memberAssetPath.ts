@@ -15,8 +15,10 @@ export type MemberAssetTarget =
   | { kind: 'npc-media'; storagePath: string; relativePath: string };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// Upload charset for avatar-pack keys (avatarPacks.ts handleSpriteUpload).
-const AVATAR_PACK_KEY_RE = /^[A-Za-z0-9_-]{1,128}$/;
+// Pack keys: upload UUIDs and seeded slugs such as `pixel-agents-furniture`
+// (prisma/seed.ts), same charset as avatar-pack uploads (avatarPacks.ts).
+// The key only selects the row; the pack scope query is the authorization.
+const PACK_KEY_RE = /^[A-Za-z0-9_-]{1,128}$/;
 
 // Decode one segment; reject on encoding errors and dangerous content.
 function decodeSegment(raw: string): string | null {
@@ -60,12 +62,12 @@ export function parseMemberAssetPath(namespace: MemberAssetNamespace, rawPath: s
         }
         return null;
       }
-      if (parts.length === 3 && AVATAR_PACK_KEY_RE.test(parts[1])) {
+      if (parts.length === 3 && PACK_KEY_RE.test(parts[1])) {
         return { kind: 'avatar-pack', packUuid: parts[1], relativePath };
       }
       return null;
     }
-    if (parts[0] !== undefined && UUID_RE.test(parts[0]) && parts.length >= 2) {
+    if (parts[0] !== undefined && PACK_KEY_RE.test(parts[0]) && parts.length >= 2) {
       return { kind: 'asset-pack', packUuid: parts[0], relativePath };
     }
     return null;

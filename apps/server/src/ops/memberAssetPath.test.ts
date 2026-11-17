@@ -44,6 +44,21 @@ describe('parseMemberAssetPath packs', () => {
     });
   });
 
+  it('parses asset packs keyed by a seeded slug, legacy and generation layout', () => {
+    expect(parseMemberAssetPath('packs', 'pixel-agents-furniture/chair.12ab34cd.png')).toEqual({
+      kind: 'asset-pack',
+      packUuid: 'pixel-agents-furniture',
+      relativePath: 'pixel-agents-furniture/chair.12ab34cd.png',
+    });
+    expect(
+      parseMemberAssetPath('packs', 'office-kit/generations/550e8400-e29b-41d4-a716-446655440000/chair.12ab34cd.png'),
+    ).toEqual({
+      kind: 'asset-pack',
+      packUuid: 'office-kit',
+      relativePath: 'office-kit/generations/550e8400-e29b-41d4-a716-446655440000/chair.12ab34cd.png',
+    });
+  });
+
   it('rejects traversal out of a generation directory', () => {
     for (const raw of [
       `${PACK_UUID}/generations/../other.png`,
@@ -102,7 +117,8 @@ describe('parseMemberAssetPath packs', () => {
       '%00',
       'avatars/custom/notauuid.png',
       `avatars/${PACK_UUID}`,
-      'notauuid/file.png',
+      'bad.key/file.png',
+      'only-a-key',
       'avatars/bad.key/x.png',
       '%E0%A4%A',
     ];
