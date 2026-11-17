@@ -16,6 +16,9 @@ export function createMailFixture() {
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('The assigned SMTP port is missing.');
     process.env.SMTP_HOST = process.env.MAILPIT_SMTP_HOST;
     process.env.SMTP_PORT = process.env.MAILPIT_SMTP_PORT;
+    // The product only delivers with a sender; Mailpit offers STARTTLS with a self-signed certificate.
+    process.env.SMTP_FROM = 'fixture-mail@example.test';
+    process.env.SMTP_TLS_REJECT_UNAUTHORIZED = 'false';
     context = await apiRequest.newContext();
     mailpit = createMailpitClient(context, base);
     return mailpit;
