@@ -105,4 +105,53 @@ describe('setupRosterOnStateChange', () => {
     expect(roster).toHaveLength(1);
     expect(roster[0]).toMatchObject({ identity: 'local-user', online: true, x: 7, y: 8 });
   });
+
+  it('omits a player without identity or mapping until identity arrives and keeps mapped peers', () => {
+    const prev: RosterEntry[] = [{ identity: 'user-other', name: 'Other', online: true, x: 1, y: 2 }];
+    const me = { id: 'local-user', name: 'Local User' };
+    const map = makeRef<Record<string, string>>({});
+
+    const missing = runStateChange(
+      prev,
+      [
+        ['session-a', { x: 10, y: 20, identity: '', name: 'Dave' }],
+        ['session-other', { x: 1, y: 2, identity: 'user-other', name: 'Other' }],
+      ],
+      me,
+      { colyseusToLivekitMap: map },
+    );
+
+    expect(missing.roster.find((r) => r.identity === 'session-a')).toBeUndefined();
+    expect(missing.roster.filter((r) => r.identity === 'user-other')).toHaveLength(1);
+    expect(missing.roster.find((r) => r.identity === 'user-other')).toMatchObject({
+      online: true,
+      x: 1,
+      y: 2,
+    });
+
+    const { roster } = runStateChange(
+      missing.roster,
+      [
+        ['session-a', { x: 10, y: 20, identity: 'user-1', name: 'Dave' }],
+        ['session-other', { x: 1, y: 2, identity: 'user-other', name: 'Other' }],
+      ],
+      me,
+      { colyseusToLivekitMap: map },
+    );
+
+    expect(roster.find((r) => r.identity === 'session-a')).toBeUndefined();
+    expect(roster.filter((r) => r.identity === 'user-1')).toHaveLength(1);
+    expect(roster.find((r) => r.identity === 'user-1')).toMatchObject({
+      name: 'Dave',
+      online: true,
+      x: 10,
+      y: 20,
+    });
+    expect(roster.filter((r) => r.identity === 'user-other')).toHaveLength(1);
+    expect(roster.find((r) => r.identity === 'user-other')).toMatchObject({
+      online: true,
+      x: 1,
+      y: 2,
+    });
+  });
 });
