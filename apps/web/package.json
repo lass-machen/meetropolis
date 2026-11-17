@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "build": "vite build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && npm run typecheck:e2e",
+    "typecheck:e2e": "tsc -p tsconfig.lint.json",
     "preview": "vite preview --host 0.0.0.0 --port 5173",
     "test": "vitest run --reporter=verbose",
     "check:av": "vite build && vitest run --reporter=verbose src/lib/livekit.test.ts src/av/core/TrackManager.concurrency.test.ts src/av/core/TrackManager.signalClosed.test.ts src/av/features/DoNotDisturb.test.ts",
