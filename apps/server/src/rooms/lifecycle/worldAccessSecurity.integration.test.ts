@@ -38,7 +38,7 @@ import { tenantMiddleware } from '../../tenancy.js';
 import { validateSessionToken } from '../../api/utils/sessionAuth.js';
 import { broadcastAccessRevoked } from '../../api/utils/broadcast.js';
 import { logger } from '../../logger.js';
-import { AUTH_REJECTED_CODE, CLIENT_TOO_OLD_CODE, authenticateWorldJoin } from './onAuth.js';
+import { authenticateWorldJoin } from './onAuth.js';
 import { cleanupTenants, issueSession, seedMember, seedTenant } from '../../testUtils/worldSeed.js';
 import {
   disposeAllRooms,
@@ -50,6 +50,14 @@ import {
   type MatchmakeTestServer,
 } from '../../testUtils/matchmakeHarness.js';
 import { spawnColyseusBot } from '../../../../loadtest/src/workers/colyseusBot.js';
+
+/**
+ * Matchmaking answers a refused world auth with the HTTP status that the
+ * WebSocket close code mirrors (4401 -> 401, 4426 -> 426), see
+ * toMatchmakeError in worldMatchmakeAuth.ts.
+ */
+const MATCHMAKE_AUTH_REJECTED_STATUS = 401;
+const MATCHMAKE_CLIENT_TOO_OLD_STATUS = 426;
 
 if (!process.env.DATABASE_URL) {
   throw new Error('worldAccessSecurity.integration.test.ts needs DATABASE_URL pointing at a migrated test database');
@@ -299,7 +307,7 @@ describe('world seat consumed after the session row is gone', () => {
 
     const second = await joinWorld(member.userId, member.token);
     await leaveQuietly(second);
-    expect(second.error).toMatchObject({ code: AUTH_REJECTED_CODE });
+    expect(second.error).toMatchObject({ code: MATCHMAKE_AUTH_REJECTED_STATUS });
 
     const controlMember = await seedMember(prisma, tenantId);
     const control = await joinWorld(controlMember.userId, controlMember.token);
@@ -343,14 +351,14 @@ describe('old zone protocol without enforcement', () => {
   it('rejects an old client when the flag is missing', async () => {
     const tracked = await joinWithOldVersion(undefined);
     await leaveQuietly(tracked);
-    expect(tracked.error).toMatchObject({ code: CLIENT_TOO_OLD_CODE });
+    expect(tracked.error).toMatchObject({ code: MATCHMAKE_CLIENT_TOO_OLD_STATUS });
     expect(tracked.room).toBeUndefined();
   }, 30_000);
 
   it('rejects an old client when the flag is false', async () => {
     const tracked = await joinWithOldVersion('false');
     await leaveQuietly(tracked);
-    expect(tracked.error).toMatchObject({ code: CLIENT_TOO_OLD_CODE });
+    expect(tracked.error).toMatchObject({ code: MATCHMAKE_CLIENT_TOO_OLD_STATUS });
     expect(tracked.room).toBeUndefined();
   }, 30_000);
 });
@@ -370,7 +378,7 @@ describe('insecure service secret', () => {
         const tracked = await joinWorld(identity, undefined, { serviceToken: variant.presented });
         await leaveQuietly(tracked);
         expect(tracked.error, `variant ${variant.name} must be refused`).toMatchObject({
-          code: AUTH_REJECTED_CODE,
+          code: MATCHMAKE_AUTH_REJECTED_STATUS,
         });
         expect(tracked.room, `variant ${variant.name} must reserve nothing`).toBeUndefined();
       } finally {
@@ -388,7 +396,7 @@ describe('service join without a matching record', () => {
       const identity = `npc-wsec-orphan-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
       const tracked = await joinWorld(identity, undefined, { serviceToken: secret });
       await leaveQuietly(tracked);
-      expect(tracked.error).toMatchObject({ code: AUTH_REJECTED_CODE });
+      expect(tracked.error).toMatchObject({ code: MATCHMAKE_AUTH_REJECTED_STATUS });
       expect(tracked.room).toBeUndefined();
     } finally {
       restore();
@@ -460,7 +468,7 @@ describe('proven sessions keep working', () => {
     await setVerificationFlag(member.userId, true);
     const tracked = await joinWorld(member.userId, member.token);
     await leaveQuietly(tracked);
-    expect(tracked.error).toMatchObject({ code: AUTH_REJECTED_CODE });
+    expect(tracked.error).toMatchObject({ code: MATCHMAKE_AUTH_REJECTED_STATUS });
   }, 30_000);
 
   it('keeps a valid session despite a forwarded header', async () => {
@@ -522,7 +530,7 @@ describe('room slug and session tenant', () => {
         expect(ownerJoin.error, 'the owner must reach its own room').toBeUndefined();
         const strangerJoin = await joinWorld(stranger.userId, stranger.token, { tenant: other.slug });
         await leaveQuietly(strangerJoin);
-        expect(strangerJoin.error).toMatchObject({ code: AUTH_REJECTED_CODE, message: 'tenant_mismatch' });
+        expect(strangerJoin.error).toMatchObject({ code: MATCHMAKE_AUTH_REJECTED_STATUS, message: 'tenant_mismatch' });
         expect(strangerJoin.room).toBeUndefined();
         const seen = await waitForPlayers(ownerJoin, 5_000);
         expect(seen, 'the room must not list the refused stranger').not.toContain(stranger.userId);
@@ -587,7 +595,7 @@ describe('room slug and session tenant', () => {
     try {
       const tracked = await joinWorld(member.userId, member.token, { tenant: other.slug });
       await leaveQuietly(tracked);
-      expect(tracked.error).toMatchObject({ code: AUTH_REJECTED_CODE, message: 'tenant_mismatch' });
+      expect(tracked.error).toMatchObject({ code: MATCHMAKE_AUTH_REJECTED_STATUS, message: 'tenant_mismatch' });
       expect(tracked.room).toBeUndefined();
     } finally {
       restore();
@@ -602,7 +610,7 @@ describe('room slug and session tenant', () => {
     const foreign = await issueSession(prisma, member.userId, other.id);
     const tracked = await joinWorld(member.userId, foreign.token, { tenant: other.slug });
     await leaveQuietly(tracked);
-    expect(tracked.error).toMatchObject({ code: AUTH_REJECTED_CODE });
+    expect(tracked.error).toMatchObject({ code: MATCHMAKE_AUTH_REJECTED_STATUS });
     expect(tracked.room).toBeUndefined();
   }, 30_000);
 });
