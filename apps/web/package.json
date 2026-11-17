@@ -19,6 +19,7 @@
   "dependencies": {
     "@colyseus/schema": "^5.0.49",
     "@colyseus/sdk": "^0.18.10",
+    "@meetropolis/shared": "*",
     "@radix-ui/primitive": "^1.2.0",
     "@radix-ui/react-dialog": "^1.3.1",
     "@radix-ui/react-popover": "1.3.1",
@@ -58,6 +59,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^30.1.1",
+    "livekit-server-sdk": "^2.20.0",
     "pg": "^8.23.1",
     "typescript": "^6.0.3",
     "vite": "~8.3.8",
