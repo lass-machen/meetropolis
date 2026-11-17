@@ -91,7 +91,10 @@ async function persistUploadedPack(params: {
       await publishAssetPackGeneration(generation);
       return persistAssetPackRecord(tx, cfg, rewritten, existCheck.existing, generation.id);
     },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    // Every online writer of a pack row takes this pack lock first, so the
+    // re-reads after the lock see the latest committed state without the
+    // write conflicts a serializable snapshot taken before the lock causes.
+    { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
   );
   await cleanupPackGenerationsAfterCommit(prisma, packsDir, cfg.uuid).catch((error: unknown) =>
     logger.warn({ event: 'asset_pack.generation_cleanup_failed', uuid: cfg.uuid, error: String(error) }),
