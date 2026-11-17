@@ -55,6 +55,10 @@ export interface RoomOptions {
   // as too old (fail-closed rollout: ship the client field before raising
   // the server minimum).
   zonePrivacyVersion?: number;
+  // Member-asset hardening: client asset protocol version, checked against
+  // MIN_ASSET_PROTOCOL_VERSION in onAuth.ts once MEMBER_ASSETS_ENFORCE is on.
+  // Absent/too-low on a desktop origin is treated as too old.
+  assetProtocol?: number;
 }
 
 interface RoomMetadata {

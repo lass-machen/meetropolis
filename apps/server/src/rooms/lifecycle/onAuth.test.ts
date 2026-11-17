@@ -14,7 +14,11 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ServerError, type AuthContext } from '@colyseus/core';
-import { MIN_ZONE_PRIVACY_CLIENT_VERSION } from '@meetropolis/shared';
+import {
+  CLIENT_UPDATE_REQUIRED_CODE,
+  MIN_ASSET_PROTOCOL_VERSION,
+  MIN_ZONE_PRIVACY_CLIENT_VERSION,
+} from '@meetropolis/shared';
 
 vi.mock('../../logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -49,9 +53,10 @@ const prisma = {
   npc: { findUnique: vi.fn(() => Promise.resolve({ id: 'npc-id', identity: 'bob' })) },
 } as unknown as WorldJoinPrisma;
 
-function makeContext(opts: { token?: string; cookie?: string } = {}): AuthContext {
+function makeContext(opts: { token?: string; cookie?: string; origin?: string } = {}): AuthContext {
   const headerInit: Record<string, string> = {};
   if (opts.cookie !== undefined) headerInit.cookie = opts.cookie;
+  if (opts.origin !== undefined) headerInit.origin = opts.origin;
   const context: AuthContext = {
     headers: new Headers(headerInit),
     ip: '127.0.0.1',
@@ -477,5 +482,82 @@ describe('isWorldAuth / requireWorldAuth', () => {
   it('requireWorldAuth throws fail-closed when client.auth is missing (onAuth did not run)', () => {
     const client = { auth: undefined };
     expect(() => requireWorldAuth(client)).toThrow(ServerError);
+  });
+});
+
+describe('authenticateWorldJoin: desktop asset-protocol gate', () => {
+  const TEST_CORS_ORIGIN = 'tauri://localhost, http://tauri.localhost, https://app.example.test';
+
+  beforeEach(() => {
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-real',
+      tenantId: 'tenant-1',
+    });
+    process.env.CORS_ORIGIN = TEST_CORS_ORIGIN;
+    process.env.MEMBER_ASSETS_ENFORCE = 'true';
+    process.env.NPC_SERVICE_SECRET = 'n'.repeat(40);
+  });
+
+  it('rejects an enforced desktop join without the asset protocol option', async () => {
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc', origin: 'tauri://localhost' });
+
+    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+      message: CLIENT_UPDATE_REQUIRED_CODE,
+    });
+  });
+
+  it('admits an enforced desktop join with the current asset protocol', async () => {
+    const options: RoomOptions = {
+      zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION,
+      assetProtocol: MIN_ASSET_PROTOCOL_VERSION,
+    };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc', origin: 'tauri://localhost' });
+
+    const auth = await authenticateWorldJoin(options, context, prisma);
+
+    expect(auth.identity).toBe('user-real');
+  });
+
+  it('admits an enforced web join without the asset protocol option', async () => {
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc', origin: 'https://app.example.test' });
+
+    const auth = await authenticateWorldJoin(options, context, prisma);
+
+    expect(auth.identity).toBe('user-real');
+  });
+
+  it('admits an enforced join without an origin header', async () => {
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc' });
+
+    const auth = await authenticateWorldJoin(options, context, prisma);
+
+    expect(auth.identity).toBe('user-real');
+  });
+
+  it('admits a desktop join without the option while enforcement is off', async () => {
+    delete process.env.MEMBER_ASSETS_ENFORCE;
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc', origin: 'tauri://localhost' });
+
+    const auth = await authenticateWorldJoin(options, context, prisma);
+
+    expect(auth.identity).toBe('user-real');
+  });
+
+  it('leaves an NPC join untouched while enforced', async () => {
+    const options: RoomOptions = { identity: 'npc-bob', serviceToken: 'n'.repeat(40) };
+    const context = makeContext({ origin: 'tauri://localhost' });
+
+    const auth = await authenticateWorldJoin(options, context, prisma);
+
+    expect(auth.isNpc).toBe(true);
+    expect(auth.identity).toBe('npc-bob');
   });
 });

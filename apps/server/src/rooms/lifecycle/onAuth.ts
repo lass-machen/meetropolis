@@ -16,9 +16,16 @@ import { ServerError, type AuthContext } from '@colyseus/core';
 import { logger } from '../../logger.js';
 import { verifyAuthJwt } from '../../api/utils/authHelpers.js';
 import { validateTenantSessionFresh } from '../../api/utils/sessionAuth.js';
-import { MIN_ZONE_PRIVACY_CLIENT_VERSION, ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
+import {
+  CLIENT_UPDATE_REQUIRED_CODE,
+  MIN_ASSET_PROTOCOL_VERSION,
+  MIN_ZONE_PRIVACY_CLIENT_VERSION,
+  ZONE_PRIVACY_PROTOCOL_VERSION,
+} from '@meetropolis/shared';
 import type { RoomOptions } from '../WorldRoom.js';
 import type { PrismaClient } from '../../generated/prisma/index.js';
+import { isMemberAssetsEnforced, needsAssetProtocolUpdate } from '../../ops/clientCompatibility.js';
+import { resolveOriginPolicy } from '../../ops/originPolicy.js';
 import { clientNumberForLog, clientStringForLog } from './logSafe.js';
 import { resolveNpcPrincipal, verifyNpcServiceToken } from './npcServiceAuth.js';
 
@@ -183,6 +190,21 @@ function refuseFreshSession(
   throw new ServerError(AUTH_REJECTED_CODE, message);
 }
 
+/** Enforced desktop clients must announce the current asset protocol. NPC joins do not. */
+function requireAssetProtocol(options: RoomOptions | undefined, context: AuthContext, identity: string): void {
+  if (!isMemberAssetsEnforced()) return;
+  const announced = options?.assetProtocol;
+  const origin = context.headers.get('origin');
+  if (!needsAssetProtocolUpdate(origin, announced, resolveOriginPolicy(process.env).policy)) return;
+  logger.warn('[WorldRoom] Rejected join: desktop client asset protocol version too old', {
+    identity,
+    origin: clientStringForLog(origin),
+    assetProtocolVersion: clientNumberForLog(announced),
+    minRequired: MIN_ASSET_PROTOCOL_VERSION,
+  });
+  throw new ServerError(CLIENT_TOO_OLD_CODE, CLIENT_UPDATE_REQUIRED_CODE);
+}
+
 /** Humans must send the current zone-privacy version. NPC joins do not. */
 function requireZonePrivacyVersion(options: RoomOptions | undefined, identity: string): number {
   const zonePrivacyVersion = options?.zonePrivacyVersion;
@@ -244,6 +266,7 @@ async function authenticateUser(
   }
   enforceTenantMatch(options, tenantSlug, verified.userId);
   const zonePrivacyVersion = requireZonePrivacyVersion(options, verified.userId);
+  requireAssetProtocol(options, context, verified.userId);
   return {
     identity: verified.userId,
     tenantId: verified.tenantId,
