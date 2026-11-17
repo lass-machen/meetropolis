@@ -14,7 +14,13 @@ import type { AdminCapabilities } from '../app/routes/hooks/useFetchMe';
 export interface EnterpriseWebModule {
   AdminEnterpriseTabs: ComponentType<{ apiBase: string; capabilities: AdminCapabilities }>;
   BillingDashboard: ComponentType<{ activeTab: string; onTabChange: (k: string) => void; onClose: () => void }>;
-  PackStore: ComponentType<{ apiBase: string; open: boolean; onOpenChange: (v: boolean) => void }>;
+  PackStore: ComponentType<{
+    apiBase: string;
+    open: boolean;
+    onOpenChange: (v: boolean) => void;
+    /** Loads a protected pack file and returns a displayable URL; release it when done. */
+    acquireAsset?: (ref: string, opts?: { signal?: AbortSignal }) => Promise<{ url: string; release: () => void }>;
+  }>;
   TranscriptionConsentGate?: ComponentType<TranscriptionConsentGateProps>;
   TranscriptionIndicator?: ComponentType<TranscriptionIndicatorProps>;
   AgentConnectPage?: ComponentType<AgentConnectPageProps>;
