@@ -185,24 +185,21 @@ export async function removeMemberFromTenant(
   return { accountDeleted };
 }
 
-/**
- * Delete a tenant together with its memberships in ONE transaction. Members
- * lose all their sessions (sessions are not tenant-bound); a member whose last
- * membership this was loses the account. Rows that carry the tenant id without
- * a foreign key go in the same transaction: CustomAvatar here, enterprise rows
- * via `cleanupInTx`. Tenant content (maps, rooms, zones, NPCs) is not deleted:
- * while it exists, the final tenant delete fails on its foreign keys and the
- * whole transaction rolls back. World and AV access end after the commit.
- */
-export async function deleteTenantWithMembers(
-  prisma: PrismaClient,
-  tenantId: string,
-  options: TenantDeletionOptions = {},
-): Promise<{ deletedAccounts: number }> {
-  // Contract check before all DB reads; bare calls return undefined.
-  const managed = resolveTenantDeletionOptions(options);
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
-  if (!tenant) throw new Error('tenant not found');
+/** IDs and file references a tenant deletion reads before opening its transaction. */
+interface TenantDeletionTargets {
+  memberIds: string[];
+  mapIds: string[];
+  layerIds: string[];
+  roomIds: string[];
+  npcIds: string[];
+  assetPackUuids: string[];
+  avatarPackUuids: string[];
+  customAvatarUuids: string[];
+  avatarUuids: Map<string, string | null>;
+}
+
+/** Reads every ID a tenant deletion needs, in the same order as the inline reads before. */
+async function collectTenantDeletionTargets(prisma: PrismaClient, tenantId: string): Promise<TenantDeletionTargets> {
   const memberIds = (
     await prisma.membership.findMany({ where: { tenantId }, select: { userId: true }, orderBy: { userId: 'asc' } })
   ).map((m) => m.userId);
@@ -223,50 +220,116 @@ export async function deleteTenantWithMembers(
   );
   const avatarUuids = new Map<string, string | null>();
   for (const userId of memberIds) avatarUuids.set(userId, await readCustomAvatarUuid(prisma, userId));
+  return {
+    memberIds,
+    mapIds,
+    layerIds,
+    roomIds,
+    npcIds,
+    assetPackUuids,
+    avatarPackUuids,
+    customAvatarUuids,
+    avatarUuids,
+  };
+}
+
+/** Deletes tenant content rows inside the deletion transaction. */
+async function deleteTenantRowsInTx(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  targets: TenantDeletionTargets,
+): Promise<void> {
+  const { mapIds, layerIds, roomIds, npcIds } = targets;
+  await tx.presence.deleteMany({ where: { OR: [{ tenantId }, { roomId: { in: roomIds } }] } });
+  await tx.zone.deleteMany({
+    where: { OR: [{ tenantId }, { mapId: { in: mapIds } }, { roomId: { in: roomIds } }] },
+  });
+  await tx.room.deleteMany({ where: { OR: [{ tenantId }, { mapId: { in: mapIds } }] } });
+  if (layerIds.length > 0) await tx.mapChunk.deleteMany({ where: { layerId: { in: layerIds } } });
+  if (mapIds.length > 0) {
+    await tx.mapLayer.deleteMany({ where: { mapId: { in: mapIds } } });
+    await tx.mapTileset.deleteMany({ where: { mapId: { in: mapIds } } });
+    await tx.mapAutotile.deleteMany({ where: { mapId: { in: mapIds } } });
+    await tx.mapObject.deleteMany({ where: { mapId: { in: mapIds } } });
+  }
+  await tx.map.deleteMany({ where: { tenantId } });
+  if (npcIds.length > 0) await tx.npcMediaFile.deleteMany({ where: { npcId: { in: npcIds } } });
+  await tx.npc.deleteMany({ where: { tenantId } });
+  const packUuids = (await tx.assetPack.findMany({ where: { tenantId }, select: { uuid: true } })).map((p) => p.uuid);
+  await acquirePackAdvisoryLocks(tx, packUuids);
+  await tx.assetPack.deleteMany({ where: { tenantId } });
+  await tx.avatarPack.deleteMany({ where: { tenantId } });
+  await tx.customAvatar.deleteMany({ where: { tenantId } });
+  await tx.invite.deleteMany({ where: { tenantId } });
+  await tx.membership.deleteMany({ where: { tenantId } });
+  await tx.authEvent.deleteMany({ where: { tenantId } });
+}
+
+/** Revokes sessions and purges accounts left without membership. Returns the purged user IDs. */
+async function deleteMemberlessAccountsInTx(tx: Prisma.TransactionClient, memberIds: string[]): Promise<string[]> {
+  const deleted: string[] = [];
+  for (const userId of memberIds) {
+    await revokeSessionsForUserInTx(tx, userId);
+    if ((await tx.membership.count({ where: { userId } })) === 0) {
+      await purgeAccountRows(tx, userId);
+      deleted.push(userId);
+    }
+  }
+  return deleted;
+}
+
+/** Post-commit work: cache invalidation, access revocation and file cleanup. */
+async function finalizeTenantDeletion(
+  tenantSlug: string,
+  targets: TenantDeletionTargets,
+  deletedUserIds: string[],
+): Promise<void> {
+  for (const userId of targets.memberIds) {
+    invalidateSessionsForUser(userId);
+    await revokeTenantAccess(tenantSlug, userId);
+  }
+  await removeTenantFiles({
+    tenantSlug,
+    assetPackUuids: targets.assetPackUuids,
+    avatarPackUuids: targets.avatarPackUuids,
+    customAvatarUuids: targets.customAvatarUuids,
+    npcIds: targets.npcIds,
+  });
+  for (const userId of deletedUserIds) await removeCustomAvatarFiles(userId, targets.avatarUuids.get(userId) ?? null);
+}
+
+/**
+ * Delete a tenant together with its memberships in ONE transaction. Members
+ * lose all their sessions (sessions are not tenant-bound); a member whose last
+ * membership this was loses the account. Rows that carry the tenant id without
+ * a foreign key go in the same transaction: CustomAvatar here, enterprise rows
+ * via `cleanupInTx`. Tenant content (maps, rooms, zones, NPCs) is not deleted:
+ * while it exists, the final tenant delete fails on its foreign keys and the
+ * whole transaction rolls back. World and AV access end after the commit.
+ */
+export async function deleteTenantWithMembers(
+  prisma: PrismaClient,
+  tenantId: string,
+  options: TenantDeletionOptions = {},
+): Promise<{ deletedAccounts: number }> {
+  // Contract check before all DB reads; bare calls return undefined.
+  const managed = resolveTenantDeletionOptions(options);
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
+  if (!tenant) throw new Error('tenant not found');
+  const targets = await collectTenantDeletionTargets(prisma, tenantId);
 
   const deletedUserIds = await prisma
     .$transaction(
       async (tx) => {
         // Same row lock as removeMemberFromTenant in id order so that
         // two deletions cannot deadlock each other.
-        if (memberIds.length > 0) {
-          await tx.$queryRaw`SELECT id FROM "User" WHERE id IN (${Prisma.join(memberIds)}) ORDER BY id FOR UPDATE`;
+        if (targets.memberIds.length > 0) {
+          await tx.$queryRaw`SELECT id FROM "User" WHERE id IN (${Prisma.join(targets.memberIds)}) ORDER BY id FOR UPDATE`;
         }
         // Journal/tasks come before the first operational DELETE; EE cleanup runs after.
-        const prepared = await prepareTenantDeletionInTx(tx, tenantId, memberIds, managed);
-        await tx.presence.deleteMany({ where: { OR: [{ tenantId }, { roomId: { in: roomIds } }] } });
-        await tx.zone.deleteMany({
-          where: { OR: [{ tenantId }, { mapId: { in: mapIds } }, { roomId: { in: roomIds } }] },
-        });
-        await tx.room.deleteMany({ where: { OR: [{ tenantId }, { mapId: { in: mapIds } }] } });
-        if (layerIds.length > 0) await tx.mapChunk.deleteMany({ where: { layerId: { in: layerIds } } });
-        if (mapIds.length > 0) {
-          await tx.mapLayer.deleteMany({ where: { mapId: { in: mapIds } } });
-          await tx.mapTileset.deleteMany({ where: { mapId: { in: mapIds } } });
-          await tx.mapAutotile.deleteMany({ where: { mapId: { in: mapIds } } });
-          await tx.mapObject.deleteMany({ where: { mapId: { in: mapIds } } });
-        }
-        await tx.map.deleteMany({ where: { tenantId } });
-        if (npcIds.length > 0) await tx.npcMediaFile.deleteMany({ where: { npcId: { in: npcIds } } });
-        await tx.npc.deleteMany({ where: { tenantId } });
-        const packUuids = (await tx.assetPack.findMany({ where: { tenantId }, select: { uuid: true } })).map(
-          (p) => p.uuid,
-        );
-        await acquirePackAdvisoryLocks(tx, packUuids);
-        await tx.assetPack.deleteMany({ where: { tenantId } });
-        await tx.avatarPack.deleteMany({ where: { tenantId } });
-        await tx.customAvatar.deleteMany({ where: { tenantId } });
-        await tx.invite.deleteMany({ where: { tenantId } });
-        await tx.membership.deleteMany({ where: { tenantId } });
-        await tx.authEvent.deleteMany({ where: { tenantId } });
-        const deleted: string[] = [];
-        for (const userId of memberIds) {
-          await revokeSessionsForUserInTx(tx, userId);
-          if ((await tx.membership.count({ where: { userId } })) === 0) {
-            await purgeAccountRows(tx, userId);
-            deleted.push(userId);
-          }
-        }
+        const prepared = await prepareTenantDeletionInTx(tx, tenantId, targets.memberIds, managed);
+        await deleteTenantRowsInTx(tx, tenantId, targets);
+        const deleted = await deleteMemberlessAccountsInTx(tx, targets.memberIds);
         await tx.tenant.delete({ where: { id: tenantId } });
         await completeTenantDeletionInTx(tx, prepared);
         return deleted;
@@ -289,17 +352,6 @@ export async function deleteTenantWithMembers(
       },
     );
 
-  for (const userId of memberIds) {
-    invalidateSessionsForUser(userId);
-    await revokeTenantAccess(tenant.slug, userId);
-  }
-  await removeTenantFiles({
-    tenantSlug: tenant.slug,
-    assetPackUuids,
-    avatarPackUuids,
-    customAvatarUuids,
-    npcIds,
-  });
-  for (const userId of deletedUserIds) await removeCustomAvatarFiles(userId, avatarUuids.get(userId) ?? null);
+  await finalizeTenantDeletion(tenant.slug, targets, deletedUserIds);
   return { deletedAccounts: deletedUserIds.length };
 }
