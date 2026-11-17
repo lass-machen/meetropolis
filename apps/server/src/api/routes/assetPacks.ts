@@ -38,12 +38,13 @@ import {
   packTilesetReferenceWhere,
   removeDeletedPackFilesAfterCommit,
 } from './assetPackFilesAfterCommit.js';
+import { checkDeclaredZipSize, createUnpackBudget, type UnpackBudget } from './assetPackZipLimits.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 type PrepareUploadResult =
-  | { ok: true; cfg: AssetPackConfig; assetEntries: ZipEntry[] }
+  | { ok: true; cfg: AssetPackConfig; assetEntries: ZipEntry[]; budget: UnpackBudget }
   | { ok: false; status: number; body: Record<string, unknown> };
 
 const archiveAssetPackSchema = z.object({ archived: z.boolean() });
@@ -113,13 +114,17 @@ async function prepareUploadFromRequest(req: express.Request): Promise<PrepareUp
     return { ok: false, status: 400, body: { error: 'invalid zip structure' } };
   }
 
+  if (!checkDeclaredZipSize(zip.files)) {
+    return { ok: false, status: 413, body: { error: 'asset_pack_too_large' } };
+  }
+  const budget = createUnpackBudget();
   const scan = scanZipEntries(zip.files);
   if (!scan.ok) {
     return { ok: false, status: scan.status, body: { error: scan.error } };
   }
   const { configEntry, assetEntries } = scan;
 
-  const cfgResult = await parseUploadedConfig(configEntry);
+  const cfgResult = await parseUploadedConfig(configEntry, budget);
   if (!cfgResult.ok) {
     return { ok: false, status: cfgResult.status, body: { error: cfgResult.error, details: cfgResult.details } };
   }
@@ -142,7 +147,7 @@ async function prepareUploadFromRequest(req: express.Request): Promise<PrepareUp
     return { ok: false, status: 400, body: validationError as unknown as Record<string, unknown> };
   }
 
-  return { ok: true, cfg, assetEntries };
+  return { ok: true, cfg, assetEntries, budget };
 }
 
 async function handleAssetPackUpload(
@@ -167,13 +172,13 @@ async function handleAssetPackUpload(
       res.status(prepared.status).json(prepared.body);
       return;
     }
-    const { cfg, assetEntries } = prepared;
+    const { cfg, assetEntries, budget } = prepared;
 
     const uuid = cfg.uuid;
     generation = await createAssetPackGeneration(packsDir, uuid);
     const tmpDir = generation.tmpDir;
 
-    const extracted = await extractAssetsToTmpDir(assetEntries, tmpDir);
+    const extracted = await extractAssetsToTmpDir(assetEntries, tmpDir, budget);
     if (!extracted.ok) {
       res.status(extracted.status).json({ error: extracted.error, path: extracted.path });
       return;

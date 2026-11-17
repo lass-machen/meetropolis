@@ -16,6 +16,12 @@ import type {
 import type { RequestWithMulterFile } from '../../types/multer.js';
 import type { MapDb } from '../utils/mapChunkMutations.js';
 import {
+  AssetPackTooLargeError,
+  createUnpackBudget,
+  readZipEntryBounded,
+  type UnpackBudget,
+} from './assetPackZipLimits.js';
+import {
   ConfigSchema,
   normalizeZipPath,
   isUnsafePath,
@@ -195,6 +201,7 @@ export function validateConfigAssetReferences(cfg: AssetPackConfig, assetSet: Se
 export async function extractAssetsToTmpDir(
   assetEntries: ZipEntry[],
   tmpDir: string,
+  budget: UnpackBudget = createUnpackBudget(),
 ): Promise<{ ok: true; assetMap: Map<string, string> } | { ok: false; status: number; error: string; path?: string }> {
   const assetMap = new Map<string, string>();
   for (const entry of assetEntries) {
@@ -203,7 +210,13 @@ export async function extractAssetsToTmpDir(
     if (!isAllowedAssetExt(p)) {
       return { ok: false, status: 400, error: 'unsupported asset extension', path: p };
     }
-    const content: Buffer = await entry.buffer();
+    let content: Buffer;
+    try {
+      content = await readZipEntryBounded(entry, budget);
+    } catch (error) {
+      if (error instanceof AssetPackTooLargeError) return { ok: false, status: 413, error: 'asset_pack_too_large' };
+      throw error;
+    }
     const hashPrefix = shortHashHex(content);
     const rel = withoutAssetsPrefix(p);
     const dirPart = path.dirname(rel);
@@ -486,8 +499,15 @@ export function readUploadedZipBuffer(
 
 export async function parseUploadedConfig(
   configEntry: ZipEntry,
+  budget: UnpackBudget = createUnpackBudget(),
 ): Promise<{ ok: true; cfg: AssetPackConfig } | { ok: false; status: number; error: string; details?: unknown }> {
-  const configRaw = await configEntry.buffer();
+  let configRaw: Buffer;
+  try {
+    configRaw = await readZipEntryBounded(configEntry, budget);
+  } catch (error) {
+    if (error instanceof AssetPackTooLargeError) return { ok: false, status: 413, error: 'asset_pack_too_large' };
+    throw error;
+  }
   let configJson: unknown;
   try {
     configJson = JSON.parse(configRaw.toString('utf8'));
