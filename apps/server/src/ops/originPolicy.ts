@@ -20,9 +20,10 @@ export const ORIGIN_ENV_KEY = 'CORS_ORIGIN';
 /** Request headers a cross-origin request may carry. A fixed list, never echoed. */
 // traceparent: the browser telemetry SDK adds it to every fetch and XHR, so a
 // preflight without it would fail every API call while telemetry is active.
+// X-Asset-Protocol: desktop webviews announce the member-asset protocol version.
 export const ALLOWED_REQUEST_HEADERS =
   'Origin, X-Requested-With, Content-Type, Accept, Authorization, ' +
-  'x-tenant, x-correlation-id, x-av-identity, x-av-room, traceparent';
+  'x-tenant, x-correlation-id, x-av-identity, x-av-room, traceparent, X-Asset-Protocol';
 
 /** Methods a cross-origin request may use. */
 export const ALLOWED_REQUEST_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
