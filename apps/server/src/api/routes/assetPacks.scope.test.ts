@@ -21,6 +21,9 @@
  * the existing assetPacks tests; the cases here only assert that the read scope
  * did not widen them.
  */
+import fsp from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import express from 'express';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
@@ -112,10 +115,19 @@ interface PrismaOpts {
   internalTenantExists?: boolean;
   autotileReferences?: number;
   objectReferences?: number;
+  tilesetReferences?: number;
+  deleteError?: Error;
 }
 
 function makePrisma(opts: PrismaOpts = {}): PrismaClient {
-  const { apiTokenUserId, internalTenantExists = true, autotileReferences = 0, objectReferences = 0 } = opts;
+  const {
+    apiTokenUserId,
+    internalTenantExists = true,
+    autotileReferences = 0,
+    objectReferences = 0,
+    tilesetReferences = 0,
+    deleteError,
+  } = opts;
   const packs = PACKS.map((pack) => ({
     ...pack,
     terrain: [],
@@ -175,7 +187,12 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
         pack.archived = data.archived;
         return Promise.resolve(pack);
       }),
-      delete: vi.fn(() => Promise.resolve({ id: 1, uuid: 'pixel-agents-furniture' })),
+      delete: vi.fn(({ where }: { where: { id: number } }) => {
+        if (deleteError) return Promise.reject(deleteError);
+        const index = packs.findIndex((row) => row.id === where.id);
+        const [removed] = index >= 0 ? packs.splice(index, 1) : [];
+        return Promise.resolve(removed);
+      }),
     },
     map: {
       findFirst: vi.fn(({ where }: { where: { id: string; tenantId: string } }) =>
@@ -183,21 +200,30 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
       ),
     },
     mapObject: {
-      findMany: vi.fn(() =>
-        Promise.resolve([
-          {
-            id: 41,
-            mapId: MAP_ROW.id,
-            assetPackUuid: 'legacy-archive',
-            itemId: 'legacy-desk',
-            dataUrl: '/packs/legacy-archive/desk.png',
-          },
-        ]),
+      findMany: vi.fn(({ where }: { where?: { assetPackUuid?: string } } = {}) =>
+        Promise.resolve(
+          [
+            {
+              id: 41,
+              mapId: MAP_ROW.id,
+              assetPackUuid: 'legacy-archive',
+              itemId: 'legacy-desk',
+              dataUrl: '/packs/legacy-archive/desk.png',
+            },
+          ].filter((row) => where?.assetPackUuid === undefined || row.assetPackUuid === where.assetPackUuid),
+        ),
       ),
       create: vi.fn(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 99, ...data })),
       count: vi.fn(() => Promise.resolve(objectReferences)),
     },
-    mapAutotile: { count: vi.fn(() => Promise.resolve(autotileReferences)) },
+    mapAutotile: {
+      count: vi.fn(() => Promise.resolve(autotileReferences)),
+      findMany: vi.fn(() => Promise.resolve([])),
+    },
+    mapTileset: {
+      count: vi.fn(() => Promise.resolve(tilesetReferences)),
+      findMany: vi.fn(() => Promise.resolve([])),
+    },
   } as unknown as PrismaClient;
   prisma.$transaction = vi.fn((callback) => callback(prisma));
   return prisma;
@@ -250,6 +276,28 @@ beforeEach(() => {
 afterEach(() => {
   process.env = originalEnv;
   vi.clearAllMocks();
+});
+
+const temporaryRoots: string[] = [];
+
+/** Points the asset pack routes at a fresh temporary pack root. */
+async function temporaryPacksDir(): Promise<string> {
+  const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'meetropolis-asset-pack-routes-'));
+  temporaryRoots.push(root);
+  process.env.ASSET_PACKS_DIR = root;
+  return root;
+}
+
+async function writePackFile(packsDir: string, packUuid: string): Promise<string> {
+  const file = path.join(packsDir, packUuid, 'desk.png');
+  await fsp.mkdir(path.dirname(file), { recursive: true });
+  await fsp.writeFile(file, 'pack');
+  return file;
+}
+
+afterEach(async () => {
+  const roots = temporaryRoots.splice(0);
+  await Promise.all(roots.map((root) => fsp.rm(root, { recursive: true, force: true })));
 });
 
 /** Pack ids in a list response, for order-independent assertions. */
@@ -443,6 +491,43 @@ describe('AssetPack write routes stay super-admin-only', () => {
     expect(res.body.message).toContain('Archive');
     expect(prisma.assetPack.delete).not.toHaveBeenCalled();
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects hard deletion while a map tileset references a pack file', async () => {
+    await temporaryPacksDir();
+    const prisma = makePrisma({ tilesetReferences: 1 });
+    const app = makeApp(prisma);
+
+    const res = await request(app).delete('/asset-packs/1').set('Authorization', sessionBearer('owner-root'));
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'asset_pack_in_use', references: { tilesets: 1 } });
+    expect(prisma.assetPack.delete).not.toHaveBeenCalled();
+  });
+
+  it('keeps the pack files when the deleting transaction fails', async () => {
+    const packsDir = await temporaryPacksDir();
+    const marker = await writePackFile(packsDir, 'pixel-agents-furniture');
+    const prisma = makePrisma({ deleteError: new Error('delete failed') });
+    const app = makeApp(prisma);
+
+    const res = await request(app).delete('/asset-packs/1').set('Authorization', sessionBearer('owner-root'));
+
+    expect(res.status).toBe(500);
+    await expect(fsp.readFile(marker, 'utf8')).resolves.toBe('pack');
+  });
+
+  it('removes the pack files only after the row is gone', async () => {
+    const packsDir = await temporaryPacksDir();
+    const marker = await writePackFile(packsDir, 'pixel-agents-furniture');
+    const prisma = makePrisma();
+    const app = makeApp(prisma);
+
+    const res = await request(app).delete('/asset-packs/1').set('Authorization', sessionBearer('owner-root'));
+
+    expect(res.status).toBe(200);
+    expect(prisma.assetPack.delete).toHaveBeenCalledTimes(1);
+    await expect(fsp.stat(path.dirname(marker))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('rejects archive changes from an ordinary tenant member', async () => {
