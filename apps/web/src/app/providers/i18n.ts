@@ -56,12 +56,7 @@ async function loadBrandOverrides() {
       // Nicht-override Marketing-Keys (hero, pricing, consent, social, …)
       const merged: Record<string, unknown> = { ...data };
       delete merged.publicOverrides;
-      delete merged.commonLanding;
       i18n.addResourceBundle(lng, 'public', merged, true, true);
-      const commonLanding = (data as { commonLanding?: Record<string, unknown> }).commonLanding;
-      if (commonLanding) {
-        i18n.addResourceBundle(lng, 'common', commonLanding, true, true);
-      }
     }
   } catch {
     // OSS build: loader returns null, no brand bundle is available.
