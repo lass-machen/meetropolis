@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { logger } from '../../../lib/logger';
 import { clearDesktopAuthToken } from '../../../lib/desktopAuth';
+import { resetMemberAssets } from '../../../lib/memberAssets';
 import { EditorService } from '../../../services/EditorService';
 import type { WorldRoom } from '../../../types/colyseus';
 import type { AVManager } from '../../../av/avManager';
@@ -342,6 +343,9 @@ function useResetAndLogoutHandlers(params: UseWorldEventHandlersParams) {
     // also drops it, but this lets the desktop module tear down any storage it
     // owns and keeps the reset path symmetric with login/logout).
     await clearDesktopAuthToken();
+    // Drop every cached member asset before leaving this context so no file
+    // from the old session, tenant or account survives the reset.
+    resetMemberAssets();
     try {
       localStorage.clear();
     } catch (e) {
@@ -380,6 +384,8 @@ function useResetAndLogoutHandlers(params: UseWorldEventHandlersParams) {
       // Drop the persisted desktop Bearer token so the native client does not
       // silently re-authenticate with a stale token after logout.
       await clearDesktopAuthToken();
+      // Drop every cached member asset before leaving this account context.
+      resetMemberAssets();
       setMe(null);
       setMenuOpen(false);
       setPage('world');
