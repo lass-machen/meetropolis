@@ -69,7 +69,7 @@ function acceptRequest(app: express.Application, ip: string) {
   return request(app).post('/invites/accept').set('X-Forwarded-For', ip).send({ code: 'missing-accept' });
 }
 
-describe('invite route rate limits', { retry: 2 }, () => {
+describe('invite route rate limits', () => {
   it('limits invite creation per authenticated user', async () => {
     const app = makeApp();
     const userId = `create-${crypto.randomUUID()}`;
