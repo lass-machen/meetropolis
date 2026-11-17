@@ -113,6 +113,36 @@ describe('joinLivekitRoom', () => {
       await expect(joinLivekitRoom(joinParams())).rejects.toThrow(/403/);
     });
 
+    it('keeps central error message when code is missing', async () => {
+      global.fetch = vi.fn(() =>
+        Promise.resolve(tokenErrorResponse(403, { error: { message: 'consent needed' } })),
+      ) as any;
+      await expect(joinLivekitRoom(joinParams())).rejects.toThrow(/403.*consent_needed/);
+    });
+
+    it('keeps token timeout when the error body read aborts', async () => {
+      global.fetch = vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 403,
+          text: () => {
+            const err = new Error('aborted');
+            err.name = 'AbortError';
+            return Promise.reject(err);
+          },
+        }),
+      ) as any;
+      await expect(joinLivekitRoom(joinParams())).rejects.toThrow('livekit_token_timeout');
+    });
+
+    it.each([[null], [{}], [{ error: 123 }], [{ error: {} }], [123]])(
+      'falls back to status only for unusable body %j',
+      async (body) => {
+        global.fetch = vi.fn(() => Promise.resolve(tokenErrorResponse(403, body))) as any;
+        await expect(joinLivekitRoom(joinParams())).rejects.toThrow(/^livekit_token_error_403$/);
+      },
+    );
+
     it('falls back to status on html body without leaking markup', async () => {
       global.fetch = vi.fn(() =>
         Promise.resolve(tokenErrorResponse(503, '<html><body>Proxy Error</body></html>')),
