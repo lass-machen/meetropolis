@@ -67,6 +67,8 @@ function makePrisma() {
     user: {
       findUnique: vi.fn(() => Promise.resolve({ id: CALLER, memberships: [] })),
     },
+    $transaction: vi.fn((callback: (tx: unknown) => unknown) => callback(prisma)),
+    $queryRaw: vi.fn(() => Promise.resolve([])),
   };
   return prisma as unknown as PrismaClient;
 }

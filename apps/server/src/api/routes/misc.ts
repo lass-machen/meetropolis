@@ -350,6 +350,38 @@ async function handleUpdateUser(prisma: PrismaClient, req: express.Request, res:
 
 const changeRoleSchema = z.object({ role: z.enum(['admin', 'member']) });
 
+type ChangeRoleOutcome = 'updated' | 'not_found' | 'guest' | 'owner_forbidden' | 'last_owner';
+
+class LastOwnerDemotionError extends Error {}
+
+async function changeMembershipRole(
+  prisma: PrismaClient,
+  tenantId: string,
+  targetUserId: string,
+  callerRole: MembershipRow['role'],
+  newRole: 'admin' | 'member',
+): Promise<ChangeRoleOutcome> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Membership" WHERE "tenantId" = ${tenantId} AND "role" = 'owner' FOR UPDATE`;
+      const membership = await tx.membership.findFirst({ where: { userId: targetUserId, tenantId } });
+      if (!membership) return 'not_found';
+      if (membership.role === 'guest') return 'guest';
+      if (membership.role === 'owner' && callerRole !== 'owner') return 'owner_forbidden';
+      const demotesOwner = membership.role === 'owner';
+      await tx.membership.update({ where: { id: membership.id }, data: { role: newRole } });
+      if (demotesOwner) {
+        const owners = await tx.membership.count({ where: { tenantId, role: 'owner' } });
+        if (owners === 0) throw new LastOwnerDemotionError();
+      }
+      return 'updated';
+    });
+  } catch (e) {
+    if (e instanceof LastOwnerDemotionError) return 'last_owner';
+    throw e;
+  }
+}
+
 async function handleChangeRole(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
   if (!auth) {
@@ -381,28 +413,23 @@ async function handleChangeRole(prisma: PrismaClient, req: express.Request, res:
   }
 
   try {
-    const membership = await prisma.membership.findFirst({
-      where: { userId: id, tenantId: tenant.id },
-    });
-    if (!membership) {
+    const outcome = await changeMembershipRole(prisma, tenant.id, id, callerMembership.role, parse.data.role);
+    if (outcome === 'not_found') {
       res.status(404).json({ error: 'user not found in this tenant' });
       return;
     }
-
-    if (membership.role === 'guest') {
+    if (outcome === 'guest') {
       res.status(400).json({ error: 'cannot_change_guest_role' });
       return;
     }
-
-    if (membership.role === 'owner' && callerMembership.role !== 'owner') {
+    if (outcome === 'owner_forbidden') {
       res.status(403).json({ error: 'forbidden - only owners can change owner roles' });
       return;
     }
-
-    await prisma.membership.update({
-      where: { id: membership.id },
-      data: { role: parse.data.role },
-    });
+    if (outcome === 'last_owner') {
+      res.status(400).json({ error: 'cannot_demote_last_owner' });
+      return;
+    }
 
     logger.info('[Users] Role changed', { userId: id, newRole: parse.data.role, changedBy: auth.userId });
     await recordAuthEvent(prisma, { type: 'role_change', success: true, userId: id, tenantId: tenant.id, req });
