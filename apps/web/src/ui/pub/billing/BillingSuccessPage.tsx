@@ -97,14 +97,20 @@ export function BillingSuccessPage({ onNavigate, apiBase, sessionId }: BillingSu
   const settled = state.status === 'done' || state.status === 'not-applicable';
   const settledCopyKey = settledCopyKeyFor(state);
 
-  // Report the trial to the funnel exactly once, and only for a real
-  // subscription: `not-applicable` is a pack purchase, `pending`/`failed` mean
-  // the office is not there yet — counting either as a conversion would report
-  // trials that never started. Fired here rather than server-side because the
-  // ads conversion is attributed from the browser that still holds the click id.
+  // Report the trial to the funnel exactly once, and only for a started
+  // trial: `not-applicable` is a pack purchase, `pending`/`failed` mean the
+  // office is not there yet, and only a `trialing` subscription proves a trial
+  // began. `active` paid the first invoice on the spot, `past_due` or an
+  // unknown status started no trial, so none of them converts.
+  // `already_current` with `trialing` still counts, because the webhook may
+  // have provisioned the subscription before this reconcile ran. Fired here
+  // rather than server-side because the ads conversion is attributed from the
+  // browser that still holds the click id. A reload of this page must not
+  // report twice; the session guard below stops that.
   const trialReported = React.useRef(false);
   React.useEffect(() => {
     if (state.status !== 'done') return;
+    if (state.subscriptionStatus !== 'trialing') return;
     if (trialReported.current || alreadyReportedTrial()) return;
     trialReported.current = true;
     markTrialReported();

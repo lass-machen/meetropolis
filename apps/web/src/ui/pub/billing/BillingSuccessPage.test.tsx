@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { BillingSuccessPage, settledCopyKeyFor } from './BillingSuccessPage';
+import { getTelemetryModule, type TelemetryModule } from '../../../lib/telemetryLoader';
+
+// Default to the OSS build shape (no telemetry module), so the existing
+// copy-only cases above stay green; the conversion cases below override this
+// per test with a module carrying a trackTrialStarted spy.
+vi.mock('../../../lib/telemetryLoader', () => ({
+  getTelemetryModule: vi.fn(() => Promise.resolve(null)),
+}));
 
 function stubFetch(body: unknown, ok = true, status = 200) {
   vi.stubGlobal(
@@ -97,5 +105,114 @@ describe('BillingSuccessPage', () => {
     await waitFor(() => expect(screen.getByText('billing.successTitle')).toBeInTheDocument());
     expect(screen.getByText('billing.successText')).toBeInTheDocument();
     expect(screen.queryByText('billing.trialStartedTitle')).not.toBeInTheDocument();
+  });
+});
+
+describe('BillingSuccessPage trial conversion', () => {
+  const mockedGetTelemetryModule = vi.mocked(getTelemetryModule);
+
+  function stubReconcile(body: unknown) {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(body),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  function renderTrialPage() {
+    const onNavigate = vi.fn();
+    const view = render(<BillingSuccessPage onNavigate={onNavigate} apiBase="http://api.test" sessionId="cs_123" />);
+    return { ...view, onNavigate };
+  }
+
+  function moduleWith(spy: ReturnType<typeof vi.fn>) {
+    return { trackTrialStarted: spy } as unknown as TelemetryModule;
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    mockedGetTelemetryModule.mockReset();
+    mockedGetTelemetryModule.mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    {
+      outcome: 'applied',
+      body: { outcome: 'applied', status: 'trialing', concurrentLimit: 7 },
+      title: 'billing.trialStartedTitle',
+      calls: 1,
+    },
+    {
+      outcome: 'already_current',
+      body: { outcome: 'already_current', status: 'trialing', concurrentLimit: 7 },
+      title: 'billing.trialStartedTitle',
+      calls: 1,
+    },
+    {
+      outcome: 'applied',
+      body: { outcome: 'applied', status: 'active', concurrentLimit: 7 },
+      title: 'billing.successTitle',
+      calls: 0,
+    },
+    {
+      outcome: 'applied',
+      body: { outcome: 'applied', status: 'past_due', concurrentLimit: 7 },
+      title: 'billing.subscriptionReadyTitle',
+      calls: 0,
+    },
+    {
+      outcome: 'applied',
+      body: { outcome: 'applied', concurrentLimit: 7 },
+      title: 'billing.subscriptionReadyTitle',
+      calls: 0,
+    },
+  ])('outcome $outcome with status $body.status reports $calls conversion(s)', async ({ body, title, calls }) => {
+    const trackTrialStarted = vi.fn();
+    mockedGetTelemetryModule.mockResolvedValue(moduleWith(trackTrialStarted));
+    const fetchMock = stubReconcile(body);
+    const { unmount } = renderTrialPage();
+    try {
+      // Wait for the settled state first: a zero-call assertion before the
+      // reconcile ran would pass vacuously.
+      await screen.findByText(title);
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      if (calls === 1) {
+        await waitFor(() => expect(trackTrialStarted).toHaveBeenCalledTimes(1));
+        expect(trackTrialStarted).toHaveBeenCalledWith({ concurrentLimit: 7 });
+      } else {
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(trackTrialStarted).not.toHaveBeenCalled();
+      }
+    } finally {
+      unmount();
+    }
+  });
+
+  it('reports only once when a trialing page renders twice in the same session', async () => {
+    const trackTrialStarted = vi.fn();
+    mockedGetTelemetryModule.mockResolvedValue(moduleWith(trackTrialStarted));
+    stubReconcile({ outcome: 'applied', status: 'trialing', concurrentLimit: 7 });
+
+    const first = renderTrialPage();
+    await screen.findByText('billing.trialStartedTitle');
+    await waitFor(() => expect(trackTrialStarted).toHaveBeenCalledTimes(1));
+    first.unmount();
+
+    const second = renderTrialPage();
+    try {
+      await screen.findByText('billing.trialStartedTitle');
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(trackTrialStarted).toHaveBeenCalledTimes(1);
+    } finally {
+      second.unmount();
+    }
   });
 });
