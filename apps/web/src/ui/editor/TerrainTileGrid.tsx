@@ -3,6 +3,9 @@ import { EditorService } from '../../services/EditorService';
 import { makeTileRefId, baseUrl } from '../../lib/mapV2';
 import type { V2Tileset } from '../../lib/mapV2';
 import type { PackItem } from '../../services/EditorService';
+import { useMemberAsset } from '../../hooks/useMemberAsset';
+import { loadMemberImageElement } from '../../lib/memberImage';
+import { isMemberAssetRef } from '../../lib/memberAssets';
 
 type TerrainTileGridProps = {
   v2Tilesets: V2Tileset[];
@@ -14,17 +17,26 @@ type TerrainTileGridProps = {
 type TileEntry = { slot: number; tileIndex: number; dataUrl: string };
 
 function extractTiles(tileset: V2Tileset): Promise<TileEntry[]> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    const url = tileset.imageUrl.startsWith('/') ? baseUrl() + tileset.imageUrl : tileset.imageUrl;
-    img.onload = () => {
+  return (async (): Promise<TileEntry[]> => {
+    // Stored member images load with member auth; other refs keep the
+    // previous resolution (absolute, data:, blob:). No crossOrigin: the
+    // helper serves a blob URL, so a direct CORS load never happens.
+    const raw = tileset.imageUrl;
+    const ref = isMemberAssetRef(raw) ? raw : raw.startsWith('/') ? baseUrl() + raw : raw;
+    let loaded: { image: HTMLImageElement; release: () => void };
+    try {
+      loaded = await loadMemberImageElement(ref);
+    } catch {
+      return [];
+    }
+    const { image, release } = loaded;
+    try {
       const tw = tileset.tileWidth;
       const th = tileset.tileHeight;
       const margin = tileset.margin ?? 0;
       const spacing = tileset.spacing ?? 0;
-      const cols = Math.max(1, Math.floor((img.width - margin * 2 + spacing) / (tw + spacing)));
-      const rows = Math.max(1, Math.floor((img.height - margin * 2 + spacing) / (th + spacing)));
+      const cols = Math.max(1, Math.floor((image.width - margin * 2 + spacing) / (tw + spacing)));
+      const rows = Math.max(1, Math.floor((image.height - margin * 2 + spacing) / (th + spacing)));
 
       const canvas = document.createElement('canvas');
       canvas.width = tw;
@@ -37,7 +49,7 @@ function extractTiles(tileset: V2Tileset): Promise<TileEntry[]> {
           const sx = margin + c * (tw + spacing);
           const sy = margin + r * (th + spacing);
           ctx.clearRect(0, 0, tw, th);
-          ctx.drawImage(img, sx, sy, tw, th, 0, 0, tw, th);
+          ctx.drawImage(image, sx, sy, tw, th, 0, 0, tw, th);
           entries.push({
             slot: tileset.slot,
             tileIndex: r * cols + c,
@@ -45,11 +57,11 @@ function extractTiles(tileset: V2Tileset): Promise<TileEntry[]> {
           });
         }
       }
-      resolve(entries);
-    };
-    img.onerror = () => resolve([]);
-    img.src = url;
-  });
+      return entries;
+    } finally {
+      release();
+    }
+  })();
 }
 
 function TileButton({ tile, isSelected }: { tile: TileEntry; isSelected: boolean }) {
@@ -86,7 +98,13 @@ function TileButton({ tile, isSelected }: { tile: TileEntry; isSelected: boolean
   );
 }
 
+// Pack items resolve server-relative /packs refs to absolute URLs at load
+// time; those load with member auth, local data:/blob: URLs render direct.
+// Loading or failed member refs keep an empty box instead of a broken image.
 function PackItemButton({ item, selected }: { item: PackItem; selected: boolean }) {
+  const member = isMemberAssetRef(item.dataUrl);
+  const asset = useMemberAsset(member ? item.dataUrl : null);
+  const src = member ? asset.src : item.dataUrl;
   return (
     <button
       onClick={() => EditorService.dispatch({ type: 'SELECT_ASSET', asset: item })}
@@ -103,11 +121,11 @@ function PackItemButton({ item, selected }: { item: PackItem; selected: boolean 
         cursor: 'pointer',
       }}
     >
-      <img
-        src={item.dataUrl}
-        alt={item.key}
-        style={{ maxWidth: '100%', maxHeight: '100%', imageRendering: 'pixelated' }}
-      />
+      {src ? (
+        <img src={src} alt={item.key} style={{ maxWidth: '100%', maxHeight: '100%', imageRendering: 'pixelated' }} />
+      ) : (
+        <div style={{ maxWidth: '100%', maxHeight: '100%' }} />
+      )}
     </button>
   );
 }
