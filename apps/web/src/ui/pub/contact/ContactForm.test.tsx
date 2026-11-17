@@ -218,6 +218,38 @@ describe('ContactForm', () => {
     await waitFor(() => expect(screen.getByText('contact.errorDelivery')).toBeInTheDocument());
   });
 
+  it('keeps the entered values after a 502 delivery failure', async () => {
+    mockFetch({ submit: () => new Response('{}', { status: 502 }) });
+    renderForm();
+    await waitFor(() => expect(screen.getByLabelText('contact.fieldName')).toBeInTheDocument());
+
+    fillValidly();
+    fireEvent.submit(screen.getByRole('button', { name: /contact\./ }).closest('form')!);
+
+    await waitFor(() => expect(screen.getByText('contact.errorDelivery')).toBeInTheDocument());
+    expect(screen.queryByText('contact.sentTitle')).toBeNull();
+    expect(screen.getByLabelText<HTMLInputElement>('contact.fieldName').value).toBe('Erika Mustermann');
+    expect(screen.getByLabelText<HTMLInputElement>('contact.fieldEmail').value).toBe('erika@example.test');
+    expect(screen.getByLabelText<HTMLTextAreaElement>('contact.fieldMessage').value).toBe(
+      'Wir sind zwoelf Leute und wuerden das gern ausprobieren.',
+    );
+    expect(screen.getByRole<HTMLInputElement>('checkbox').checked).toBe(true);
+  });
+
+  it('names the fallback address after a 502 delivery failure', async () => {
+    mockFetch({ submit: () => new Response('{}', { status: 502 }) });
+    renderForm();
+    await waitFor(() => expect(screen.getByLabelText('contact.fieldName')).toBeInTheDocument());
+
+    fillValidly();
+    fireEvent.submit(screen.getByRole('button', { name: /contact\./ }).closest('form')!);
+
+    await waitFor(() => expect(screen.getByText('contact.errorDelivery')).toBeInTheDocument());
+    expect(screen.getByText('contact.unavailableWithEmail')).toBeInTheDocument();
+    const link = document.querySelector('a[href^="mailto:"]');
+    expect(link).not.toBeNull();
+  });
+
   it('fetches a fresh challenge for a retry, because the first one is spent', async () => {
     const fetchMock = mockFetch({ submit: () => new Response('{}', { status: 502 }) });
     renderForm();
