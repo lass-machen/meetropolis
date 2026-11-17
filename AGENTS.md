@@ -288,6 +288,13 @@ Do not add `@tauri-apps` imports anywhere in `apps/web/`. Tauri-specific
 code belongs exclusively in the Desktop module, which is not part of
 this distribution.
 
+The machine-readable norm for these boundaries is the `sourceImports`
+section of [`compliance/policy.json`](compliance/policy.json): protected
+package roots, families and scopes, the only allowed loader imports and
+the pinned files. `scripts/license-gate.mjs` enforces it on source imports
+and on the dependency entries of every `package.json` and npm lockfile.
+Change the policy file, not this list; on any difference the policy wins.
+
 ---
 
 ## Security
