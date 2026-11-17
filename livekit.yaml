@@ -10,7 +10,7 @@
 # file at that path, and replace the demo keys at the bottom with
 # rotated, 32+ character random values.
 port: 7880
-log_level: debug
+log_level: info
 
 rtc:
   tcp_port: 7881
