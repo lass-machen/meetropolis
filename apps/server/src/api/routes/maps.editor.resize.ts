@@ -5,12 +5,13 @@ import { logger } from '../../logger.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { findMapById } from './maps.read.js';
+import { MAX_MAP_TILES } from '../../services/tmjService.js';
 import { resolveEditorMemberTenant, type MapMeta } from './maps.editor.js';
 import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
 const resizeSchema = z.object({
-  width: z.number().int().min(8).max(512),
-  height: z.number().int().min(8).max(512),
+  width: z.number().int().min(8).max(MAX_MAP_TILES),
+  height: z.number().int().min(8).max(MAX_MAP_TILES),
   dryRun: z.boolean().optional(),
 });
 

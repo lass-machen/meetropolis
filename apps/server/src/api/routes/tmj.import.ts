@@ -13,7 +13,7 @@ import { importedLayerStorageName, isReservedImportLayer } from '../utils/mapLay
 import type { MapDb } from '../utils/mapChunkMutations.js';
 import type { MulterFile, RequestWithMulterFields } from '../../types/multer.js';
 import { acquireMapAdvisoryLock, acquirePackLocksForAssetUrls } from '../utils/advisoryLocks.js';
-import { sendFootprintError } from '../utils/mapObjectWriteLimits.js';
+import { assertObjectFootprints, sendFootprintError } from '../utils/mapObjectWriteLimits.js';
 import {
   TmjSchema,
   buildGidToSlotMapping,
@@ -219,6 +219,15 @@ function parseImport(req: express.Request, res: express.Response): ParsedImport 
   };
 }
 
+function assertZoneFootprints(tmj: Tmj): void {
+  const footprints = extractZonesFromObjectLayers(tmj.layers).map((zone) => {
+    const xs = zone.polygon.map((point) => point.x);
+    const ys = zone.polygon.map((point) => point.y);
+    return { width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+  });
+  assertObjectFootprints(footprints, { tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight });
+}
+
 async function persistImport(
   prisma: PrismaClient,
   map: { id: string; meta: unknown },
@@ -226,6 +235,7 @@ async function persistImport(
   parsed: ParsedImport,
 ) {
   const { tmj, images, mode } = parsed;
+  assertZoneFootprints(tmj);
   const chunkSize = 32;
   const spawnPoint = extractSpawnFromObjectLayers(tmj.layers);
   const result = await prisma.$transaction(async (tx) => {
