@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import net from 'node:net';
 import request from 'supertest';
 import { createHttpFixture } from './httpFixture.js';
@@ -27,6 +28,9 @@ delete process.env.SMTP_USER;
 delete process.env.SMTP_PASS;
 delete process.env.RESEND_API_KEY;
 process.env.PUBLIC_BASE_URL = 'https://app.example.test';
+// Isolated boot configuration for the real production-mode probe.
+process.env.JWT_SECRET = randomBytes(32).toString('hex');
+process.env.API_TOKEN_PEPPER = randomBytes(32).toString('hex');
 const fixture = createHttpFixture();
 try {
   const { tenant } = await fixture.tenant();
