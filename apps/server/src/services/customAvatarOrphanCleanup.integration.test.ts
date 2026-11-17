@@ -10,7 +10,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PrismaClient } from '../generated/prisma/index.js';
+import { createPrismaClient } from '../db.js';
 import {
   CUSTOM_AVATAR_RETENTION_MS,
   customAvatarRetirementsDir,
@@ -19,7 +19,7 @@ import {
 } from './customAvatarOrphanCleanup.js';
 import { customAvatarDir, writeCustomAvatarFiles } from './avatarComposer.js';
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 const TAG = `orphan-cleanup-${Date.now()}`;
 
 let packsDir: string;
