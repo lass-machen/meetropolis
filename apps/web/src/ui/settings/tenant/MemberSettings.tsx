@@ -143,6 +143,7 @@ function MemberRow({
         <Select
           value={member.role}
           onChange={(val) => onChangeRole(member.id, val as 'admin' | 'member')}
+          aria-label={t('tenant.roleSelectLabel', { name: member.name || member.email })}
           disabled={member.role === 'owner' || member.role === 'guest' || saving}
           options={[
             { value: 'owner', label: t('tenant.roleOwner'), disabled: true },

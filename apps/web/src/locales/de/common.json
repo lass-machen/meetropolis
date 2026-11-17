@@ -450,6 +450,7 @@
   "tenant.emailOptional": "E-Mail (optional)",
   "tenant.emailPlaceholder": "name@beispiel.de",
   "tenant.role": "Rolle",
+  "tenant.roleSelectLabel": "Rolle von {{name}}",
   "tenant.cancel": "Abbrechen",
   "tenant.creating": "Wird erstellt…",
   "tenant.createInvite": "Einladung erstellen",
