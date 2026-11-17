@@ -120,6 +120,23 @@ describe('createClientCompatibilityMiddleware', () => {
 
     expect(res.status).toBe(200);
   });
+
+  it('passes through the desktop update path while enforced', async () => {
+    const app = makeApp(createOriginPolicy(TEST_ORIGINS), () => true);
+
+    const res = await request(app).get('/desktop/update/darwin/aarch64/0.9.0').set('Origin', 'tauri://localhost');
+
+    expect(res.status).toBe(200);
+  });
+
+  it('answers 426 for a path that only shares the desktop prefix while enforced', async () => {
+    const app = makeApp(createOriginPolicy(TEST_ORIGINS), () => true);
+
+    const res = await request(app).get('/desktopx').set('Origin', 'tauri://localhost');
+
+    expect(res.status).toBe(426);
+    expect(res.body.code).toBe(CLIENT_UPDATE_REQUIRED_CODE);
+  });
 });
 
 describe('isMemberAssetsEnforced', () => {
