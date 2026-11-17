@@ -165,6 +165,14 @@ else
   failures=$((failures + 1))
 fi
 
+if node --test "$ROOT/scripts/style-stats.test.cjs" "$ROOT/scripts/lint-stats.test.cjs" >"$T/ratchet-tests.log" 2>&1; then
+  printf 'OK: style and lint ratchet tests passed\n'
+else
+  printf 'ERROR: style or lint ratchet tests failed\n'
+  sed -n '1,80p' "$T/ratchet-tests.log"
+  failures=$((failures + 1))
+fi
+
 if [ "$failures" -gt 0 ]; then
   printf 'ERROR: %s gate check(s) failed\n' "$failures"
   exit 1
