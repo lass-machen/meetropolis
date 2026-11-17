@@ -33,6 +33,11 @@ import {
   type AssetPackGenerationPaths,
 } from './assetPackGenerations.js';
 import { acquirePackAdvisoryLock } from '../utils/advisoryLocks.js';
+import {
+  cleanupPackGenerationsAfterCommit,
+  packTilesetReferenceWhere,
+  removeDeletedPackFilesAfterCommit,
+} from './assetPackFilesAfterCommit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,7 +70,7 @@ async function persistUploadedPack(params: {
   for (const [original, hashed] of assetMap) {
     repairSources.set(original.replace(/^assets\//, ''), path.resolve(tmpDir, hashed));
   }
-  return prisma.$transaction(
+  const record = await prisma.$transaction(
     async (tx) => {
       await acquirePackAdvisoryLock(tx, cfg.uuid);
       const existCheck = await checkExistingPackDimensions(tx, cfg.uuid, cfg, tmpDir);
@@ -88,6 +93,10 @@ async function persistUploadedPack(params: {
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
+  await cleanupPackGenerationsAfterCommit(prisma, packsDir, cfg.uuid).catch((error: unknown) =>
+    logger.warn({ event: 'asset_pack.generation_cleanup_failed', uuid: cfg.uuid, error: String(error) }),
+  );
+  return record;
 }
 
 async function prepareUploadFromRequest(req: express.Request): Promise<PrepareUploadResult> {
@@ -210,7 +219,7 @@ async function handleAssetPackUpload(
     // published generation, or a legacy directory. After a successful publish
     // the tmp path is already gone, so this is a no-op on the happy path. A
     // transaction failure after publish can leave the published generation
-    // unreferenced on disk; that orphan cleanup is a separate package.
+    // unreferenced on disk; the next successful upload of the pack removes it.
     const ownTmp = generation?.tmpDir;
     if (ownTmp && path.basename(ownTmp).startsWith('.tmp-')) {
       await fsp.rm(ownTmp, { recursive: true, force: true }).catch(() => undefined);
@@ -344,16 +353,16 @@ async function handleDeleteAssetPack(
     await acquirePackAdvisoryLock(tx, pack.uuid);
     const current = await tx.assetPack.findUnique({ where: { id } });
     if (!current) return { status: 'missing' as const };
-    const [autotileReferences, objectReferences] = await Promise.all([
+    const [autotileReferences, objectReferences, tilesetReferences] = await Promise.all([
       tx.mapAutotile.count({ where: { packUuid: current.uuid } }),
       tx.mapObject.count({ where: { assetPackUuid: current.uuid } }),
+      tx.mapTileset.count({ where: packTilesetReferenceWhere(current.uuid) }),
     ]);
-    if (autotileReferences > 0 || objectReferences > 0) {
-      return { status: 'referenced' as const, autotileReferences, objectReferences };
+    if (autotileReferences > 0 || objectReferences > 0 || tilesetReferences > 0) {
+      return { status: 'referenced' as const, autotileReferences, objectReferences, tilesetReferences };
     }
-    await fsp.rm(path.resolve(packsDir, current.uuid), { recursive: true, force: true });
     await tx.assetPack.delete({ where: { id } });
-    return { status: 'deleted' as const };
+    return { status: 'deleted' as const, uuid: current.uuid };
   });
   if (deletion.status === 'missing') {
     res.status(404).json({ error: 'not found' });
@@ -363,10 +372,17 @@ async function handleDeleteAssetPack(
     res.status(409).json({
       error: 'asset_pack_in_use',
       message: 'This pack is referenced by maps. Archive it instead of deleting it.',
-      references: { autotiles: deletion.autotileReferences, objects: deletion.objectReferences },
+      references: {
+        autotiles: deletion.autotileReferences,
+        objects: deletion.objectReferences,
+        tilesets: deletion.tilesetReferences,
+      },
     });
     return;
   }
+  await removeDeletedPackFilesAfterCommit(prisma, packsDir, deletion.uuid).catch((error: unknown) =>
+    logger.warn({ event: 'asset_pack.file_removal_failed', uuid: deletion.uuid, error: String(error) }),
+  );
   res.json({ ok: true, fallback: fallbackUrl });
 }
 
