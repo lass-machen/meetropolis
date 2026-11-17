@@ -1,6 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { GITHUB_REPO_URL } from '../links';
+import { getBrandModule, type PublicAdsConfig } from '../../../lib/brandLoader';
+import { usePublicConfigStore } from '../../../state/publicConfigStore';
 
 interface PublicFooterProps {
   navigate: (route: string) => void;
@@ -169,14 +171,27 @@ function FooterLinkItem({
   );
 }
 
+type AdsConsentLinkProps = { config: PublicAdsConfig | null };
+
+// Optional brand control that reopens the ads consent choice. Resolves to
+// null when the brand module is absent or ships no such export, so the
+// footer stays unchanged in OSS builds and older brand builds.
+const AdsConsentSettingsLinkLazy = React.lazy<React.ComponentType<AdsConsentLinkProps>>(async () => {
+  const mod = await getBrandModule();
+  if (!mod?.AdsConsentSettingsLink) return { default: () => null };
+  return { default: mod.AdsConsentSettingsLink };
+});
+
 function FooterColumns({
   t,
   columns,
   onLinkClick,
+  legalColumnExtra,
 }: {
   t: (k: string) => string;
   columns: FooterColumn[];
   onLinkClick: (e: React.MouseEvent<HTMLAnchorElement>, action: FooterLinkAction) => void;
+  legalColumnExtra?: React.ReactNode;
 }) {
   return (
     <div className="pub-footer__columns">
@@ -201,6 +216,7 @@ function FooterColumns({
               <FooterLinkItem key={link.i18nKey} link={link} t={t} onClick={onLinkClick} />
             ))}
           </ul>
+          {col.titleKey === 'footer.legalTitle' ? legalColumnExtra : null}
         </div>
       ))}
     </div>
@@ -253,6 +269,7 @@ function LangToggle({
 
 export function PublicFooter({ navigate }: PublicFooterProps) {
   const { t, i18n } = useTranslation('public');
+  const ads = usePublicConfigStore((s) => s.ads);
   const currentYear = new Date().getFullYear();
   const currentLang: 'de' | 'en' = i18n.language?.startsWith('de') ? 'de' : 'en';
   const brandRaw = t('header.brandName');
@@ -286,7 +303,16 @@ export function PublicFooter({ navigate }: PublicFooterProps) {
           style={{ display: 'flex', justifyContent: 'space-between', gap: 64, flexWrap: 'wrap' }}
         >
           <FooterLogo tagline={t('footer.tagline')} />
-          <FooterColumns t={t} columns={FOOTER_COLUMNS} onLinkClick={handleLinkClick} />
+          <FooterColumns
+            t={t}
+            columns={FOOTER_COLUMNS}
+            onLinkClick={handleLinkClick}
+            legalColumnExtra={
+              <React.Suspense fallback={null}>
+                <AdsConsentSettingsLinkLazy config={ads} />
+              </React.Suspense>
+            }
+          />
         </div>
         <div style={{ height: 1, background: 'var(--pub-border-dark)', margin: '40px 0 24px 0' }} />
         <div
