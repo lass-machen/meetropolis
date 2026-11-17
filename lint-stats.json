@@ -1,7 +1,11 @@
 {
   "schema": 1,
-  "updatedAt": "2026-05-11",
+  "updatedAt": "2026-11-17",
   "totalWarnings": 0,
   "totalErrors": 0,
-  "byRule": {}
+  "byRule": {},
+  "inlineStyles": {
+    "styleObjects": 874,
+    "colorLiterals": 237
+  }
 }
