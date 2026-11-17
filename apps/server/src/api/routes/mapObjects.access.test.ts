@@ -66,11 +66,13 @@ const MEMBERSHIPS: ReadonlySet<string> = new Set([`${TENANT_LM}:lm-user`, `${TEN
 
 interface PrismaOpts {
   apiTokenUserId?: string;
+  /** Scope stored on the mocked token row; an absent scope counts as read. */
+  apiTokenScope?: 'read' | 'write';
   membershipThrows?: boolean;
 }
 
 function makePrisma(opts: PrismaOpts = {}): PrismaClient {
-  const { apiTokenUserId, membershipThrows = false } = opts;
+  const { apiTokenUserId, apiTokenScope, membershipThrows = false } = opts;
   const prisma = {
     $queryRaw: vi.fn(() => Promise.resolve([])),
     tenant: {
@@ -86,7 +88,11 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
       }),
     },
     apiToken: {
-      findUnique: vi.fn(() => Promise.resolve(apiTokenUserId ? { userId: apiTokenUserId } : null)),
+      findUnique: vi.fn(() =>
+        Promise.resolve(
+          apiTokenUserId ? { userId: apiTokenUserId, ...(apiTokenScope ? { scope: apiTokenScope } : {}) } : null,
+        ),
+      ),
       update: vi.fn(() => Promise.resolve({})),
     },
     session: {
@@ -406,7 +412,9 @@ describe('API tokens reach exactly as far as their owning user', () => {
   });
 
   it('refuses a token whose owner holds no membership in the resolved tenant', async () => {
-    const prisma = makePrisma({ apiTokenUserId: 'lonely-user' });
+    // Write scope carries the token past the method gate, so this case keeps
+    // testing the membership check rather than the scope gate.
+    const prisma = makePrisma({ apiTokenUserId: 'lonely-user', apiTokenScope: 'write' });
     const app = makeApp(prisma);
     const res = await request(app)
       .post('/maps/map-1/objects')

@@ -1,5 +1,5 @@
 import type express from 'express';
-import type { PrismaClient, Tenant } from '../../generated/prisma/index.js';
+import type { ApiTokenScope, PrismaClient, Tenant } from '../../generated/prisma/index.js';
 import jwt from 'jsonwebtoken';
 import { isTenantAccessDenied } from './tenantAccessState.js';
 import { isInternalOwner } from './tenantMembership.js';
@@ -137,7 +137,44 @@ export function requireVerificationAuth(req: express.Request) {
   return { userId: auth.userId, tenantId: auth.tenantId, verificationOnly: auth.verificationOnly === true };
 }
 
-export async function requireApiToken(req: express.Request, prisma: PrismaClient): Promise<{ userId: string } | null> {
+/** Methods a read-scoped API token may use; none of them may change server state. */
+const READ_SCOPE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * Path prefixes no API token reaches, whatever its scope: account credentials
+ * and sessions, the token management itself, and platform administration.
+ * Matched per path segment and case-insensitively (Express routes ignore case),
+ * so `/me` covers `/me/avatar` but not `/mediaplan`. Most of these routes
+ * already demand a session; the list keeps that guarantee in one place.
+ */
+const API_TOKEN_BLOCKED_PATHS = ['/admin', '/debug', '/api-tokens', '/auth', '/me', '/users/me'];
+
+/** Requests authenticated by an API token, so platform rights can be refused later. */
+const apiTokenRequests = new WeakSet<express.Request>();
+
+function isApiTokenBlockedPath(path: string): boolean {
+  const normalized = path.toLowerCase();
+  return API_TOKEN_BLOCKED_PATHS.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`));
+}
+
+function hasSession(req: express.Request): boolean {
+  const auth = getAuthResolution(req)?.auth;
+  return !!auth && !auth.verificationOnly;
+}
+
+/**
+ * The user behind a personal API token, or null.
+ *
+ * This is the single place where API tokens are accepted, so their limits are
+ * enforced here: a token never reaches the blocked paths above, and a read
+ * token only passes on safe methods. A refused request does not count as use
+ * and leaves `lastUsedAt` untouched. Platform administration is refused on top
+ * of that in `requireSuperAdmin` and `requireInternalOwner`.
+ */
+export async function requireApiToken(
+  req: express.Request,
+  prisma: PrismaClient,
+): Promise<{ userId: string; scope: ApiTokenScope } | null> {
   const authz = req.headers['authorization']?.toString();
   if (!authz || !authz.startsWith('Bearer ')) return null;
   const token = authz.slice('Bearer '.length).trim();
@@ -145,14 +182,18 @@ export async function requireApiToken(req: express.Request, prisma: PrismaClient
     // Looks like a JWT -> do not treat as an API token
     return null;
   }
+  if (isApiTokenBlockedPath(req.path ?? '')) return null;
   const hash = crypto
     .createHash('sha256')
     .update(getApiTokenPepper() + token)
     .digest('hex');
   const found = await prisma.apiToken.findUnique({ where: { hash } });
   if (!found) return null;
+  // Anything but an explicit write scope is treated as read.
+  if (found.scope !== 'write' && !READ_SCOPE_METHODS.has((req.method ?? '').toUpperCase())) return null;
   await prisma.apiToken.update({ where: { hash }, data: { lastUsedAt: new Date() } });
-  return { userId: found.userId };
+  apiTokenRequests.add(req);
+  return { userId: found.userId, scope: found.scope };
 }
 
 /**
@@ -189,22 +230,25 @@ export async function requireMembership(
   return { role: m.role, expiresAt: m.expiresAt };
 }
 
+/** Platform super-admin behind a session; API tokens never carry this right. */
 export async function requireSuperAdmin(
   req: express.Request,
   prisma: PrismaClient,
 ): Promise<{ userId: string } | null> {
-  const auth = requireAuth(req) || (await requireApiToken(req, prisma));
+  const auth = requireAuth(req);
   if (!auth) return null;
   const ok = await requireInternalOwner(req, auth.userId, prisma);
   if (!ok) return null;
   return auth;
 }
 
+/** Platform ownership check; refused for requests authenticated only by an API token. */
 export async function requireInternalOwner(
-  _req: express.Request,
+  req: express.Request,
   userId: string,
   prisma: PrismaClient,
 ): Promise<boolean> {
+  if (apiTokenRequests.has(req) && !hasSession(req)) return false;
   return isInternalOwner(prisma, userId);
 }
 

@@ -144,10 +144,11 @@ describe('API Tokens & Controls', () => {
     const app = await createApp();
     const jwtToken = signSession('user-1');
 
+    // The /controls call below writes, so the token needs write scope.
     const createRes = await request(app)
       .post('/api-tokens')
       .set('Authorization', `Bearer ${jwtToken}`)
-      .send({ name: 'Remote' });
+      .send({ name: 'Remote', scope: 'write' });
     const rawToken = createRes.body.token as string;
 
     const before = mem.tokens[0];
