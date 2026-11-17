@@ -86,6 +86,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of concrete request paths. Early `http.request` logs no longer
   include a `path` field; unmatched requests use `<unmatched>`. This
   changes values consumed by dashboards and log parsers.
+- Server: personal API tokens now have a level chosen at creation
+  (`scope` in `POST /api-tokens`, default `read`). `read` tokens only use
+  safe methods (GET, HEAD and OPTIONS); `write` tokens may also change
+  data. Tokens granted before this change keep full access (migrated as
+  `write`). No token reaches passwords, email changes, account deletion,
+  sessions, token management, `/auth`, `/me`, `/users/me`, `/admin`,
+  `/debug` or platform administration: those need a signed-in browser
+  session, and a rejected token call answers like a missing token
+  (usually `401`).
 
 ### Fixed
 

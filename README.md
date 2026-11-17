@@ -299,8 +299,8 @@ Before deploying for your team or customers:
 Control your presence remotely via personal API tokens:
 
 1. Open "API Tokens and Docs" from the top-right menu.
-2. Create a token. It is shown only once, save it.
-3. Use it to control mic, camera, screenshare and DND status:
+2. Create a token and pick its level: `read` (default, only safe methods such as GET, HEAD and OPTIONS) or `write` (may also change data). It is shown only once, save it. Tokens created before levels existed keep full access (`write`).
+3. Use a `write` token to control mic, camera, screenshare and DND status, since this changes state:
 
 ```bash
 curl -X POST "http://localhost:2567/controls" \
@@ -308,6 +308,8 @@ curl -X POST "http://localhost:2567/controls" \
   -H "Content-Type: application/json" \
   -d '{"mic": false, "dnd": true}'
 ```
+
+No token, not even `write`, can change a password or email address, delete an account, manage sessions or tokens (`/api-tokens`), or reach `/auth`, `/me`, `/users/me`, `/admin`, `/debug` or platform administration (pack upload, archive and delete, and map import under `/admin`); those need a signed-in browser session.
 
 ## Production deployment
 

@@ -75,6 +75,7 @@ When contributing to this project, please:
 - JWT tokens are used for session management
 - Passwords are hashed using bcrypt with appropriate cost factor
 - API tokens are hashed before storage
+- Personal API tokens carry a level: `read` tokens only use safe methods (GET, HEAD and OPTIONS) while `write` tokens may also change data. No token reaches account, token management or platform administration routes, which require a browser session.
 - The Colyseus `world` room binds every non-NPC join to the identity
   carried by a server-verified JWT (`onAuth`, see
   `apps/server/src/rooms/lifecycle/onAuth.ts`), never to a client-supplied
