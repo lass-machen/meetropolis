@@ -31,6 +31,9 @@ const started: Array<{ sessionId: string; userId: string; zonePrivacyVersion: nu
 const handledActions: Array<{ type: string }> = [];
 const reportedFailures: string[] = [];
 let worldJoinFails = false;
+// Set by openStream; the stub session calls it once the stream handler has
+// either started the session or reported the failed world join.
+let onSessionSettled: (() => void) | null = null;
 
 vi.mock('./mobileSession.js', () => ({
   MobileSession: class {
@@ -42,10 +45,13 @@ vi.mock('./mobileSession.js', () => ({
       started.push(options);
     }
     start() {
-      return worldJoinFails ? Promise.reject(new Error('world join failed')) : Promise.resolve();
+      if (worldJoinFails) return Promise.reject(new Error('world join failed'));
+      onSessionSettled?.();
+      return Promise.resolve();
     }
     emitFailure(reason: string) {
       reportedFailures.push(reason);
+      onSessionSettled?.();
     }
     handleAction(action: { type: string }) {
       handledActions.push(action);
@@ -69,18 +75,24 @@ const validStream =
   `/mobile/stream?zonePrivacyVersion=${MIN_ZONE_PRIVACY_CLIENT_VERSION}` +
   `&protocolVersion=${MOBILE_PROTOCOL_VERSION}`;
 
-/** Opens the stream and returns once the headers are in; it never ends on its own. */
+/**
+ * Opens the stream and returns once the handler has started the session or
+ * reported the failed join, then aborts it. Waiting for that event instead of a
+ * fixed delay keeps a slow handler from missing the check and keeps an aborted
+ * stream from reaching the next case.
+ */
 async function openStream(app: express.Express, path: string): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const req = request(app)
-      .get(path)
-      .set('Authorization', 'Bearer jwt')
-      .end(() => resolve());
-    setTimeout(() => {
-      req.abort();
-      resolve();
-    }, 50);
+  const settled = new Promise<void>((resolve) => {
+    onSessionSettled = resolve;
   });
+  const req = request(app).get(path).set('Authorization', 'Bearer jwt');
+  req.end(() => undefined);
+  try {
+    await settled;
+  } finally {
+    onSessionSettled = null;
+    req.abort();
+  }
 }
 
 const originalMobileGatewayEnabled = process.env.MOBILE_GATEWAY_ENABLED;
