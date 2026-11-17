@@ -36,10 +36,18 @@ describe('LiveKit token lifetime', () => {
   });
 
   it('signs tokens with that lifetime instead of the SDK default of 6 hours', async () => {
-    vi.stubEnv('LIVEKIT_API_KEY', 'test-key');
-    vi.stubEnv('LIVEKIT_API_SECRET', 'test-secret-with-enough-length-0123456789');
-    const jwt = await createLivekitToken({ roomName: 'acme:main', identity: 'user-1' });
-    expect(lifetimeOf(jwt)).toBe(900);
+    // The SDK stamps exp and nbf from two separate clock reads, so a second
+    // boundary between them yields 899. A frozen clock keeps both reads equal.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.999Z'));
+    try {
+      vi.stubEnv('LIVEKIT_API_KEY', 'test-key');
+      vi.stubEnv('LIVEKIT_API_SECRET', 'test-secret-with-enough-length-0123456789');
+      const jwt = await createLivekitToken({ roomName: 'acme:main', identity: 'user-1' });
+      expect(lifetimeOf(jwt)).toBe(900);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('caps a guest token at the end of the guest access', async () => {
