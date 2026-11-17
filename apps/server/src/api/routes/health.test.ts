@@ -74,6 +74,35 @@ function fakePrisma(): PrismaClient {
   } as unknown as PrismaClient;
 }
 
+/** Registers exactly one matching materialized world session for the given verified login. */
+function setWorldPresence(opts: {
+  userId: string;
+  authSessionId?: string;
+  tenantId: string;
+  tenantSlug: string;
+}): void {
+  const sessionId = 'colyseus-1';
+  const entry = {
+    sessionId,
+    userId: opts.userId,
+    authSessionId: opts.authSessionId ?? 'db-session-1',
+    tenantId: opts.tenantId,
+    tenantSlug: opts.tenantSlug,
+    epoch: 3,
+    leaseUntil: Date.now() + 60_000,
+    accessExpiresAt: null,
+  };
+  const byId = new Map([[sessionId, entry]]);
+  const players = new Map([[sessionId, { identity: opts.userId, isNpc: false }]]);
+  (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = new Set([
+    {
+      clients: [{ sessionId }],
+      state: { players },
+      worldAccess: { entryFor: (id: string) => byId.get(id) },
+    },
+  ]);
+}
+
 const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
@@ -82,11 +111,13 @@ beforeEach(() => {
   // Default: the caller presents a live session in the resolved tenant.
   validateTenantSessionFreshMock.mockResolvedValue(allowedSession('user-real', 't1'));
   createLivekitTokenMock.mockReset();
+  (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = undefined;
   process.env.LIVEKIT_API_KEY = 'devkey';
   process.env.LIVEKIT_API_SECRET = 'secret';
 });
 
 afterEach(() => {
+  (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = undefined;
   process.env = { ...ORIGINAL_ENV };
 });
 
@@ -95,6 +126,7 @@ describe('handleLivekitToken: identity hardening', () => {
     validateTenantSessionFreshMock.mockResolvedValue(allowedSession('user-real', 't1'));
     getTenantFromReqMock.mockReturnValue({ id: 't1', slug: 'acme' });
     createLivekitTokenMock.mockResolvedValue('jwt-token');
+    setWorldPresence({ userId: 'user-real', tenantId: 't1', tenantSlug: 'acme' });
 
     const prisma = fakePrisma();
     const req = fakeReq({ roomName: 'world', identity: 'user-victim' });
@@ -203,6 +235,7 @@ describe('handleLivekitToken: tenant membership gate', () => {
   });
 
   it('mints a token for the own tenant when a membership exists (200)', async () => {
+    setWorldPresence({ userId: 'lobster-owner', tenantId: 't-default', tenantSlug: 'default' });
     const prisma = fakePrisma();
     const req = fakeBearerReq({
       roomName: 'world',
@@ -225,6 +258,7 @@ describe('handleLivekitToken: H4 client zone-privacy version gate', () => {
     validateTenantSessionFreshMock.mockResolvedValue(allowedSession('user-real', 't1'));
     getTenantFromReqMock.mockReturnValue({ id: 't1', slug: 'acme' });
     createLivekitTokenMock.mockResolvedValue('jwt-token');
+    setWorldPresence({ userId: 'user-real', tenantId: 't1', tenantSlug: 'acme' });
   });
 
   it('mints canPublish:false when zonePrivacyVersion is missing (pre-H4 client)', async () => {
@@ -275,6 +309,151 @@ describe('handleLivekitToken: H4 client zone-privacy version gate', () => {
     await handleLivekitToken(fakePrisma(), req, res);
 
     expect(createLivekitTokenMock).toHaveBeenCalledWith(expect.objectContaining({ canPublish: true }));
+  });
+});
+
+describe('handleLivekitToken: world presence gate', () => {
+  const NOW = 1_790_000_000_000;
+
+  function worldRoom(
+    opts: {
+      sessionId?: string;
+      userId?: string;
+      authSessionId?: string | null;
+      tenantId?: string;
+      tenantSlug?: string;
+      leaseUntil?: number | null;
+      accessExpiresAt?: number | null;
+      epoch?: number;
+      withClient?: boolean;
+      playerIdentity?: string;
+    } = {},
+  ) {
+    const sessionId = opts.sessionId ?? 'colyseus-1';
+    const entry = {
+      sessionId,
+      userId: opts.userId ?? 'user-real',
+      authSessionId: opts.authSessionId === undefined ? 'db-session-1' : opts.authSessionId,
+      tenantId: opts.tenantId ?? 't1',
+      tenantSlug: opts.tenantSlug ?? 'acme',
+      epoch: opts.epoch ?? 3,
+      leaseUntil: opts.leaseUntil === undefined ? NOW + 60_000 : opts.leaseUntil,
+      accessExpiresAt: opts.accessExpiresAt === undefined ? null : opts.accessExpiresAt,
+    };
+    const byId = new Map([[sessionId, entry]]);
+    const players = new Map([[sessionId, { identity: opts.playerIdentity ?? 'user-real', isNpc: false }]]);
+    return {
+      room: {
+        clients: (opts.withClient === false ? [] : [{ sessionId }]) as unknown as never[],
+        state: { players } as unknown as never,
+        worldAccess: { entryFor: (id: string) => byId.get(id) } as unknown as never,
+      },
+      entry,
+    };
+  }
+
+  function setWorldRooms(rooms: unknown[]): void {
+    (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = new Set(rooms as never[]);
+  }
+
+  beforeEach(() => {
+    validateTenantSessionFreshMock.mockResolvedValue(allowedSession('user-real', 't1'));
+    getTenantFromReqMock.mockReturnValue({ id: 't1', slug: 'acme' });
+    createLivekitTokenMock.mockReset().mockResolvedValue('jwt-token');
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = undefined;
+  });
+
+  afterEach(() => {
+    (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = undefined;
+    vi.useRealTimers();
+  });
+
+  it('requires active world presence: no mint without a world (403 world_session_required)', async () => {
+    const req = fakeReq({ roomName: 'world', identity: 'user-real' });
+    const res = fakeRes();
+    await handleLivekitToken(fakePrisma(), req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'world_session_required' });
+    expect(createLivekitTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a foreign login session despite the same identity and tenant', async () => {
+    const { room } = worldRoom({ authSessionId: 'db-session-fremd' });
+    setWorldRooms([room]);
+
+    const req = fakeReq({ roomName: 'world', identity: 'user-real' });
+    const res = fakeRes();
+    await handleLivekitToken(fakePrisma(), req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'world_session_required' });
+    expect(createLivekitTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a wrong tenant and an expired world lease', async () => {
+    const { room: wrongTenant } = worldRoom({ tenantId: 't-anders', tenantSlug: 'anders' });
+    setWorldRooms([wrongTenant]);
+    const resTenant = fakeRes();
+    await handleLivekitToken(fakePrisma(), fakeReq({ roomName: 'world', identity: 'user-real' }), resTenant);
+    expect(resTenant.status).toHaveBeenCalledWith(403);
+    expect(resTenant.json).toHaveBeenCalledWith({ error: 'world_session_required' });
+
+    const { room: expired } = worldRoom({ leaseUntil: NOW - 1_000 });
+    setWorldRooms([expired]);
+    const resLease = fakeRes();
+    await handleLivekitToken(fakePrisma(), fakeReq({ roomName: 'world', identity: 'user-real' }), resLease);
+    expect(resLease.status).toHaveBeenCalledWith(403);
+    expect(resLease.json).toHaveBeenCalledWith({ error: 'world_session_required' });
+    expect(createLivekitTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('mints for a valid world and overrides the client identity with the auth identity', async () => {
+    const { room } = worldRoom();
+    setWorldRooms([room]);
+
+    const req = fakeReq({ roomName: 'world', identity: 'user-fremd' });
+    const res = fakeRes();
+    await handleLivekitToken(fakePrisma(), req, res);
+
+    expect(createLivekitTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: 'user-real', roomName: 'acme:world' }),
+    );
+    expect(res.send).toHaveBeenCalledWith('jwt-token');
+  });
+
+  it('sends no JWT when the world is left during signing', async () => {
+    const { room } = worldRoom();
+    setWorldRooms([room]);
+    createLivekitTokenMock.mockImplementation(() => {
+      (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = new Set();
+      return Promise.resolve('jwt-token');
+    });
+
+    const res = fakeRes();
+    await handleLivekitToken(fakePrisma(), fakeReq({ roomName: 'world', identity: 'user-real' }), res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'world_session_required' });
+    expect(res.send).not.toHaveBeenCalled();
+  });
+
+  it('sends no JWT when the entry epoch changes during signing', async () => {
+    const { room, entry } = worldRoom();
+    setWorldRooms([room]);
+    createLivekitTokenMock.mockImplementation(() => {
+      entry.epoch += 1;
+      return Promise.resolve('jwt-token');
+    });
+
+    const res = fakeRes();
+    await handleLivekitToken(fakePrisma(), fakeReq({ roomName: 'world', identity: 'user-real' }), res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'world_session_required' });
+    expect(res.send).not.toHaveBeenCalled();
   });
 });
 

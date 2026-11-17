@@ -194,27 +194,57 @@ describe('island attribute publish failures', () => {
   });
 });
 
+/** Registers the single materialized world session of this verified login (same shape as health.test.ts). */
+function setWorldPresenceForLogin(): void {
+  const sessionId = 'colyseus-1';
+  const entry = {
+    sessionId,
+    userId: 'user-1',
+    authSessionId: 'session-1',
+    tenantId: 'tenant-1',
+    tenantSlug: 'acme',
+    epoch: 1,
+    leaseUntil: Date.now() + 60_000,
+    accessExpiresAt: null,
+  };
+  const byId = new Map([[sessionId, entry]]);
+  const players = new Map([[sessionId, { identity: 'user-1', isNpc: false }]]);
+  (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = new Set([
+    {
+      clients: [{ sessionId }],
+      state: { players },
+      worldAccess: { entryFor: (id: string) => byId.get(id) },
+    } as unknown as WorldRoom,
+  ]);
+}
+
 describe('handleLivekitToken participant grants', () => {
   it('does not grant clients permission to update their own metadata', async () => {
-    mocks.getTranscriptionModuleSync.mockReturnValue(null);
-    mocks.validateTenantSessionFresh.mockResolvedValue({
-      status: 'allowed',
-      userId: 'user-1',
-      sessionId: 'session-1',
-      tenantId: 'tenant-1',
-      access: 'member',
-    });
-    process.env.LIVEKIT_API_KEY = 'test-key';
-    process.env.LIVEKIT_API_SECRET = 'test-secret';
-    const { res, send } = fakeRes();
+    const previousRooms = (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms;
+    setWorldPresenceForLogin();
+    try {
+      mocks.getTranscriptionModuleSync.mockReturnValue(null);
+      mocks.validateTenantSessionFresh.mockResolvedValue({
+        status: 'allowed',
+        userId: 'user-1',
+        sessionId: 'session-1',
+        tenantId: 'tenant-1',
+        access: 'member',
+      });
+      process.env.LIVEKIT_API_KEY = 'test-key';
+      process.env.LIVEKIT_API_SECRET = 'test-secret';
+      const { res, send } = fakeRes();
 
-    await handleLivekitToken(prisma, fakeReq({ roomName: 'world', identity: 'user-1' }), res);
+      await handleLivekitToken(prisma, fakeReq({ roomName: 'world', identity: 'user-1' }), res);
 
-    const token = send.mock.calls[0]?.[0];
-    if (typeof token !== 'string') throw new Error('Expected /livekit/token to return a signed token');
-    const payload = token.split('.')[1];
-    if (!payload) throw new Error('Expected token to contain a payload');
-    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { video?: Record<string, unknown> };
-    expect(claims).not.toHaveProperty('video.canUpdateOwnMetadata');
+      const token = send.mock.calls[0]?.[0];
+      if (typeof token !== 'string') throw new Error('Expected /livekit/token to return a signed token');
+      const payload = token.split('.')[1];
+      if (!payload) throw new Error('Expected token to contain a payload');
+      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { video?: Record<string, unknown> };
+      expect(claims).not.toHaveProperty('video.canUpdateOwnMetadata');
+    } finally {
+      (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = previousRooms;
+    }
   });
 });

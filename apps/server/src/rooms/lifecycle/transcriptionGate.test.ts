@@ -98,6 +98,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = undefined;
   vi.unstubAllEnvs();
 });
 
@@ -295,6 +296,26 @@ describe('handleLivekitToken transcription gate', () => {
 
   it('keeps token issuance unchanged when the optional module is absent', async () => {
     mocks.getTranscriptionModuleSync.mockReturnValue(null);
+    const sessionId = 'colyseus-1';
+    const entry = {
+      sessionId,
+      userId: 'user-1',
+      authSessionId: 'db-session-1',
+      tenantId: 'tenant-1',
+      tenantSlug: 'acme',
+      epoch: 3,
+      leaseUntil: Date.now() + 60_000,
+      accessExpiresAt: null,
+    };
+    const byId = new Map([[sessionId, entry]]);
+    const players = new Map([[sessionId, { identity: 'user-1', isNpc: false }]]);
+    (globalThis as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = new Set([
+      {
+        clients: [{ sessionId }],
+        state: { players },
+        worldAccess: { entryFor: (id: string) => byId.get(id) },
+      },
+    ]);
     const res = fakeRes();
 
     await handleLivekitToken(prisma, fakeReq({ roomName: 'world', identity: 'user-1' }), res);
