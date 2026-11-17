@@ -52,9 +52,18 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   },
 ];
 
+// justify-content lives in the stylesheet so the mobile media query can
+// override it without !important.
 const FOOTER_RESPONSIVE_STYLES = `
+  .pub-footer__columns {
+    display: flex;
+    gap: 64px;
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
   @media (max-width: 768px) {
-    .pub-footer__columns { justify-content: flex-start !important; }
+    .pub-footer__columns { justify-content: flex-start; }
   }
 `;
 
@@ -170,10 +179,7 @@ function FooterColumns({
   onLinkClick: (e: React.MouseEvent<HTMLAnchorElement>, action: FooterLinkAction) => void;
 }) {
   return (
-    <div
-      className="pub-footer__columns"
-      style={{ display: 'flex', gap: 64, flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}
-    >
+    <div className="pub-footer__columns">
       {columns.map((col) => (
         <div key={col.titleKey} style={{ minWidth: 140 }}>
           <h4
