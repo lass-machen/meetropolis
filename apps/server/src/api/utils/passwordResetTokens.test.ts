@@ -1,6 +1,6 @@
 /**
  * Unit tests for the reset-token primitives. The route-level flow is covered in
- * routes/auth.flow.test.ts; this pins the properties the flow relies on —
+ * routes/auth.flow.integration.test.ts; this pins the properties the flow relies on —
  * hashed at rest, single-use under concurrency, and bound to one user.
  */
 import crypto from 'crypto';

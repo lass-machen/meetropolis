@@ -2,12 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 // Tests that need a migrated PostgreSQL database (DATABASE_URL). They run only
 // through `npm run test:db`, never through `npm test`.
-const databaseTestFiles = [
-  'src/**/*.integration.test.ts',
-  // These two reach the database through test/fixtures/httpFixture.ts.
-  'src/api/routes/auth.flow.test.ts',
-  'src/api/routes/admin.passwordReset.test.ts',
-];
+const databaseTestFiles = ['src/**/*.integration.test.ts'];
 
 // Database test files with database-wide effects (triggers on shared tables,
 // deletes without a tenant filter). They run after all other database tests.
@@ -16,7 +11,7 @@ const exclusiveTestFiles = [
   'src/services/accountDeletionJournal.integration.test.ts',
   'src/services/accountDeletion.integration.test.ts',
   'src/api/routes/invites.integration.test.ts',
-  'src/api/routes/auth.flow.test.ts',
+  'src/api/routes/auth.flow.integration.test.ts',
 ];
 
 const defaultExclude = ['**/node_modules/**', '**/dist/**', '**/.git/**'];
