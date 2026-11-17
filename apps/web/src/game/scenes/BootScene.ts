@@ -5,6 +5,8 @@ import { avatarRegistry } from '../avatarRegistry';
 import { useMapStore } from '../../state/mapStore';
 
 export class BootScene extends Phaser.Scene {
+  private heroAvatarLoad: Promise<void> | null = null;
+
   constructor() {
     super('Boot');
   }
@@ -22,17 +24,35 @@ export class BootScene extends Phaser.Scene {
     // Avatar system: load avatar spritesheets
     avatarRegistry.ensureDefault();
     const avatarId = localStorage.getItem('avatarId') || avatarRegistry.getDefaultAvatarId();
-    avatarRegistry.preloadAvatar(this, avatarId);
-    if (avatarId !== avatarRegistry.getDefaultAvatarId()) {
-      avatarRegistry.preloadAvatar(this, avatarRegistry.getDefaultAvatarId());
+    if (avatarId === avatarRegistry.getDefaultAvatarId()) {
+      void avatarRegistry.preloadAvatar(this, avatarId);
+    } else {
+      // A stored non-default avatar may be a protected member ref whose load
+      // is asynchronous; create() applies its animations on fulfillment.
+      this.heroAvatarLoad = avatarRegistry.preloadAvatar(this, avatarId);
+      void avatarRegistry.preloadAvatar(this, avatarRegistry.getDefaultAvatarId());
     }
   }
 
   create() {
     // Create avatar animations
     const avatarId = localStorage.getItem('avatarId') || avatarRegistry.getDefaultAvatarId();
-    avatarRegistry.createAnimations(this.anims, avatarId);
     avatarRegistry.createAnimations(this.anims, avatarRegistry.getDefaultAvatarId());
+    const heroAvatarLoad = this.heroAvatarLoad;
+    this.heroAvatarLoad = null;
+    if (avatarId !== avatarRegistry.getDefaultAvatarId()) {
+      // A settled promise (bundled ref, already queued in preload) applies
+      // immediately; a pending member load defers until its texture arrived.
+      // A failed member load keeps the default animations created above.
+      if (heroAvatarLoad) {
+        void heroAvatarLoad.then(
+          () => avatarRegistry.createAnimations(this.anims, avatarId),
+          () => {},
+        );
+      } else {
+        avatarRegistry.createAnimations(this.anims, avatarId);
+      }
+    }
 
     // v2 Boot: prefetch state-v2
     void (async () => {

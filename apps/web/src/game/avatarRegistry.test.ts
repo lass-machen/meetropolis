@@ -1,5 +1,18 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import type Phaser from 'phaser';
 import { AvatarRegistry, type AvatarManifest } from './avatarRegistry';
+import { loadMemberSpritesheet } from './services/assetLoader';
+
+vi.mock('../lib/runtimeConfig', () => ({
+  getApiBaseFromWindow: () => 'https://api.test',
+}));
+
+vi.mock('./services/assetLoader', () => ({
+  loadMemberImage: vi.fn(),
+  loadMemberSpritesheet: vi.fn(),
+}));
+
+const loadMemberSpritesheetMock = vi.mocked(loadMemberSpritesheet);
 
 const API = 'https://api.test';
 
@@ -89,5 +102,107 @@ describe('AvatarRegistry custom-avatar resolution', () => {
     const fetchMock = stubResolve({});
     expect(await reg.ensureManifest('default-characters:business_man', API)).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('preloadAvatar (member assets)', () => {
+  const idleWalk = {
+    idle: { directions: ['down', 'left', 'right', 'up'], frameCount: 1, frameRate: 1, row: 0 },
+    walk: { directions: ['down', 'left', 'right', 'up'], frameCount: 4, frameRate: 8, row: 4 },
+  } as AvatarManifest['states'];
+
+  function memberManifest(): AvatarManifest {
+    return {
+      id: 'pack-1:hero',
+      packUuid: 'pack-1',
+      avatarKey: 'hero',
+      displayName: 'Hero',
+      type: 'full',
+      spriteUrl: '/packs/avatars/hero.png',
+      frameWidth: 32,
+      frameHeight: 32,
+      states: idleWalk,
+    };
+  }
+
+  function bundledManifest(): AvatarManifest {
+    return {
+      id: 'default-characters:business_man',
+      packUuid: 'default-characters',
+      avatarKey: 'business_man',
+      displayName: 'Business Man',
+      type: 'full',
+      spriteUrl: '/assets/sprites/atelier-v1/business_man.36311df39e9f.png',
+      frameWidth: 32,
+      frameHeight: 32,
+      states: idleWalk,
+    };
+  }
+
+  function makeScene(opts: { exists?: boolean } = {}) {
+    const filecompleteHandlers = new Map<string, Array<() => void>>();
+    const scene = {
+      textures: { exists: (_key: string) => opts.exists ?? false },
+      load: {
+        spritesheet: vi.fn(),
+        image: vi.fn(),
+        once: vi.fn((event: string, fn: () => void) => {
+          const list = filecompleteHandlers.get(event) ?? [];
+          list.push(fn);
+          filecompleteHandlers.set(event, list);
+        }),
+      },
+    };
+    return { scene: scene as unknown as Phaser.Scene, load: scene.load, filecompleteHandlers };
+  }
+
+  function fireFilecomplete(handlers: Map<string, Array<() => void>>, key: string): void {
+    for (const fn of [...(handlers.get(`filecomplete-spritesheet-${key}`) ?? [])]) fn();
+  }
+
+  beforeEach(() => {
+    loadMemberSpritesheetMock.mockReset();
+    loadMemberSpritesheetMock.mockResolvedValue(undefined);
+  });
+
+  it('loads a /packs spritesheet through loadMemberSpritesheet, not scene.load', async () => {
+    const reg = new AvatarRegistry();
+    reg.registerManifest(memberManifest());
+    const { scene, load } = makeScene();
+    await reg.preloadAvatar(scene, 'pack-1:hero');
+    expect(loadMemberSpritesheetMock).toHaveBeenCalledWith(
+      scene,
+      'avatar_pack-1_hero',
+      'https://api.test/packs/avatars/hero.png',
+      {
+        frameWidth: 32,
+        frameHeight: 32,
+      },
+    );
+    expect(load.spritesheet).not.toHaveBeenCalled();
+  });
+
+  it('queues bundled /assets spritesheets synchronously without awaiting', async () => {
+    const reg = new AvatarRegistry();
+    reg.registerManifest(bundledManifest());
+    const { scene, load, filecompleteHandlers } = makeScene();
+    const pending = reg.preloadAvatar(scene, 'default-characters:business_man');
+    expect(load.spritesheet).toHaveBeenCalledWith(
+      'avatar_default-characters_business_man',
+      'https://api.test/assets/sprites/atelier-v1/business_man.36311df39e9f.png',
+      { frameWidth: 32, frameHeight: 32 },
+    );
+    expect(loadMemberSpritesheetMock).not.toHaveBeenCalled();
+    fireFilecomplete(filecompleteHandlers, 'avatar_default-characters_business_man');
+    await expect(pending).resolves.toBeUndefined();
+  });
+
+  it('resolves immediately when the texture already exists', async () => {
+    const reg = new AvatarRegistry();
+    reg.registerManifest(bundledManifest());
+    const { scene, load } = makeScene({ exists: true });
+    await expect(reg.preloadAvatar(scene, 'default-characters:business_man')).resolves.toBeUndefined();
+    expect(load.spritesheet).not.toHaveBeenCalled();
+    expect(loadMemberSpritesheetMock).not.toHaveBeenCalled();
   });
 });

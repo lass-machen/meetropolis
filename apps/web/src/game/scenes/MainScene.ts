@@ -615,11 +615,18 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
       });
       return;
     }
-    avatarRegistry.preloadAvatar(this, avatarId);
-    this.load.once('complete', () => {
-      this.playerManager.changeAvatar(avatarId);
-    });
-    this.load.start();
+    // Swap only once this avatar's own texture arrived (never on an unrelated
+    // loader 'complete', which may fire while the queue holds other files),
+    // and only while the scene is still active. A failed load keeps the
+    // current avatar.
+    void avatarRegistry.preloadAvatar(this, avatarId).then(
+      () => {
+        if (this.sys.isActive()) this.playerManager.changeAvatar(avatarId);
+      },
+      () => {
+        // Keep the current avatar when the texture cannot be loaded.
+      },
+    );
   }
   handleObjectsUpdated(data: ObjectsUpdatedPayload) {
     this.objectManager.handleObjectsUpdated(data);
