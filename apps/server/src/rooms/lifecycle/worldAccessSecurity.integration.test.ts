@@ -167,7 +167,8 @@ async function leaveQuietly(tracked: TrackedJoin): Promise<void> {
 async function waitForPlayers(tracked: TrackedJoin, timeoutMs: number): Promise<string[]> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    const seen = tracked.room ? [...tracked.room.state.players.values()].map((player) => player.identity) : [];
+    const players = tracked.room?.state?.players;
+    const seen = players ? [...players.values()].map((player) => player.identity) : [];
     if (seen.length > 0 || Date.now() > deadline) return seen;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
@@ -314,7 +315,8 @@ describe('world seat consumed after the session row is gone', () => {
     try {
       expect(control.error, 'control join must succeed').toBeUndefined();
       if (!control.room) throw new Error(`${FILE} control join created no room`);
-      const seen = [...control.room.state.players.values()].map((player) => player.identity);
+      const seen = await waitForPlayers(control, 5_000);
+      expect(seen, 'the control player must reach the roster').toContain(controlMember.userId);
       expect(seen).not.toContain(member.userId);
     } finally {
       await leaveQuietly(control);
