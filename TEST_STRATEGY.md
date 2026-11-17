@@ -447,14 +447,6 @@ test('two users can see each other', async ({ browser }) => {
 });
 ```
 
-### Legacy Client Tests
-
-Specs with `@legacy` in the title check the current server against a pinned,
-separately built older web bundle. They need `LEGACY_WEB_BASE_URL` and
-`LEGACY_WEB_BUNDLE_MANIFEST` and fail without them; they never skip. The
-default E2E runs exclude them with `--grep-invert @legacy`; run them on
-purpose against the built legacy bundle.
-
 ---
 
 ## 8. Local Test Execution
