@@ -269,7 +269,9 @@ function PacksList({
         {t('editor.installedPacks')}
       </div>
       {packs.length === 0 ? (
-        <div style={{ fontSize: 12, color: '#6b7280', fontStyle: 'italic' }}>{t('editor.noPacksInstalled')}</div>
+        <div style={{ fontSize: 12, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>
+          {t('editor.noPacksInstalled')}
+        </div>
       ) : (
         <div style={{ display: 'grid', gap: 4 }}>
           {packs.map((pack) => (
@@ -288,7 +290,7 @@ function PacksList({
             >
               <div style={{ color: 'var(--fg)' }}>
                 <span style={{ fontWeight: 600 }}>{pack.name}</span>
-                <span style={{ color: '#6b7280', marginLeft: 6 }}>
+                <span style={{ color: 'var(--fg-subtle)', marginLeft: 6 }}>
                   v{pack.version} &bull; {pack.author}
                 </span>
               </div>
@@ -546,6 +548,7 @@ export function EditorWindow({ onSave, onClose }: { onSave: () => Promise<boolea
         }}
       >
         <div
+          className="editor-surface"
           style={{
             background: 'rgba(17,17,20,0.95)',
             border: '1px solid rgba(255,255,255,0.12)',

@@ -740,3 +740,12 @@ body,
 .device-selector-item.selected {
   background: var(--palette-legacy-rgba-255-255-255-0-15);
 }
+
+/* The editor surface is always dark, so its content uses the dark theme text
+   and surface tokens regardless of the active theme. */
+.editor-surface {
+  --fg: var(--palette-legacy-hex-e5e7eb);
+  --fg-subtle: var(--palette-legacy-hex-9ca3af);
+  --glass: var(--palette-legacy-rgba-255-255-255-0-06);
+  --border: var(--palette-legacy-rgba-255-255-255-0-08);
+}
