@@ -29,7 +29,7 @@ vi.mock('../utils/broadcast.js', () => ({ broadcastMapUpdate: vi.fn() }));
 
 import { registerMapObjectRoutes } from './mapObjects.js';
 import { createSessionAuthMiddleware, hashSessionToken } from '../utils/sessionAuth.js';
-import type { PrismaClient, Tenant } from '../../generated/prisma/index.js';
+import type { MapObject, PrismaClient, Tenant } from '../../generated/prisma/index.js';
 
 const TEST_SECRET = 'map-objects-access-test-secret';
 const INTERNAL_TENANT_ID = 'internal-tenant';
@@ -56,6 +56,10 @@ const OBJECT_ROW = {
   collisionBaseHeight: 0,
   dataUrl: '/packs/pixel-agents-furniture/desk.png',
 };
+
+// Partial test double: the route only reads placement fields, so the
+// remaining MapObject columns are intentionally omitted.
+const STORED_ROW = OBJECT_ROW as unknown as MapObject;
 
 /** `${tenantId}:${userId}` memberships. `lonely-user` deliberately holds none. */
 const MEMBERSHIPS: ReadonlySet<string> = new Set([`${TENANT_LM}:lm-user`, `${TENANT_OTHER}:other-user`]);
@@ -347,8 +351,8 @@ describe('map object mutations: membership-scoped, not merely authenticated', ()
   it('re-reads the object and derives chunk coordinates from retry-fresh state', async () => {
     const prisma = makePrisma();
     vi.mocked(prisma.mapObject.findFirst)
-      .mockResolvedValueOnce(OBJECT_ROW)
-      .mockResolvedValueOnce({ ...OBJECT_ROW, tileX: 40, chunkX: 1 });
+      .mockResolvedValueOnce(STORED_ROW)
+      .mockResolvedValueOnce({ ...STORED_ROW, tileX: 40, chunkX: 1 });
     vi.mocked(prisma.$transaction)
       .mockImplementationOnce(async (callback) => {
         await callback(prisma);
@@ -372,7 +376,7 @@ describe('map object mutations: membership-scoped, not merely authenticated', ()
 
   it('turns a retry that observes a concurrent delete into a clean 404', async () => {
     const prisma = makePrisma();
-    vi.mocked(prisma.mapObject.findFirst).mockResolvedValueOnce(OBJECT_ROW).mockResolvedValueOnce(null);
+    vi.mocked(prisma.mapObject.findFirst).mockResolvedValueOnce(STORED_ROW).mockResolvedValueOnce(null);
     vi.mocked(prisma.$transaction)
       .mockImplementationOnce(async (callback) => {
         await callback(prisma);

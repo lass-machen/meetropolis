@@ -19,7 +19,7 @@ vi.mock('../utils/broadcast.js', () => ({ broadcastMapUpdate: vi.fn() }));
 
 import { registerMapObjectRoutes } from './mapObjects.js';
 import { createSessionAuthMiddleware, hashSessionToken } from '../utils/sessionAuth.js';
-import type { PrismaClient, Tenant } from '../../generated/prisma/index.js';
+import type { MapObject, PrismaClient, Tenant } from '../../generated/prisma/index.js';
 
 const TEST_SECRET = 'map-objects-write-limits-test-secret';
 const INTERNAL_TENANT_ID = 'internal-tenant';
@@ -228,8 +228,10 @@ const POST_BODY = {
 };
 
 /** Stored colliding objects for the map budget: 1024 x 1024 px = 4096 tiles each on 16 px tiles. */
-function storedColliding(count: number): Array<Record<string, unknown>> {
-  return Array.from({ length: count }, () => ({ width: 1024, height: 1024, scaleFactor: 1 }));
+function storedColliding(count: number): Array<MapObject> {
+  // Partial test double: the budget check only reads width, height,
+  // scaleFactor and collide, so the remaining columns are omitted.
+  return Array.from({ length: count }, () => ({ width: 1024, height: 1024, scaleFactor: 1 }) as unknown as MapObject);
 }
 
 function postHeaders() {

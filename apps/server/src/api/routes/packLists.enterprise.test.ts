@@ -164,11 +164,12 @@ function tenantMiddleware(req: express.Request, _res: express.Response, next: ex
     name: 'Lass Machen',
     createdAt: new Date(),
     updatedAt: new Date(),
-    domain: null,
-    settings: {},
+    concurrentLimit: 50,
+    freeSeats: 3,
+    bypassLimits: false,
+    isInternal: false,
     defaultMapName: 'office',
     publicRegistrationEnabled: true,
-    plan: 'free',
   };
   next();
 }

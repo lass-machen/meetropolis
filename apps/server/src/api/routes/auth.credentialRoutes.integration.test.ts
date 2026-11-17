@@ -73,7 +73,7 @@ function loginOn(appInstance: express.Express, path: string) {
 
 function denialWarnCalls(warnSpy: ReturnType<typeof vi.spyOn>) {
   return warnSpy.mock.calls.filter(
-    ([first]) =>
+    ([first]: [unknown]) =>
       typeof first === 'object' && first !== null && (first as { event?: string }).event === 'tenant.access_denied',
   );
 }

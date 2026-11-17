@@ -130,6 +130,7 @@ describe('copyMapToTenant — object footprint limits', () => {
     await expect(copy).rejects.toEqual(
       expect.objectContaining<MapObjectFootprintRejectedError>({
         name: 'MapObjectFootprintRejectedError',
+        message: 'map object rejected: object_footprint_too_large',
         code: 'object_footprint_too_large',
       }),
     );
@@ -152,6 +153,7 @@ describe('copyMapToTenant — object footprint limits', () => {
     await expect(copy).rejects.toEqual(
       expect.objectContaining<MapObjectFootprintRejectedError>({
         name: 'MapObjectFootprintRejectedError',
+        message: 'map object rejected: map_collision_footprint_too_large',
         code: 'map_collision_footprint_too_large',
       }),
     );

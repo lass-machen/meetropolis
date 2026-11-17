@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createPrismaClient } from '../../db.js';
+import type { Role } from '../../generated/prisma/index.js';
 import { setAuthResolution } from '../utils/authState.js';
 import { handleAuthInvite, handleAuthRegister } from './auth.signin.js';
 import { registerMiscRoutes } from './misc.js';
@@ -149,7 +150,7 @@ async function createInviteRecord(
   fixture: Fixture,
   email: string | null,
   tenantId = fixture.tenantId,
-  role = 'member',
+  role: Role = 'member',
 ) {
   const rawCode = crypto.randomUUID().replaceAll('-', '');
   const invite = await prisma.invite.create({
@@ -164,7 +165,7 @@ async function createInviteRecord(
   return { ...invite, code: rawCode };
 }
 
-async function createActiveInvite(fixture: Fixture, email: string, role = 'member') {
+async function createActiveInvite(fixture: Fixture, email: string, role: Role = 'member') {
   const invite = await createInviteRecord(fixture, email, fixture.tenantId, role);
   await prisma.$executeRaw`
     UPDATE "Invite" SET "expiresAt" = now() + interval '7 days' WHERE "id" = ${invite.id}

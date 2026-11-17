@@ -99,8 +99,8 @@ function makePrisma(callerRole: 'member' | 'admin' = 'admin') {
     },
     guestToken: { create: vi.fn(() => Promise.resolve({})) },
     tenant: { findUnique: vi.fn(() => Promise.resolve(TENANT)) },
+    $transaction: vi.fn((operation: (client: unknown) => Promise<unknown>) => operation(prisma)),
   } as unknown as PrismaClient;
-  prisma.$transaction = (operation) => operation(prisma);
   return { prisma, created, updated };
 }
 

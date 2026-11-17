@@ -61,7 +61,7 @@ function makeApp(): express.Application {
 
 /** The parameters of the most recent `sendRaw` call. */
 function lastMail(): SentMail {
-  const call = sendRaw.mock.calls.at(-1);
+  const call = sendRaw.mock.calls[sendRaw.mock.calls.length - 1];
   if (!call) throw new Error('expected a mail to have been sent');
   return call[0];
 }
