@@ -67,6 +67,11 @@ const HEADER_RESPONSIVE_STYLES = `
     .pub-header__hamburger { display: none; }
     .pub-header__mobile-overlay { display: none; }
   }
+  /* Between the mobile breakpoint and tablet width the full nav plus actions
+     is wider than the viewport; a tighter nav gap keeps the bar inside it. */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .pub-header__nav-desktop { gap: 16px; }
+  }
   @media (max-width: 768px) {
     .pub-header__nav-desktop { display: none; }
     .pub-header__actions-desktop { display: none; }

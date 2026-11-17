@@ -34,4 +34,13 @@ describe('PublicHeader responsive styles', () => {
     expect(actions?.getAttribute('style') ?? '').not.toMatch(/(^|;)\s*display\s*:/i);
     expect(hamburger?.getAttribute('style') ?? '').not.toMatch(/(^|;)\s*display\s*:/i);
   });
+
+  it('tightens the desktop nav spacing just above the mobile breakpoint so the bar fits', () => {
+    const { container } = renderHeader();
+    const css = styleTagText(container);
+
+    expect(css).toMatch(
+      /@media\s*\(min-width:\s*769px\)\s*and\s*\(max-width:\s*1024px\)\s*\{[^}]*\.pub-header__nav-desktop\s*\{[^}]*gap:\s*16px/,
+    );
+  });
 });
