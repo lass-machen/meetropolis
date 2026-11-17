@@ -73,6 +73,7 @@ import { createBillingEmailService } from './billingEmailService.js';
 import { deliveringEmailModule } from './api/utils/emailProof.js';
 import { resolveTenantBySlug } from './tenancy.js';
 import { resolveTemplateTenantSlug } from './services/templateTenant.js';
+import { createMemberAssetRouter, MEMBER_ASSETS_PREFIX } from './ops/memberAssetRoutes.js';
 
 const prisma = createPrismaClient();
 
@@ -502,6 +503,9 @@ export async function registerApi(app: express.Express) {
   // members of the resolved tenant (see api/middleware/tenantAccess.ts), so
   // tenant-scoped routes fail closed instead of serving a foreign tenant.
   app.use(createTenantAccessMiddleware(prisma));
+  // Protected pack and NPC media files; every request re-checks session,
+  // membership and file owner itself (ops/memberAssetRoutes.ts).
+  app.use(MEMBER_ASSETS_PREFIX, createMemberAssetRouter({ prisma }));
 
   // Account deletion journal: registered on every call, independent of the enterprise module.
   registerAccountJournalFromEnv();
