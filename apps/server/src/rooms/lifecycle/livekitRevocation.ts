@@ -27,10 +27,7 @@ function createConfirmedService(): RoomServiceClient | null {
  * participant is missing from the list, every other failure (timeout,
  * network, auth, missing credentials) is `failed`. Never throws.
  */
-export async function removeParticipantConfirmed(
-  roomName: string,
-  identity: string,
-): Promise<ConfirmedRemoval> {
+export async function removeParticipantConfirmed(roomName: string, identity: string): Promise<ConfirmedRemoval> {
   const client = createConfirmedService();
   if (!client) {
     logger.debug({ event: 'livekit.revoke_skipped', reason: 'not_configured', roomName });
