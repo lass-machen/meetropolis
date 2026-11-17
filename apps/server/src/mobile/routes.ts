@@ -9,6 +9,7 @@ import { MIN_ZONE_PRIVACY_CLIENT_VERSION } from '@meetropolis/shared';
 import { mobileActionSchema, MOBILE_PROTOCOL_VERSION } from './protocol.js';
 import { MobileSession } from './mobileSession.js';
 import { getOwnedSession, registerSession, removeSession } from './sessionRegistry.js';
+import { isMultiProcessMode } from '../ops/redisConnection.js';
 
 /**
  * Gateway for native mobile clients: `GET /mobile/stream` (Server-Sent
@@ -67,7 +68,10 @@ const actionBodySchema = z.object({
  * ever run against a real server yet (see meetropolis-mobile), so the
  * routes stay unregistered until a deployment explicitly opts in. Accepted
  * truthy values match `avatarEditorEnabled` in `services/avatarComposer.ts`:
- * true, 1, on, yes.
+ * true, 1, on, yes. In multi-process mode (`REDIS_URL` set) the routes stay
+ * unregistered even when opted in: mobile sessions live in one server
+ * process, so an action arriving on another process would not find its
+ * stream.
  */
 function mobileGatewayEnabled(): boolean {
   const raw = (process.env.MOBILE_GATEWAY_ENABLED ?? '').trim().toLowerCase();
@@ -76,6 +80,13 @@ function mobileGatewayEnabled(): boolean {
 
 export function registerMobileRoutes(app: express.Express): void {
   if (!mobileGatewayEnabled()) return;
+  if (isMultiProcessMode()) {
+    logger.error({
+      event: 'mobile.routes_disabled_multi_process',
+      reason: 'mobile sessions live in one server process; an action on another process would not find its stream',
+    });
+    return;
+  }
 
   app.get('/mobile/stream', mobileStreamRateLimiter, (req, res) => {
     void handleStream(req, res);

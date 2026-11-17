@@ -279,4 +279,25 @@ describe('MOBILE_GATEWAY_ENABLED gate', () => {
     await openStream(makeApp(), validStream);
     expect(started).toHaveLength(1);
   });
+
+  it('registers neither route in multi-process mode and logs the reason', async () => {
+    const originalRedisUrl = process.env.REDIS_URL;
+    process.env.MOBILE_GATEWAY_ENABLED = 'true';
+    process.env.REDIS_URL = 'redis://127.0.0.1:1';
+    const { logger } = await import('../logger.js');
+    const errorSpy = vi.spyOn(logger, 'error');
+    try {
+      await request(makeApp()).get(validStream).set('Authorization', 'Bearer jwt').expect(404);
+      await request(makeApp())
+        .post('/mobile/action')
+        .send({ sessionId: '00000000-0000-4000-8000-000000000000', action: { type: 'heartbeat' } })
+        .expect(404);
+      expect(started).toHaveLength(0);
+      expect(errorSpy).toHaveBeenCalledWith(expect.objectContaining({ event: 'mobile.routes_disabled_multi_process' }));
+    } finally {
+      errorSpy.mockRestore();
+      if (originalRedisUrl === undefined) delete process.env.REDIS_URL;
+      else process.env.REDIS_URL = originalRedisUrl;
+    }
+  });
 });
