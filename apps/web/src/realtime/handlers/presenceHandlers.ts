@@ -44,7 +44,8 @@ export function createRosterRefresher(args: UseWorldRoomArgs) {
       const online: Record<string, OnlineEntry> = {};
       // Remotes (Colyseus SIDs to LiveKit identity).
       for (const [sid, pos] of Object.entries(remotesRef.current)) {
-        const livekitIdentity = colyseusToLivekitMap.current[sid] || sid;
+        const livekitIdentity = colyseusToLivekitMap.current[sid];
+        if (!livekitIdentity) continue;
         const name = identityToNameMap.current[livekitIdentity] || livekitIdentity;
         online[livekitIdentity] = { name, x: pos.x, y: pos.y };
       }
