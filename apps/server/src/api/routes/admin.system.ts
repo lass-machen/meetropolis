@@ -4,6 +4,7 @@ import { logger } from '../../logger.js';
 import { requireSuperAdmin, computeOnlineUsageByTenantSlug } from '../utils/authHelpers.js';
 import { hasBillingModule } from '../../billingLoader.js';
 import { getTelemetryModule } from '../../telemetryLoader.js';
+import { getAdsPublicConfig } from '../adsPublicConfig.js';
 import { avatarEditorEnabled } from '../../services/avatarComposer.js';
 import { isMultiProcessMode } from '../../ops/redisConnection.js';
 
@@ -49,6 +50,13 @@ export async function handleOssPublicConfig(_req: express.Request, res: express.
   // enterprise handler wins over this OSS fallback.
   const telemetry = (await getTelemetryModule())?.getPublicConfigBlock() ?? null;
   if (telemetry) body.telemetry = telemetry;
+  // Optional ads consent block, sourced from PUBLIC_* env values (see
+  // api/adsPublicConfig.ts). Absent (null) when neither the tag id nor the
+  // consent mode is configured, so the block is omitted and no tracker hint
+  // ever leaks into an open-source deployment. When present it carries only
+  // the tag id, the conversion label and the consent mode — never any secret.
+  const ads = getAdsPublicConfig();
+  if (ads) body.ads = ads;
   res.json(body);
 }
 

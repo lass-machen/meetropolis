@@ -9,6 +9,7 @@ import type {
 } from './services/tenantDeletionContract.js';
 import type { EnterpriseExportResult, TenantExportSink } from './services/tenantExport/types.js';
 import type { AuthEventInput } from './services/authEvents.js';
+import type { PublicAdsConfig } from './api/adsPublicConfig.js';
 import {
   TENANT_DELETION_PROTOCOL,
   TenantDeletionContractError,
@@ -157,6 +158,15 @@ export interface AdminEnterpriseModule {
       // an optional config field keeps the function surface unchanged, so no
       // schema version bump is required.
       getTelemetryPublicConfig?: () => { enabled: boolean; environment: string } | null;
+      // Optional: host-callback returning the ads consent block for
+      // GET /public/config ({ googleAdsId, signupConversionLabel, consentMode })
+      // or null when ads tracking is off. The enterprise /public/config handler
+      // wins over the OSS fallback (handleOssPublicConfig), so the host injects
+      // this to keep the ads consent block reaching the wire in enterprise
+      // deployments. Undefined (inert) in OSS-only builds; adding an optional
+      // config field keeps the function surface unchanged, so no schema version
+      // bump is required.
+      getAdsPublicConfig?: () => PublicAdsConfig | null;
       deleteTenantWithMembers: (
         tenantId: string,
         options?: TenantDeletionOptions,

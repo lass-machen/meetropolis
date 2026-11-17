@@ -66,6 +66,7 @@ import { isTenantSlugReserved } from './services/tenantSlugReservation.js';
 import { getBillingModule } from './billingLoader.js';
 import { getTenancyModule } from './tenancyLoader.js';
 import { getTelemetryModule } from './telemetryLoader.js';
+import { getAdsPublicConfig } from './api/adsPublicConfig.js';
 import { getTranscriptionModule } from './transcriptionLoader.js';
 import { logger } from './logger.js';
 import { getEmailModule, sendIfAvailable } from './emailLoader.js';
@@ -329,6 +330,7 @@ async function registerEnterpriseAdminRoutes(app: express.Express) {
       return outcome;
     },
     getTelemetryPublicConfig: telemetry ? () => telemetry.getPublicConfigBlock() : undefined,
+    getAdsPublicConfig: () => getAdsPublicConfig(),
   });
 
   adminEnterprise.setupPricingPlanRoutes(app, { prisma, logger, requireSuperAdmin });
