@@ -5,6 +5,7 @@ import { requireSuperAdmin, computeOnlineUsageByTenantSlug } from '../utils/auth
 import { hasBillingModule } from '../../billingLoader.js';
 import { getTelemetryModule } from '../../telemetryLoader.js';
 import { avatarEditorEnabled } from '../../services/avatarComposer.js';
+import { isMultiProcessMode } from '../../ops/redisConnection.js';
 
 /**
  * Returns true when the optional enterprise billing module is loaded. The web
@@ -102,6 +103,8 @@ interface GameServerLike {
 
 async function loadRoomList(gameServer: GameServerLike): Promise<RoomLike[]> {
   const activeWorldRooms = global.activeWorldRooms;
+  // The local list only knows this process's rooms.
+  if (isMultiProcessMode() && gameServer.matchMaker) return (await gameServer.matchMaker.query({})) || [];
   // No cast needed: `activeWorldRooms` is typed against the real `WorldRoom`
   // (types/global.d.ts), and the compiler checks it against `RoomLike` here.
   if (activeWorldRooms && activeWorldRooms.size > 0) return Array.from(activeWorldRooms);
@@ -212,7 +215,9 @@ async function probeWebsocket(): Promise<ProbeResult> {
     let activeConnections = 0;
     let roomCount = 0;
 
-    if (activeWorldRooms && activeWorldRooms.size > 0) {
+    // The local list only knows this process's rooms.
+    const localRoomsFirst = !isMultiProcessMode() || !gameServer?.matchMaker;
+    if (localRoomsFirst && activeWorldRooms && activeWorldRooms.size > 0) {
       roomCount = activeWorldRooms.size;
       activeWorldRooms.forEach((room) => {
         const r = room as ActiveRoomCount;
