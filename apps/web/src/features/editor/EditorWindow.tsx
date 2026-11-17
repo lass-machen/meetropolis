@@ -186,13 +186,8 @@ function EditorHeader({
 }) {
   return (
     <div
-      role="button"
-      tabIndex={0}
-      aria-label="Editor verschieben"
+      role="presentation"
       onMouseDown={beginEditorDrag}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') e.preventDefault();
-      }}
       style={{
         padding: '12px 16px',
         borderBottom: '1px solid rgba(255,255,255,0.08)',
