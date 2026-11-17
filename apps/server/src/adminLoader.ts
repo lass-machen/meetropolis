@@ -39,9 +39,9 @@ export type {
  * The enterprise admin routes ship inside the SAME closed-source
  * `@meetropolis/billing` package as the billing routes (see `billingLoader.ts`).
  * That package exposes a single `version` const, so this literal MUST equal
- * `EXPECTED_BILLING_MODULE_VERSION` and evolve in lockstep. Bumping one loader
- * without the other makes `adminEnterpriseSchema.parse()` throw, which silently
- * drops every admin route on a full enterprise deployment.
+ * `EXPECTED_BILLING_MODULE_VERSION` and evolve in lockstep. A version mismatch
+ * no longer drops every admin route silently: the loader aborts startup with a
+ * clear error naming the broken package and the expected loader contract.
  *
  * Raised from 1 to 2 together with the package, when the billing loader
  * interface lost the Stripe-typed config slot and gained
@@ -324,19 +324,25 @@ export async function hasAdminEnterpriseModule(): Promise<boolean> {
   }
 }
 
-/**
- * Loads the optional enterprise admin module if present.
- * Returns null for OSS builds without enterprise features.
- */
-export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule | null> {
-  if (loadAttempted) return cached;
-  loadAttempted = true;
+function isAbsentBillingPackage(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? error.code : undefined;
+  const message = 'message' in error ? error.message : undefined;
+  if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') return false;
+  return typeof message === 'string' && /Cannot find (?:package|module) ['"]@meetropolis\/billing['"]/.test(message);
+}
 
+const importBillingPackage = (): Promise<unknown> => import('@meetropolis/billing');
+
+/** Load and validate the optional module, distinguishing absence from breakage. */
+export async function loadAdminEnterpriseModule(
+  importModule: () => Promise<unknown> = importBillingPackage,
+): Promise<AdminEnterpriseModule | null> {
   try {
-    const modUnknown: unknown = await import('@meetropolis/billing');
+    const modUnknown: unknown = await importModule();
     const mod = adminEnterpriseSchema.parse(unwrapDefaultExport(modUnknown));
 
-    cached = {
+    const loaded: AdminEnterpriseModule = {
       version: EXPECTED_ADMIN_MODULE_VERSION,
       setupAdminRoutes: mod.setupAdminRoutes as AdminEnterpriseModule['setupAdminRoutes'],
       setupTenantAdminRoutes: mod.setupTenantAdminRoutes as AdminEnterpriseModule['setupTenantAdminRoutes'],
@@ -351,12 +357,35 @@ export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule 
     };
 
     logger.info({ event: 'admin.enterprise_loaded', version: EXPECTED_ADMIN_MODULE_VERSION });
-    return cached;
-  } catch {
-    logger.debug({ event: 'admin.enterprise_not_available', message: 'Enterprise admin routes not loaded (OSS mode)' });
-    cached = null;
-    return null;
+    return loaded;
+  } catch (error) {
+    if (isAbsentBillingPackage(error)) {
+      logger.debug({
+        event: 'admin.enterprise_not_available',
+        message: 'Enterprise admin routes not loaded (OSS mode)',
+      });
+      return null;
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      'Failed to load @meetropolis/billing. Remove the broken package for OSS mode or install a module ' +
+        `matching the admin loader contract (expected version ${EXPECTED_ADMIN_MODULE_VERSION}). Cause: ${detail}`,
+    );
   }
+}
+
+/**
+ * Loads the optional enterprise admin module if present.
+ * Returns null for OSS builds without enterprise features.
+ * Only the exact absence of the package selects OSS mode; import and contract
+ * failures abort startup, and a failed load is never cached.
+ */
+export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule | null> {
+  if (loadAttempted) return cached;
+  const loaded = await loadAdminEnterpriseModule();
+  loadAttempted = true;
+  cached = loaded;
+  return cached;
 }
 
 /**
