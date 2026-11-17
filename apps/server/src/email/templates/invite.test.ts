@@ -66,6 +66,32 @@ describe('renderInviteEn expiry', () => {
   });
 });
 
+describe('renderInviteDe ignore hint', () => {
+  it('includes the ignore sentence in text and html', () => {
+    const r = renderInviteDe({ ...baseDe }, brand);
+    expect(r.text).toContain('Falls du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.');
+    expect(r.html).toContain('Falls du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.');
+  });
+
+  it('shows the expiry sentence in a small-print paragraph', () => {
+    const r = renderInviteDe({ ...baseDe, expiresAt: '14.11.2026, 00:30 MEZ' }, brand);
+    expect(r.html).toMatch(/<p style="[^"]*font-size: 14px[^"]*">[^<]*Die Einladung ist bis/);
+  });
+});
+
+describe('renderInviteEn ignore hint', () => {
+  it('includes the ignore sentence in text and html', () => {
+    const r = renderInviteEn({ ...baseEn }, brand);
+    expect(r.text).toContain("If you didn't expect this invitation, you can safely ignore this email.");
+    expect(r.html).toContain('If you didn&#39;t expect this invitation, you can safely ignore this email.');
+  });
+
+  it('shows the expiry sentence in a small-print paragraph', () => {
+    const r = renderInviteEn({ ...baseEn, expiresAt: '14/11/2026, 00:30 CET' }, brand);
+    expect(r.html).toMatch(/<p style="[^"]*font-size: 14px[^"]*">[^<]*The invitation is valid until/);
+  });
+});
+
 describe('formatInviteExpiry', () => {
   it('formats a winter date with CET/MEZ', () => {
     const winter = new Date('2026-11-13T23:30:00Z');
