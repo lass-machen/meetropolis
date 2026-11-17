@@ -77,10 +77,10 @@ const ASSET_PACKS: PackRow[] = [
 ];
 
 const AVATAR_PACKS: PackRow[] = [
-  { id: 11, uuid: 'base-avatars', tenantId: null },
-  { id: 12, uuid: 'own-avatars', tenantId: TENANT_ID },
-  { id: 13, uuid: 'foreign-avatars', tenantId: 'tenant-other' },
-  { id: 14, uuid: 'catalog-avatars', tenantId: null },
+  { id: 11, uuid: 'base-avatars', tenantId: null, archived: false },
+  { id: 12, uuid: 'own-avatars', tenantId: TENANT_ID, archived: false },
+  { id: 13, uuid: 'foreign-avatars', tenantId: 'tenant-other', archived: false },
+  { id: 14, uuid: 'catalog-avatars', tenantId: null, archived: false },
 ];
 
 function matchesWhere(row: PackRow, where: PackWhere): boolean {

@@ -380,6 +380,17 @@ model AssetPack {
 // is SetNull, which would PUBLISH a private pack to the whole platform the
 // moment its owning tenant is deleted — a fail-open leak. Restrict would block
 // tenant offboarding instead. Cascade is the only fail-closed option.
+//
+// `archived` is independent of ownership. It removes a pack from collection
+// endpoints and therefore from every avatar picker/registry list, including the
+// platform owner's list. Direct lookups stay available, as do wear/resolve
+// reads used to preserve existing selections. Archiving is reversible and never
+// deletes the pack row or its files.
+//
+// The single ownership exception is the platform super-admin (owner of the
+// `internal` tenant), which can administer every pack. The picker list still
+// excludes archived packs for this caller; direct lookup and the archive write
+// route keep them manageable.
 model AvatarPack {
   id           Int                 @id @default(autoincrement())
   uuid         String              @unique
@@ -389,6 +400,7 @@ model AvatarPack {
   version      String
   type         String              @default("full")
   avatars      Json
+  archived     Boolean             @default(false)
   tenantId     String?
   tenant       Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt    DateTime            @default(now())
