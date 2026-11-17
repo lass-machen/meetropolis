@@ -10,6 +10,8 @@ import path from 'node:path';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import request from 'supertest';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const authzMocks = vi.hoisted(() => ({ authorize: vi.fn() }));
@@ -44,6 +46,28 @@ async function makeRoots(): Promise<Roots> {
   await fs.writeFile(path.join(packs, PACK_UUID, 'file.png'), PNG_BYTES);
   await fs.writeFile(path.join(media, 'acme', 'npc1', 'a.png'), PNG_BYTES);
   return { base, packs, media };
+}
+
+/** GET with the path sent byte for byte, without client-side dot-segment resolution. */
+async function rawGet(
+  app: express.Application,
+  rawPath: string,
+): Promise<{ status: number; cacheControl: string | undefined }> {
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    return await new Promise((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port, path: rawPath, method: 'GET' }, (res) => {
+        res.resume();
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, cacheControl: res.headers['cache-control'] }));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 }
 
 function makeApp(roots: Roots): express.Application {
@@ -229,6 +253,35 @@ describe('memberAssetRoutes', () => {
 
     expect(res.status).toBe(200);
     expect(Buffer.compare(res.body as Buffer, PNG_BYTES)).toBe(0);
+  });
+
+  it('serves a nested generation file with range support', async () => {
+    authzMocks.authorize.mockResolvedValue('allowed');
+    const generation = '22222222-2222-2222-2222-222222222222';
+    const dir = path.join(roots.packs, PACK_UUID, 'generations', generation);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, 'file.png'), PNG_BYTES);
+    const url = `${MEMBER_ASSETS_PREFIX}/packs/${PACK_UUID}/generations/${generation}/file.png`;
+
+    const full = await request(app).get(url);
+    const range = await request(app).get(url).set('Range', 'bytes=0-3');
+
+    expect(full.status).toBe(200);
+    expect(Buffer.compare(full.body as Buffer, PNG_BYTES)).toBe(0);
+    expect(range.status).toBe(206);
+    expect((range.body as Buffer).length).toBe(4);
+    expect(authzMocks.authorize.mock.calls[0]?.[1]?.target).toMatchObject({ kind: 'asset-pack', packUuid: PACK_UUID });
+  });
+
+  it('answers a traversal attempt through a generation directory with 404 without authorizing', async () => {
+    authzMocks.authorize.mockResolvedValue('allowed');
+    // HTTP clients resolve `../` and `%2e%2e` before sending; a raw request keeps them.
+    for (const rest of ['generations/../file.png', 'generations/%2e%2e/file.png', 'generations/%2E%2E/file.png']) {
+      const res = await rawGet(app, `${MEMBER_ASSETS_PREFIX}/packs/${PACK_UUID}/${rest}`);
+      expect({ rest, status: res.status }).toEqual({ rest, status: 404 });
+      expect(res.cacheControl).toBe('no-store');
+    }
+    expect(authzMocks.authorize).not.toHaveBeenCalled();
   });
 
   it('serves the npc-media namespace for allowed', async () => {

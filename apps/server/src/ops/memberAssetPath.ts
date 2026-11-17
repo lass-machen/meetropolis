@@ -27,6 +27,8 @@ function decodeSegment(raw: string): string | null {
   } catch {
     return null;
   }
+  // Check the decoded form too: an encoded `%2e%2e` must not become a `..` segment.
+  if (decoded === '' || decoded.startsWith('.')) return null;
   for (const ch of decoded) {
     if (ch === '/' || ch === '\\' || ch === '%' || ch < ' ') return null;
   }

@@ -35,6 +35,29 @@ describe('parseMemberAssetPath packs', () => {
     });
   });
 
+  it('parses a nested generation file and scopes it by the first pack segment', () => {
+    const generation = '123e4567-e89b-12d3-a456-426614174002';
+    expect(parseMemberAssetPath('packs', `${PACK_UUID}/generations/${generation}/tiles/grass.png`)).toEqual({
+      kind: 'asset-pack',
+      packUuid: PACK_UUID,
+      relativePath: `${PACK_UUID}/generations/${generation}/tiles/grass.png`,
+    });
+  });
+
+  it('rejects traversal out of a generation directory', () => {
+    for (const raw of [
+      `${PACK_UUID}/generations/../other.png`,
+      `${PACK_UUID}/generations/%2e%2e/other.png`,
+      `${PACK_UUID}/generations/..%2fother.png`,
+      `${PACK_UUID}/generations/%252e%252e/other.png`,
+      `${PACK_UUID}/%2e%2e/123e4567-e89b-12d3-a456-426614174009/file.png`,
+      `${PACK_UUID}/generations/%2E/file.png`,
+      `${PACK_UUID}/%2ehidden/file.png`,
+    ]) {
+      expect(parseMemberAssetPath('packs', raw)).toBeNull();
+    }
+  });
+
   it('parses an avatar-pack sprite', () => {
     expect(parseMemberAssetPath('packs', `avatars/${PACK_UUID}/ab12cd34.png`)).toEqual({
       kind: 'avatar-pack',

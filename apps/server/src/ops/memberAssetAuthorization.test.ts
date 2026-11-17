@@ -256,6 +256,23 @@ describe('authorizeMemberAsset: asset packs', () => {
     expect(JSON.stringify(assetWhere)).toContain('foreign-pack');
   });
 
+  it('scopes a nested generation file by its pack: own allowed, foreign not_found', async () => {
+    allowSession();
+    const { prisma } = makePrisma(baseFixture());
+    const own = await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: { kind: 'asset-pack', packUuid: 'own-pack', relativePath: 'own-pack/generations/g1/desk.png' },
+    });
+    const foreign = await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: { kind: 'asset-pack', packUuid: 'foreign-pack', relativePath: 'foreign-pack/generations/g1/desk.png' },
+    });
+    expect(own).toBe('allowed');
+    expect(foreign).toBe('not_found');
+  });
+
   it('allows a platform operator like a member', async () => {
     allowSession('platform_operator');
     const { prisma } = makePrisma(baseFixture());
