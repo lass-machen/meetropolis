@@ -18,7 +18,8 @@ export type Route =
   | 'invite'
   | 'guest-auth'
   | 'reset-pw'
-  | 'connect';
+  | 'connect'
+  | 'not-found';
 
 export type RouteParams = {
   verifyToken?: string;
@@ -85,6 +86,8 @@ export function parseHashRoute(hash: string): { route: Route; params: RouteParam
     return { route: 'billing-success', params };
   }
   if (path.startsWith('/billing/cancel')) return { route: 'billing-cancel', params };
+  // Return target of the hosted billing portal; the account view lives in the app.
+  if (path.startsWith('/billing/account')) return { route: 'app', params };
   if (path === '/login') return { route: 'login', params };
   if (path === '/connect') {
     const sp = new URLSearchParams(searchPart.slice(1));
@@ -109,16 +112,23 @@ export function parseHashRoute(hash: string): { route: Route; params: RouteParam
     return { route: 'guest-auth', params };
   }
   if (path === '/app' || path.startsWith('/app')) return { route: 'app', params };
-  // Default fallback: check tenant subdomain or invite query.
-  const hostname = window.location.hostname;
-  const isSubdomain = hostname.split('.').length > 2 && !hostname.startsWith('www.');
+  // Invite links keep working on any unmatched path, exactly as before.
   const sp = new URLSearchParams(searchPart.slice(1));
   if (sp.has('invite')) {
     setOptional(params, 'inviteCode', sp.get('invite'));
     return { route: 'invite', params };
   }
-  if (isSubdomain || !!window.__MEETROPOLIS_API_BASE__) return { route: 'app', params };
-  return { route: 'landing', params };
+  // Empty and root paths keep the previous behaviour: tenant subdomains and
+  // desktop builds land in the app, everything else on the landing page.
+  if (path === '' || path === '/') {
+    const hostname = window.location.hostname;
+    const isSubdomain = hostname.split('.').length > 2 && !hostname.startsWith('www.');
+    if (isSubdomain || !!window.__MEETROPOLIS_API_BASE__) return { route: 'app', params };
+    return { route: 'landing', params };
+  }
+  // Any other unmatched path is an unknown address, shown explicitly instead
+  // of silently falling back to the landing or app route.
+  return { route: 'not-found', params };
 }
 
 export function currentHashRoute(): { route: Route; params: RouteParams } {

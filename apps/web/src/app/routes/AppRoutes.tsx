@@ -16,6 +16,7 @@ import { SimpleLegalNotice } from '../../ui/pub/legal/SimpleLegalNotice';
 import { ContactPage } from '../../ui/pub/contact/ContactPage';
 import { DesktopUpdateOverlay } from './components/DesktopUpdateOverlay';
 import { useMiniModeAuthGuard } from './hooks/useMiniModeAuthGuard';
+import { NotFoundPage } from './NotFoundPage';
 import { sanitizeTierKey, useHashRoute, type Route, type RouteParams } from './useHashRoute';
 
 /**
@@ -203,6 +204,8 @@ function RouteContent({ route, params, apiBase, registrationEnabled, navigate }:
       return <AuthPage key="auth-guest" apiBase={apiBase} initialView="guest" initialGuestToken={params.guestToken} />;
     case 'connect':
       return <ConnectRoute requestId={params.requestId ?? null} />;
+    case 'not-found':
+      return <NotFoundPage />;
     case 'app':
     default:
       return <WorldScreen />;
