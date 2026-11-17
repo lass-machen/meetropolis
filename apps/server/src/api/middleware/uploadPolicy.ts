@@ -2,14 +2,32 @@ import type express from 'express';
 import multer from 'multer';
 import { Transform, type Writable } from 'node:stream';
 import type { PrismaClient } from '../../generated/prisma/index.js';
-import { requireAuth, requireApiToken, requireInternalOwner, requireMembership, getTenantFromReq } from '../utils/authHelpers.js';
+import {
+  requireAuth,
+  requireApiToken,
+  requireInternalOwner,
+  requireMembership,
+  getTenantFromReq,
+} from '../utils/authHelpers.js';
 import { detectMimeFromMagic } from '../utils/mediaMime.js';
 import { AppError } from '../../errors/AppError.js';
 
 const MiB = 1024 * 1024;
 export type UploadKind = 'asset' | 'avatar' | 'npc' | 'admin_map' | 'tmj';
-const REQUEST_LIMITS: Record<UploadKind, number> = { asset: 51 * MiB, avatar: 6 * MiB, npc: 101 * MiB, admin_map: 51 * MiB, tmj: 61 * MiB };
-const FILE_LIMITS: Record<UploadKind, number> = { asset: 50 * MiB, avatar: 5 * MiB, npc: 100 * MiB, admin_map: 50 * MiB, tmj: 10 * MiB };
+const REQUEST_LIMITS: Record<UploadKind, number> = {
+  asset: 51 * MiB,
+  avatar: 6 * MiB,
+  npc: 101 * MiB,
+  admin_map: 51 * MiB,
+  tmj: 61 * MiB,
+};
+const FILE_LIMITS: Record<UploadKind, number> = {
+  asset: 50 * MiB,
+  avatar: 5 * MiB,
+  npc: 100 * MiB,
+  admin_map: 50 * MiB,
+  tmj: 10 * MiB,
+};
 type Budget = { start: number; attempts: number; active: number };
 const budgets = new Map<string, Budget>();
 const WINDOW_MS = 10 * 60_000;
@@ -20,29 +38,23 @@ const reportParserErrors = new WeakMap<express.Request, (error: Error) => void>(
 export function uploadGuard(prisma: PrismaClient, kind: UploadKind): express.RequestHandler {
   return (req, res, next) => {
     void (async () => {
-      const auth = requireAuth(req) ?? await requireApiToken(req, prisma);
-      if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+      const auth = requireAuth(req) ?? (await requireApiToken(req, prisma));
+      if (!auth) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+      }
       const global = kind === 'asset' || kind === 'avatar' || kind === 'admin_map';
       const tenant = getTenantFromReq(req);
       if (!global && !tenant) {
         res.status(400).json({ error: 'tenant_required' });
         return;
       }
-      const member = global
-        ? null
-        : await requireMembership(req, auth.userId, prisma);
+      const member = global ? null : await requireMembership(req, auth.userId, prisma);
       const allowed = global
         ? await requireInternalOwner(req, auth.userId, prisma)
-        : !!tenant &&
-          (member?.role === 'owner' || member?.role === 'admin');
+        : !!tenant && (member?.role === 'owner' || member?.role === 'admin');
       if (!allowed) {
-        if (
-          kind === 'tmj' &&
-          tenant &&
-          member &&
-          member.role !== 'owner' &&
-          member.role !== 'admin'
-        ) {
+        if (kind === 'tmj' && tenant && member && member.role !== 'owner' && member.role !== 'admin') {
           res.status(403).json({ error: 'forbidden - admin required' });
           return;
         }
@@ -52,17 +64,28 @@ export function uploadGuard(prisma: PrismaClient, kind: UploadKind): express.Req
       const now = Date.now();
       for (const [key, value] of budgets) if (!value.active && now - value.start >= WINDOW_MS) budgets.delete(key);
       const budget = budgets.get(auth.userId) ?? { start: now, attempts: 0, active: 0 };
-      if (now - budget.start >= WINDOW_MS) { budget.start = now; budget.attempts = 0; }
+      if (now - budget.start >= WINDOW_MS) {
+        budget.start = now;
+        budget.attempts = 0;
+      }
       budgets.set(auth.userId, budget);
       if (budget.active >= 2 || budget.attempts >= 10) {
-        res.setHeader('Retry-After', budget.active >= 2 ? 1 : Math.max(1, Math.ceil((budget.start + WINDOW_MS - now) / 1000)));
+        res.setHeader(
+          'Retry-After',
+          budget.active >= 2 ? 1 : Math.max(1, Math.ceil((budget.start + WINDOW_MS - now) / 1000)),
+        );
         next(AppError.tooManyRequests('Please wait before another upload.', 'UPLOAD_RATE_LIMITED'));
         return;
       }
       budget.attempts++;
       budget.active++;
       let released = false;
-      const release = () => { if (!released) { released = true; budget.active--; } };
+      const release = () => {
+        if (!released) {
+          released = true;
+          budget.active--;
+        }
+      };
       res.once('finish', release);
       res.once('close', release);
       req.once('aborted', release);
@@ -71,9 +94,7 @@ export function uploadGuard(prisma: PrismaClient, kind: UploadKind): express.Req
       const declared = Number(req.headers['content-length']);
       if (Number.isFinite(declared) && declared > limit) {
         res.setHeader('Connection', 'close');
-        next(
-          new AppError('Upload request too large.', 413, 'UPLOAD_TOO_LARGE'),
-        );
+        next(new AppError('Upload request too large.', 413, 'UPLOAD_TOO_LARGE'));
         return;
       }
       next();
@@ -86,10 +107,7 @@ function createUploadStorage(kind: UploadKind): multer.StorageEngine {
   return {
     _handleFile(req, file, callback) {
       let prefix = Buffer.alloc(0);
-      let limit =
-        kind === 'tmj' && file.fieldname === 'images'
-          ? 5 * MiB
-          : FILE_LIMITS[kind];
+      let limit = kind === 'tmj' && file.fieldname === 'images' ? 5 * MiB : FILE_LIMITS[kind];
       const chunks: Buffer[] = [];
       let size = 0;
       let finished = false;
@@ -101,10 +119,7 @@ function createUploadStorage(kind: UploadKind): multer.StorageEngine {
         if (error) {
           abortParsers.get(req)?.(error);
         }
-        callback(
-          error,
-          error ? undefined : { buffer: Buffer.concat(chunks, size), size },
-        );
+        callback(error, error ? undefined : { buffer: Buffer.concat(chunks, size), size });
         chunks.length = 0;
       };
       file.stream.on('data', (chunk: Buffer) => {
@@ -114,18 +129,10 @@ function createUploadStorage(kind: UploadKind): multer.StorageEngine {
         size += chunk.length;
         if (kind === 'npc') {
           if (prefix.length < 4) {
-            prefix = Buffer.concat([
-              prefix,
-              chunk.subarray(0, 4 - prefix.length),
-            ]);
+            prefix = Buffer.concat([prefix, chunk.subarray(0, 4 - prefix.length)]);
           }
-          const mime =
-            prefix.length === 4
-              ? detectMimeFromMagic(prefix) ?? file.mimetype
-              : file.mimetype;
-          limit = mime.startsWith('audio/')
-            ? 25 * MiB
-            : FILE_LIMITS[kind];
+          const mime = prefix.length === 4 ? (detectMimeFromMagic(prefix) ?? file.mimetype) : file.mimetype;
+          limit = mime.startsWith('audio/') ? 25 * MiB : FILE_LIMITS[kind];
         }
         if (size > limit) {
           finish(new AppError('File too large.', 413, 'UPLOAD_TOO_LARGE'));
@@ -143,9 +150,7 @@ function createUploadStorage(kind: UploadKind): multer.StorageEngine {
   };
 }
 
-function createStreamHandler(
-  kind: UploadKind,
-): (req: express.Request, parser: Writable) => void {
+function createStreamHandler(kind: UploadKind): (req: express.Request, parser: Writable) => void {
   return (req, parser) => {
     let bytes = 0;
     let stopped = false;
@@ -153,13 +158,7 @@ function createStreamHandler(
       transform(chunk: Buffer, _encoding, done) {
         bytes += chunk.length;
         if (bytes > REQUEST_LIMITS[kind]) {
-          done(
-            new AppError(
-              'Upload request too large.',
-              413,
-              'UPLOAD_TOO_LARGE',
-            ),
-          );
+          done(new AppError('Upload request too large.', 413, 'UPLOAD_TOO_LARGE'));
           return;
         }
         done(null, chunk);
@@ -185,20 +184,13 @@ function createStreamHandler(
       meter.destroy();
       abortParsers.delete(req);
     });
-    parser.on(
-      'field',
-      (_name: string, _value: string, info: { valueTruncated: boolean }) => {
-        if (info.valueTruncated) {
-          stop(
-            new AppError('Upload field too large.', 413, 'UPLOAD_TOO_LARGE'),
-          );
-        }
-      },
-    );
+    parser.on('field', (_name: string, _value: string, info: { valueTruncated: boolean }) => {
+      if (info.valueTruncated) {
+        stop(new AppError('Upload field too large.', 413, 'UPLOAD_TOO_LARGE'));
+      }
+    });
     for (const event of ['partsLimit', 'filesLimit', 'fieldsLimit']) {
-      parser.once(event, () =>
-        stop(new AppError('Too many upload parts.', 413, 'UPLOAD_TOO_LARGE')),
-      );
+      parser.once(event, () => stop(new AppError('Too many upload parts.', 413, 'UPLOAD_TOO_LARGE')));
     }
     req.pipe(meter).pipe(parser);
   };
@@ -235,9 +227,22 @@ export function boundedMultipart(parser: express.RequestHandler): express.Reques
       reportParserErrors.delete(req);
       if (res.headersSent || res.destroyed || req.aborted) return;
       if (error instanceof multer.MulterError) {
-        const size = ['LIMIT_FILE_SIZE', 'LIMIT_FILE_COUNT', 'LIMIT_FIELD_COUNT', 'LIMIT_FIELD_VALUE', 'LIMIT_PART_COUNT'].includes(error.code)
-          || (error.code === 'LIMIT_UNEXPECTED_FILE' && (error.field === 'file' || error.field === 'images'));
-        next(new AppError(size ? 'Upload limit exceeded.' : 'Invalid upload.', size ? 413 : 400, size ? 'UPLOAD_TOO_LARGE' : 'UPLOAD_INVALID'));
+        const size =
+          [
+            'LIMIT_FILE_SIZE',
+            'LIMIT_FILE_COUNT',
+            'LIMIT_FIELD_COUNT',
+            'LIMIT_FIELD_VALUE',
+            'LIMIT_PART_COUNT',
+          ].includes(error.code) ||
+          (error.code === 'LIMIT_UNEXPECTED_FILE' && (error.field === 'file' || error.field === 'images'));
+        next(
+          new AppError(
+            size ? 'Upload limit exceeded.' : 'Invalid upload.',
+            size ? 413 : 400,
+            size ? 'UPLOAD_TOO_LARGE' : 'UPLOAD_INVALID',
+          ),
+        );
         return;
       }
       next(error);
