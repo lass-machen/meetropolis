@@ -3,7 +3,8 @@
  *
  * Every upgrade attempt is counted before the origin check, so a client that
  * hammers the handshake path runs into a budget instead of into the origin
- * policy. The counter lives in the memory store of express-rate-limit: it
+ * policy. Hits are counted in a store shared across server processes when
+ * REDIS_URL is set, and in process-local memory otherwise. The counter
  * expires on its own and holds nothing but a hit count and a reset time.
  *
  * The client address is resolved with the semantics the HTTP surface gives
@@ -21,6 +22,7 @@
 import express from 'express';
 import type { IncomingMessage } from 'node:http';
 import { MemoryStore, ipKeyGenerator, type Options } from 'express-rate-limit';
+import { createSharedRateLimitStore } from '../api/middleware/rateLimitStore.js';
 import { resolveTrustProxySetting } from '../trustProxy.js';
 
 /** Environment key that holds the upgrade attempts one address may start per window. */
@@ -105,7 +107,9 @@ function readSetting(
 }
 
 /**
- * Build the limiter that counts the upgrade attempts of one server process.
+ * Build the limiter that counts the upgrade attempts. With REDIS_URL the
+ * budget is shared across server processes; without it the counter stays in
+ * this process.
  *
  * The trust proxy setting is the one the HTTP surface uses; the caller passes
  * it so both surfaces resolve the very same value.
@@ -114,11 +118,12 @@ export function createWsUpgradeLimiter(
   settings: WsUpgradeLimitSettings,
   trustProxy: boolean | number = resolveTrustProxySetting(),
 ): WsUpgradeLimiter {
-  const store = new MemoryStore();
+  const store = createSharedRateLimitStore('ws-upgrade') ?? new MemoryStore();
   // The store reads nothing but the window length; the rest of the options
   // belong to the rate limit middleware, not to the store. The cast stays
-  // inside this one call.
-  store.init({ windowMs: settings.windowMs } as Partial<Options> as Options);
+  // inside this one call. RedisStore.init is async; the shared store inits
+  // the fallback synchronously and never throws. increment is awaited.
+  void store.init?.({ windowMs: settings.windowMs } as Partial<Options> as Options);
   const resolveAddress = createAddressResolver(trustProxy);
 
   return {

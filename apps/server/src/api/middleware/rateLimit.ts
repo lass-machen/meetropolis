@@ -4,6 +4,7 @@ import { AppError } from '../../errors/AppError.js';
 import { logger } from '../../logger.js';
 import { getUserIdFromReq } from '../utils/authHelpers.js';
 import { getRequestRouteTemplate } from '../utils/requestRoute.js';
+import { createSharedRateLimitStore } from './rateLimitStore.js';
 
 /**
  * Central, env-configurable rate limiting for the public, unauthenticated
@@ -25,10 +26,11 @@ import { getRequestRouteTemplate } from '../utils/requestRoute.js';
  * real, non-spoofable client IP rather than the proxy or a client-supplied
  * `X-Forwarded-For` value.
  *
- * Store: the default in-process MemoryStore. It is per-process, which is
- * correct for the current single-instance server deployment. If the server is
- * ever scaled horizontally, swap in a shared store (e.g. Redis) so the budget
- * is enforced across replicas.
+ * Store: the default in-process MemoryStore when REDIS_URL is unset. When
+ * REDIS_URL is set, each limiter gets its own shared store so the budget is
+ * enforced across every server process. If Redis is unreachable the limiter
+ * keeps counting in process-local memory instead of failing open or answering
+ * 500.
  */
 
 const MINUTE_MS = 60_000;
@@ -106,12 +108,14 @@ export function createRateLimiter(config: RateLimiterConfig): RequestHandler {
   const envPrefix = `RATE_LIMIT_${config.name.toUpperCase()}`;
   const windowMs = readPositiveInt(`${envPrefix}_WINDOW_MS`, config.windowMs);
   const limit = readPositiveInt(`${envPrefix}_MAX`, config.limit);
+  const store = createSharedRateLimitStore(config.name);
 
   return rateLimit({
     windowMs,
     limit,
     skipSuccessfulRequests: config.skipSuccessfulRequests ?? false,
     ...(config.keyGenerator && { keyGenerator: config.keyGenerator }),
+    ...(store === undefined ? {} : { store }),
     // Standardized RateLimit-Limit/Remaining/Reset headers (IETF draft-6);
     // the legacy X-RateLimit-* set is intentionally disabled.
     standardHeaders: true,
