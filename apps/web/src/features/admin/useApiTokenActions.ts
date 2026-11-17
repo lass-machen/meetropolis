@@ -2,8 +2,11 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchApiTokens, useApiTokensLoader, type ApiTokenSummary, type ApiTokensLoadState } from './useApiTokens';
 
+export type ApiTokenScope = 'read' | 'write';
+
 interface CreateTokenResponse {
   token: string;
+  scope?: ApiTokenScope;
 }
 
 export type UseApiTokenActionsParams = {
@@ -27,6 +30,9 @@ export function useApiTokenActions(params: UseApiTokenActionsParams) {
   // Row waiting for its second click. An in-app confirmation: the desktop
   // shell's WebView has no usable window.confirm.
   const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(null);
+  // Access level of the token created next. Read is the default; the user
+  // opts into write explicitly in the create form.
+  const [newTokenScope, setNewTokenScope] = React.useState<ApiTokenScope>('read');
   // Bumped on every close. A request that started before the close compares
   // its own generation on return and drops its result, so a late reply cannot
   // put a secret or a list back into state that was just cleared.
@@ -102,13 +108,14 @@ export function useApiTokenActions(params: UseApiTokenActionsParams) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ name: newTokenName || undefined }),
+          body: JSON.stringify({ name: newTokenName || undefined, scope: newTokenScope }),
         });
         if (!res.ok) throw new Error(`token creation failed with status ${res.status}`);
         const data = (await res.json()) as CreateTokenResponse;
         if (generation !== generationRef.current) return;
         setFreshToken(data.token);
         setNewTokenName('');
+        setNewTokenScope('read');
         await refreshList();
       } catch {
         if (generation === generationRef.current) setError(t('admin.api.createError'));
@@ -131,5 +138,16 @@ export function useApiTokenActions(params: UseApiTokenActionsParams) {
     });
   };
 
-  return { error, setError, listState, busy, pendingDeleteId, setPendingDeleteId, createToken, deleteToken };
+  return {
+    error,
+    setError,
+    listState,
+    busy,
+    pendingDeleteId,
+    setPendingDeleteId,
+    createToken,
+    deleteToken,
+    newTokenScope,
+    setNewTokenScope,
+  };
 }
