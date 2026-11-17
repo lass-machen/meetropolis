@@ -131,46 +131,15 @@ export function customAvatarDir(packsDir: string): string {
 /**
  * URL of a custom avatar's sprite sheet / preview.
  *
- * THESE BYTES ARE PUBLIC. `/packs` is a `TENANT_BYPASS_PREFIXES` entry
- * (tenancy.ts) served by `express.static` with `Access-Control-Allow-Origin: *`
- * (index.ts), so anyone who knows the uuid can GET the PNG with no session at
- * all. The only thing protecting it is that the uuid is an unguessable v4 —
- * this is a capability URL, not an authorisation check, and no code in this
- * repo should claim otherwise.
- *
- * That is a deliberate decision, not an oversight, because a gate here cannot
- * work with how the file is fetched:
- *  - the game loads the sheet through Phaser (`avatarRegistry.preloadAvatar` ->
- *    `scene.load.spritesheet`), whose XHR default is `withCredentials: false`
- *    and is not overridden in `phaserGame.ts`;
- *  - the UI loads the preview through a plain `<img src>` (AvatarSprite.tsx,
- *    AvatarSettings.tsx) with no `crossOrigin`/credentials;
- *  - web and API are separate origins in production (meetropolis.me vs.
- *    api.meetropolis.me) and the static handler answers `ACAO: *` while
- *    explicitly removing `Access-Control-Allow-Credentials`, so the browser
- *    would reject a credentialed cross-origin load even if we sent one.
- * A cookie gate would therefore not close a hole, it would blank out every
- * peer's avatar. Making it real needs signed, expiring URLs (or an
- * authenticated proxy route) — a design change, not a filter, and one that
- * fights the `immutable, max-age=365d` caching these URLs rely on.
- *
- * What DID change: the uuid is no longer handed out ACROSS THE TENANT BOUNDARY.
- * `POST /avatars/resolve` is tenant-scoped (api/routes/meAvatar.ts), so a
- * foreign tenant can no longer ask for the manifest that carries this URL, and
- * the room state only syncs a player to same-tenant clients
- * (rooms/lifecycle/tenantView.ts). The one channel that crosses tenants is the
- * NPC player, which that StateView deliberately exempts — hence NPCs may not
- * carry a `custom:` id at all (api/routes/npcs.ts, rooms/handlers/
- * avatarHandler.ts, rooms/lifecycle/onJoin.completion.ts). Enumerate the
- * channels before claiming a uuid is unreachable; the unguessable uuid is the
- * whole boundary rather than a fig leaf over an open endpoint — still weaker
- * than the DB-level isolation, and worth stating plainly.
+ * Legacy public paths stay public only while MEMBER_ASSETS_ENFORCE is off;
+ * protected files are served by /member-assets/v1 after a fresh session,
+ * membership and owner check (ops/memberAssetRoutes.ts).
  */
 export function customSpriteUrl(uuid: string): string {
   return `/packs/avatars/custom/${uuid}.png`;
 }
 
-/** Preview URL for a custom avatar. Public, same caveat as `customSpriteUrl`. */
+/** Preview URL for a custom avatar; same serving rule as `customSpriteUrl`. */
 export function customPreviewUrl(uuid: string): string {
   return `/packs/avatars/custom/${uuid}_p.png`;
 }

@@ -65,12 +65,10 @@ async function resolveTokenTenant(prisma: PrismaClient, req: Request): Promise<T
 
 // Paths that do not require tenant context (static files, health checks, tools).
 //
-// A bypass here means the path gets NO tenant and NO auth: `/packs` is plain
-// `express.static` with `Access-Control-Allow-Origin: *` (index.ts). That also
-// covers `/packs/avatars/custom/<uuid>.png`, the composed per-user sprites,
-// which are therefore world-readable to anyone holding the uuid. Deliberate and
-// documented — the fetch path cannot carry credentials; see the rationale on
-// `customSpriteUrl` in services/avatarComposer.ts before adding a gate here.
+// Legacy public paths (`/packs`, `/npc-media`) stay public only while
+// MEMBER_ASSETS_ENFORCE is off; once enforced, `createLegacyAssetGuard`
+// answers 404 and protected files are served by `/member-assets/v1` after a
+// fresh session, membership and owner check (ops/memberAssetRoutes.ts).
 const TENANT_BYPASS_PREFIXES = ['/tools', '/packs', '/assets', '/npc-media', '/metrics', '/healthz'];
 
 function isTenantBypassPath(path: string): boolean {

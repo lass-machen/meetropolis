@@ -9,6 +9,7 @@ import { requireAuth, requireApiToken, getTenantFromReq, requireMembership } fro
 import { pathParam } from '../utils/requestHelpers.js';
 import { detectMimeFromMagic } from '../utils/mediaMime.js';
 import { logger } from '../../logger.js';
+import { createLegacyAssetGuard } from '../../ops/memberAssetRoutes.js';
 
 // --- Allowed MIME types and their extensions ---
 
@@ -190,6 +191,7 @@ export function registerNpcMediaStatic(app: express.Application): void {
   ensureNpcMediaDir();
   app.use(
     '/npc-media',
+    createLegacyAssetGuard(),
     express.static(mediaDir, {
       maxAge: '7d',
       setHeaders: (res) => {
