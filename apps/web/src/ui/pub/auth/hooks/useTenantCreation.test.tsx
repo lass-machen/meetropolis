@@ -238,6 +238,19 @@ describe('useTenantCreation — two-step signup → trial flow', () => {
     expect(hrefSpy).not.toHaveBeenCalled();
   });
 
+  it('shows the translated network error when the tenant request cannot reach the server', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
+    );
+    const setError = vi.fn();
+
+    const { result } = renderHook(() => useTenantCreation(makeArgs({ setError })));
+    await result.current({ tierKey: null, b2b: null });
+
+    expect(setError).toHaveBeenCalledWith('common.networkError');
+  });
+
   it('surfaces slug_exists back to step 2', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ error: 'slug_exists' }, false, 400));
     vi.stubGlobal('fetch', fetchMock);

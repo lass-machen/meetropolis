@@ -56,7 +56,7 @@ export function useAuthApi(baseUrl: string) {
           return (await res.json().catch(() => ({}))) as unknown;
         } catch (e: unknown) {
           if (e instanceof AccountActionError && (e.status < 500 || e.code?.startsWith('EMAIL_'))) throw e;
-          logger.warn('[Auth] Anfrage fehlgeschlagen');
+          logger.warn('[Auth] Anfrage fehlgeschlagen', (e as Error)?.message);
           lastErr = e;
           // Network / connection error: short retry with backoff
           if (i < attempts.length - 1) {
@@ -66,7 +66,7 @@ export function useAuthApi(baseUrl: string) {
           break;
         }
       }
-      throw lastErr instanceof Error ? lastErr : new Error(t('common.networkError'));
+      throw lastErr instanceof AccountActionError ? lastErr : new Error(t('common.networkError'));
     },
     [baseUrl, t],
   );

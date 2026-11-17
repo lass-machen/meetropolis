@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { logger } from '../../../../lib/logger';
 import { openExternal } from '../../../../lib/openExternal';
 import { isDesktopEnvironment } from '../../../../lib/desktopLoader';
 import { getTelemetryModule } from '../../../../lib/telemetryLoader';
@@ -170,7 +171,8 @@ export function useTenantCreation({
         // Pure-OSS / non-commercial path: enter the app on the current origin.
         redirectAfterTenantCreate();
       } catch (e: unknown) {
-        setError((e as Error).message);
+        logger.warn('[TenantCreation] signup request failed', (e as Error)?.message);
+        setError(e instanceof TypeError ? t('common.networkError') : (e as Error).message);
       } finally {
         setSubmitLoading(false);
         setRegData((prev) => ({ ...prev, plan: submission.tierKey ?? prev.plan }));
