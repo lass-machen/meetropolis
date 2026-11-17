@@ -413,6 +413,12 @@ describe('regular account through the loadtest bot', () => {
       email: `wsec-${crypto.randomUUID()}@example.test`,
       password,
     });
+    // The bot sends no avatar, so the join takes the account avatar. The test
+    // database holds only the fixture pack, never the seeded default pack.
+    await prisma.user.update({
+      where: { id: member.userId },
+      data: { avatarId: `${fixturePackUuid}:business_man` },
+    });
     let joined: { userId?: unknown; stop?: () => Promise<void> } | undefined;
     let joinError: unknown;
     try {
