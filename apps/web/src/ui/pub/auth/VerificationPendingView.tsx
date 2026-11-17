@@ -28,7 +28,7 @@ export function VerificationPendingView({ apiBase }: { apiBase: string }) {
           }
           return;
         }
-        const errorBody = await response.json().catch(() => null);
+        const errorBody: unknown = await response.json().catch(() => null);
         if (controller.signal.aborted) return;
         if (readAccountError(errorBody).code === 'ACCOUNT_LOGIN_REQUIRED') {
           window.location.hash = '#/login';
