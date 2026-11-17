@@ -26,8 +26,9 @@ type AuthContext = Parameters<typeof authenticateWorldJoin>[1];
 
 const ORIGINAL_ENV = { ...process.env };
 
+const tenantFindUnique = vi.fn(() => Promise.resolve({ id: 'tenant-1', slug: 'tenant-1' }));
 const prisma = {
-  tenant: { findUnique: vi.fn(() => Promise.resolve({ id: 'tenant-1', slug: 'tenant-1' })) },
+  tenant: { findUnique: tenantFindUnique },
   session: { findUnique: vi.fn(), update: vi.fn() },
   // Joins in these tests come from members; the membership gate has its own tests.
   membership: { findUnique: vi.fn(() => Promise.resolve({ expiresAt: null })) },
@@ -100,7 +101,7 @@ describe('identity of a token-less join without version enforcement', () => {
       userId: 'user-real',
       tenantId: 'tenant-1',
     });
-    prisma.tenant.findUnique.mockResolvedValueOnce({ slug: 'tenant-1' });
+    tenantFindUnique.mockResolvedValueOnce({ id: 'tenant-1', slug: 'tenant-1' });
     const options: RoomOptions = { identity: 'x'.repeat(900_000), zonePrivacyVersion: 1 };
     const context: AuthContext = { headers: new Headers({ cookie: 'auth_token=jwt' }), ip: '127.0.0.1' };
 

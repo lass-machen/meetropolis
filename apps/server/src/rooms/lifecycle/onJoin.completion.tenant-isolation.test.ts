@@ -76,7 +76,7 @@ const fakePrisma = {
     findUnique: vi.fn(() => Promise.resolve({ role: 'member', expiresAt: null })),
   },
   presence: {
-    findMany: vi.fn(() => Promise.resolve([])),
+    findMany: vi.fn((_args: Where) => Promise.resolve([])),
   },
   user: { findUnique: vi.fn(() => Promise.resolve(null)) },
   avatarPack: {
@@ -172,7 +172,7 @@ function membershipTenantIds(): (string | undefined)[] {
   return fakePrisma.membership.findMany.mock.calls.map((c) => c[0]?.where?.tenantId);
 }
 function presenceTenantIds(): (string | undefined)[] {
-  return fakePrisma.presence.findMany.mock.calls.map((c) => (c[0] as Where)?.where?.tenantId);
+  return fakePrisma.presence.findMany.mock.calls.map((c) => c[0]?.where?.tenantId);
 }
 function tenantSlugsQueried(): (string | undefined)[] {
   return fakePrisma.tenant.findUnique.mock.calls.map((c) => c[0]?.where?.slug);

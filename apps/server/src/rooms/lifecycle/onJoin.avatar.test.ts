@@ -49,6 +49,7 @@ function matches(row: (typeof packs)[number], where: AvatarPackWhere): boolean {
 }
 
 function makePrisma(databaseAvatarId: string | null, rejectUserLookup = false): PrismaClient {
+  // Partial Prisma double: only user/avatarPack/customAvatar/map lookups are used.
   return {
     user: {
       findUnique: vi.fn(() =>
@@ -64,11 +65,12 @@ function makePrisma(databaseAvatarId: string | null, rejectUserLookup = false): 
     },
     customAvatar: { findFirst: vi.fn(() => Promise.resolve(null)) },
     map: { findUnique: vi.fn(() => Promise.resolve({ tenantId: 'tenant-a' })) },
-  } as PrismaClient;
+  } as unknown as PrismaClient;
 }
 
 function roomWith(prisma: PrismaClient): WorldRoom {
-  return { prismaForPresence: prisma, metadata: { tenant: 'tenant-a' } } as WorldRoom;
+  // Partial WorldRoom double: only prismaForPresence/metadata are used.
+  return { prismaForPresence: prisma, metadata: { tenant: 'tenant-a' } } as unknown as WorldRoom;
 }
 
 beforeEach(() => {

@@ -32,6 +32,7 @@ function expiredLeaseRoom(): {
     identity: 'user-1',
     tenantId: 'tenant-1',
     tenantSlug: 'tenant-1',
+    sessionId: 'db-sess-1',
     isNpc: false,
     zonePrivacyVersion: 1,
   });

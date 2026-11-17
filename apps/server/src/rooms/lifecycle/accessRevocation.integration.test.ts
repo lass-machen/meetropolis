@@ -71,6 +71,7 @@ async function connectedRoom(users: Array<{ id: string; sessionId: string }>) {
       identity: client.identity,
       tenantId,
       tenantSlug,
+      sessionId: users[i]?.sessionId ?? null,
       authSessionId: users[i]?.sessionId,
       isNpc: false,
       zonePrivacyVersion: 1,
@@ -104,7 +105,10 @@ async function waitFor(left: () => boolean, timeoutMs: number): Promise<void> {
 beforeAll(async () => {
   previousGameServer = global.gameServer;
   previousActiveWorldRooms = global.activeWorldRooms;
-  global.gameServer = { presence };
+  // LocalPresence.publish is sync; global.gameServer expects Promise-returning publish.
+  global.gameServer = {
+    presence: presence as unknown as { publish: (channel: string, data: unknown) => Promise<void> },
+  };
   tenantSlug = `case-${crypto.randomUUID()}`;
   tenantId = (await prisma.tenant.create({ data: { slug: tenantSlug, name: tenantSlug } })).id;
 });

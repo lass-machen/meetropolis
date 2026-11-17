@@ -118,7 +118,7 @@ function joinOptions(tenant?: string): Record<string, unknown> {
   };
 }
 
-async function joinWorld(identity: string, token: string, tenant?: string): Promise<TrackedJoin> {
+async function joinWorld(_identity: string, token: string, tenant?: string): Promise<TrackedJoin> {
   const client = new Client(server.base);
   client.auth.token = token;
   const tracked: TrackedJoin = { left: false, errorMessages: [] };
@@ -162,7 +162,8 @@ beforeAll(async () => {
   // Revocation events flow through the server presence, as in production
   // (index.ts exposes the Colyseus server globally for broadcasters).
   previousGameServer = global.gameServer;
-  global.gameServer = server.gameServer;
+  // Colyseus Server is wider than the narrow global.gameServer stand-in.
+  global.gameServer = server.gameServer as unknown as typeof global.gameServer;
 });
 
 beforeEach(async () => {

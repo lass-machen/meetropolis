@@ -139,7 +139,8 @@ interface ClientDouble {
 }
 
 function clientDouble(value: ClientDouble): Client {
-  return value as Client;
+  // Partial Client double: only sessionId/send/view/auth are exercised here.
+  return value as unknown as Client;
 }
 
 function makeRoom(): { room: WorldRoom; players: Map<string, FakePlayer> } {

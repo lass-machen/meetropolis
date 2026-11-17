@@ -28,7 +28,7 @@
 import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import express from 'express';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client, type Room } from '@colyseus/sdk';
 import type { AuthContext } from '@colyseus/core';
 import { MIN_ZONE_PRIVACY_CLIENT_VERSION, ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
@@ -237,7 +237,8 @@ beforeAll(async () => {
   // Revocation events flow through the server presence, as in production
   // (index.ts exposes the Colyseus server globally for broadcasters).
   previousGameServer = global.gameServer;
-  global.gameServer = server.gameServer;
+  // Colyseus Server is wider than the narrow global.gameServer stand-in.
+  global.gameServer = server.gameServer as unknown as typeof global.gameServer;
 });
 
 beforeEach(async () => {

@@ -167,7 +167,7 @@ function joinOptions(tenant?: string): Record<string, unknown> {
   };
 }
 
-async function joinWorld(identity: string, token: string, tenant?: string): Promise<TrackedJoin> {
+async function joinWorld(_identity: string, token: string, tenant?: string): Promise<TrackedJoin> {
   const client = new Client(server.base);
   client.auth.token = token;
   const tracked: TrackedJoin = { left: false, leftAt: null, errorMessages: [] };
@@ -219,7 +219,8 @@ beforeAll(async () => {
   // Revocation events flow through the server presence, as in production
   // (index.ts exposes the Colyseus server globally for broadcasters).
   previousGameServer = global.gameServer;
-  global.gameServer = server.gameServer;
+  // Colyseus Server is wider than the narrow global.gameServer stand-in.
+  global.gameServer = server.gameServer as unknown as typeof global.gameServer;
 });
 
 beforeEach(async () => {
@@ -250,7 +251,9 @@ describe('world access survives publish and database faults (real database)', ()
       tenantSlug,
     );
     expect(joined.error, 'Case 1: join must succeed').toBeUndefined();
-    const presence = server.gameServer.presence;
+    // Colyseus marks Server.presence protected; tests need the publish channel.
+    const presence = (server.gameServer as unknown as { presence?: { publish: (...args: unknown[]) => unknown } })
+      .presence;
     if (!presence) throw new Error(`${FILE} Case 1: matchmake server has no presence`);
     const publishSpy = vi.spyOn(presence, 'publish').mockRejectedValue(new Error('outage presence down'));
     try {

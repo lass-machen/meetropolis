@@ -89,7 +89,7 @@ function makeRoom(roomTenant: string | undefined, players: SeatedPlayer[] = []):
 
 /** A client whose JWT verified `tenant` (or none: a token-less staged join). */
 function makeClient(tenant: Row | null, identity = 'joiner'): Client {
-  const auth: WorldAuth = { identity, isNpc: false, zonePrivacyVersion: 1 };
+  const auth: WorldAuth = { identity, sessionId: null, isNpc: false, zonePrivacyVersion: 1 };
   if (tenant) {
     auth.tenantId = tenant.id;
     auth.tenantSlug = tenant.slug;

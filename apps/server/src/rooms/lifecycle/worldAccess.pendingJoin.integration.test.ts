@@ -189,7 +189,8 @@ beforeAll(async () => {
   // Revocation events flow through the server presence, as in production
   // (index.ts exposes the Colyseus server globally for broadcasters).
   previousGameServer = global.gameServer;
-  global.gameServer = server.gameServer;
+  // Colyseus Server is wider than the narrow global.gameServer stand-in.
+  global.gameServer = server.gameServer as unknown as typeof global.gameServer;
 });
 
 beforeEach(async () => {

@@ -62,7 +62,8 @@ const moduleImplementation = {
 } satisfies TranscriptionModule;
 
 function makeClient() {
-  return { error: vi.fn(), leave: vi.fn() } as Client;
+  // Partial Client double: only error/leave are exercised here.
+  return { error: vi.fn(), leave: vi.fn() } as unknown as Client;
 }
 
 /** Request that presents the session credential as the `auth_token` cookie. */

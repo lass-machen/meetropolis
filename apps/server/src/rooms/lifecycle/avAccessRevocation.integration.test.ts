@@ -279,7 +279,8 @@ beforeAll(async () => {
   server = await startMatchmakeServer({ configureApp: configureApi });
   await apiReady;
   previousGameServer = global.gameServer;
-  global.gameServer = server.gameServer;
+  // Colyseus Server is wider than the narrow global.gameServer stand-in.
+  global.gameServer = server.gameServer as unknown as typeof global.gameServer;
 });
 
 beforeEach(async () => {
@@ -325,12 +326,16 @@ describe('livekit token metadata', () => {
 });
 
 describe('current members', () => {
-  it('keeps a participant with a live session', async () => {
-    const member = await seedMember(prisma, tenantId);
-    await connectIssued(member);
-    await currentReconciler().runRound();
-    expect(await listIdentities(worldName(tenantSlug))).toContain(member.userId);
-  }, SFU_TIMEOUT_MS);
+  it(
+    'keeps a participant with a live session',
+    async () => {
+      const member = await seedMember(prisma, tenantId);
+      await connectIssued(member);
+      await currentReconciler().runRound();
+      expect(await listIdentities(worldName(tenantSlug))).toContain(member.userId);
+    },
+    SFU_TIMEOUT_MS,
+  );
 });
 
 describe('reserved participant identities', () => {
@@ -347,104 +352,140 @@ describe('reserved participant identities', () => {
 });
 
 describe('npc publishers', () => {
-  it('keeps an npc participant with a matching record', async () => {
-    const wireIdentity = await connectRecordedNpc(tenantSlug);
-    await currentReconciler().runRound();
-    expect(await listIdentities(worldName(tenantSlug))).toContain(wireIdentity);
-  }, SFU_TIMEOUT_MS);
+  it(
+    'keeps an npc participant with a matching record',
+    async () => {
+      const wireIdentity = await connectRecordedNpc(tenantSlug);
+      await currentReconciler().runRound();
+      expect(await listIdentities(worldName(tenantSlug))).toContain(wireIdentity);
+    },
+    SFU_TIMEOUT_MS,
+  );
 });
 
 describe('reused token after membership removal', () => {
-  it('removes the participant on the next round', async () => {
-    const member = await seedMember(prisma, tenantId);
-    const token = await connectIssued(member);
-    await removeMemberFromTenant(prisma, { userId: member.userId, tenantId });
-    await disconnectAll();
-    await connectParticipant(token);
-    await expectPresent(worldName(tenantSlug), member.userId);
-    await currentReconciler().runRound();
-    await expectRemoved(worldName(tenantSlug), member.userId);
-  }, SFU_TIMEOUT_MS);
+  it(
+    'removes the participant on the next round',
+    async () => {
+      const member = await seedMember(prisma, tenantId);
+      const token = await connectIssued(member);
+      await removeMemberFromTenant(prisma, { userId: member.userId, tenantId });
+      await disconnectAll();
+      await connectParticipant(token);
+      await expectPresent(worldName(tenantSlug), member.userId);
+      await currentReconciler().runRound();
+      await expectRemoved(worldName(tenantSlug), member.userId);
+    },
+    SFU_TIMEOUT_MS,
+  );
 });
 
 describe('service identities', () => {
-  it('keeps the transcriber participant', async () => {
-    await connectMinted(worldName(tenantSlug), TRANSCRIBER_IDENTITY);
-    await currentReconciler().runRound();
-    expect(await listIdentities(worldName(tenantSlug))).toContain(TRANSCRIBER_IDENTITY);
-  }, SFU_TIMEOUT_MS);
+  it(
+    'keeps the transcriber participant',
+    async () => {
+      await connectMinted(worldName(tenantSlug), TRANSCRIBER_IDENTITY);
+      await currentReconciler().runRound();
+      expect(await listIdentities(worldName(tenantSlug))).toContain(TRANSCRIBER_IDENTITY);
+    },
+    SFU_TIMEOUT_MS,
+  );
 });
 
 describe('revocation during a media-server outage', () => {
-  it('removes the participant within the retry window', async () => {
-    const member = await seedMember(prisma, tenantId);
-    const world = await joinWorld(member);
-    await connectIssued(member);
-    await pauseForRevocation(member);
-    await expectRemoved(worldName(tenantSlug), member.userId, RETRY_WINDOW_MS);
-    expect(world.sessionId).toEqual(expect.any(String));
-  }, PAUSE_CASE_TIMEOUT_MS);
+  it(
+    'removes the participant within the retry window',
+    async () => {
+      const member = await seedMember(prisma, tenantId);
+      const world = await joinWorld(member);
+      await connectIssued(member);
+      await pauseForRevocation(member);
+      await expectRemoved(worldName(tenantSlug), member.userId, RETRY_WINDOW_MS);
+      expect(world.sessionId).toEqual(expect.any(String));
+    },
+    PAUSE_CASE_TIMEOUT_MS,
+  );
 });
 
 describe('participant metadata', () => {
-  it('rejects a self-serve metadata change', async () => {
-    const member = await seedMember(prisma, tenantId);
-    const token = await issuedToken(member);
-    const room = await connectParticipant(token);
-    const local = room.localParticipant;
-    if (!local) throw new Error('connected room has no local participant');
-    await expectPresent(worldName(tenantSlug), member.userId);
-    await Promise.race([local.updateMetadata(FORGED_METADATA).catch(() => undefined), delay(10_000)]);
-    expect(await storedMetadata(worldName(tenantSlug), member.userId)).not.toBe(FORGED_METADATA);
-    expect(await listIdentities(worldName(tenantSlug))).toContain(member.userId);
-  }, SFU_TIMEOUT_MS);
+  it(
+    'rejects a self-serve metadata change',
+    async () => {
+      const member = await seedMember(prisma, tenantId);
+      const token = await issuedToken(member);
+      const room = await connectParticipant(token);
+      const local = room.localParticipant;
+      if (!local) throw new Error('connected room has no local participant');
+      await expectPresent(worldName(tenantSlug), member.userId);
+      await Promise.race([local.updateMetadata(FORGED_METADATA).catch(() => undefined), delay(10_000)]);
+      expect(await storedMetadata(worldName(tenantSlug), member.userId)).not.toBe(FORGED_METADATA);
+      expect(await listIdentities(worldName(tenantSlug))).toContain(member.userId);
+    },
+    SFU_TIMEOUT_MS,
+  );
 });
 
 describe('revocation across a reconciler restart', () => {
-  it('removes the participant on the round after restart', async () => {
-    const member = await seedMember(prisma, tenantId);
-    await connectIssued(member);
-    await pauseForRevocation(member, async () => {
-      await reconciler?.stop();
-      reconciler = undefined;
-    });
-    reconciler = await startAvReconcile(prisma);
-    await reconciler.runRound();
-    await expectRemoved(worldName(tenantSlug), member.userId, RETRY_WINDOW_MS);
-  }, PAUSE_CASE_TIMEOUT_MS);
+  it(
+    'removes the participant on the round after restart',
+    async () => {
+      const member = await seedMember(prisma, tenantId);
+      await connectIssued(member);
+      await pauseForRevocation(member, async () => {
+        await reconciler?.stop();
+        reconciler = undefined;
+      });
+      reconciler = await startAvReconcile(prisma);
+      await reconciler.runRound();
+      await expectRemoved(worldName(tenantSlug), member.userId, RETRY_WINDOW_MS);
+    },
+    PAUSE_CASE_TIMEOUT_MS,
+  );
 });
 
 describe('rooms outside a tenant call', () => {
-  it('leaves the readiness probe room unchanged', async () => {
-    await connectMinted(PROBE_ROOM, PROBE_IDENTITY);
-    await currentReconciler().runRound();
-    expect(await listIdentities(PROBE_ROOM)).toContain(PROBE_IDENTITY);
-  }, SFU_TIMEOUT_MS);
+  it(
+    'leaves the readiness probe room unchanged',
+    async () => {
+      await connectMinted(PROBE_ROOM, PROBE_IDENTITY);
+      await currentReconciler().runRound();
+      expect(await listIdentities(PROBE_ROOM)).toContain(PROBE_IDENTITY);
+    },
+    SFU_TIMEOUT_MS,
+  );
 });
 
 describe('unknown npc identities', () => {
-  it('removes an npc participant with no matching record', async () => {
-    const identity = `npc-${shortId()}`;
-    await connectMinted(worldName(tenantSlug), identity);
-    await currentReconciler().runRound();
-    await expectRemoved(worldName(tenantSlug), identity);
-  }, SFU_TIMEOUT_MS);
+  it(
+    'removes an npc participant with no matching record',
+    async () => {
+      const identity = `npc-${shortId()}`;
+      await connectMinted(worldName(tenantSlug), identity);
+      await currentReconciler().runRound();
+      await expectRemoved(worldName(tenantSlug), identity);
+    },
+    SFU_TIMEOUT_MS,
+  );
 });
 
 describe('unresolvable tenant rooms', () => {
-  it('removes user participants after a slug rename and a tenant deletion', async () => {
-    const renamed = await seedTenant(prisma);
-    const deleted = await seedTenant(prisma);
-    extraTenantIds.push(renamed.id, deleted.id);
-    const renamedMember = await seedMember(prisma, renamed.id);
-    const deletedMember = await seedMember(prisma, deleted.id);
-    await connectMinted(worldName(renamed.slug), renamedMember.userId);
-    await connectMinted(worldName(deleted.slug), deletedMember.userId);
-    await prisma.tenant.update({ where: { id: renamed.id }, data: { slug: `${renamed.slug}-renamed` } });
-    await deleteTenantRow(deleted.id);
-    await currentReconciler().runRound();
-    const renamedGone = await waitForIdentityGone(worldName(renamed.slug), renamedMember.userId, ROUND_TIMEOUT_MS);
-    const deletedGone = await waitForIdentityGone(worldName(deleted.slug), deletedMember.userId, ROUND_TIMEOUT_MS);
-    expect([renamedGone, deletedGone]).toEqual([true, true]);
-  }, SFU_TIMEOUT_MS);
+  it(
+    'removes user participants after a slug rename and a tenant deletion',
+    async () => {
+      const renamed = await seedTenant(prisma);
+      const deleted = await seedTenant(prisma);
+      extraTenantIds.push(renamed.id, deleted.id);
+      const renamedMember = await seedMember(prisma, renamed.id);
+      const deletedMember = await seedMember(prisma, deleted.id);
+      await connectMinted(worldName(renamed.slug), renamedMember.userId);
+      await connectMinted(worldName(deleted.slug), deletedMember.userId);
+      await prisma.tenant.update({ where: { id: renamed.id }, data: { slug: `${renamed.slug}-renamed` } });
+      await deleteTenantRow(deleted.id);
+      await currentReconciler().runRound();
+      const renamedGone = await waitForIdentityGone(worldName(renamed.slug), renamedMember.userId, ROUND_TIMEOUT_MS);
+      const deletedGone = await waitForIdentityGone(worldName(deleted.slug), deletedMember.userId, ROUND_TIMEOUT_MS);
+      expect([renamedGone, deletedGone]).toEqual([true, true]);
+    },
+    SFU_TIMEOUT_MS,
+  );
 });
