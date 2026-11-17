@@ -4,6 +4,7 @@ import { renderHook } from '@testing-library/react';
 import { useTenantCreation } from './useTenantCreation';
 import type { RegistrationData } from '../AuthPageRenderer';
 import type { TenantSignupSubmission } from '../signupTypes';
+import { usePublicConfigStore } from '../../../../state/publicConfigStore';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k, i18n: { language: 'de' } }),
@@ -19,6 +20,14 @@ vi.mock('../../../../lib/openExternal', () => ({
 const isDesktopEnvironmentMock = vi.fn(() => false);
 vi.mock('../../../../lib/desktopLoader', () => ({
   isDesktopEnvironment: () => isDesktopEnvironmentMock(),
+}));
+
+// System boundary to the optional private brand module: the real module is
+// closed-source and absent in OSS builds, so every test below pins the
+// loader result explicitly. Default: no brand module (OSS behaviour).
+const getBrandModuleMock = vi.fn((): Promise<unknown> => Promise.resolve(null));
+vi.mock('../../../../lib/brandLoader', () => ({
+  getBrandModule: () => getBrandModuleMock(),
 }));
 
 const regData: RegistrationData = {
@@ -263,5 +272,103 @@ describe('useTenantCreation — two-step signup → trial flow', () => {
     expect(setSlugError).toHaveBeenCalledWith('auth.slugExists');
     expect(setRegStep).toHaveBeenCalledWith(2);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useTenantCreation — ads attribution handover', () => {
+  const ads = {
+    googleAdsId: 'AW-123456789',
+    signupConversionLabel: 'AbC123',
+    consentMode: 'banner' as const,
+  };
+
+  beforeEach(() => {
+    getBrandModuleMock.mockResolvedValue(null);
+    usePublicConfigStore.setState({ ads: null });
+    window.location.hash = '';
+  });
+
+  it('sends the attribution the brand module provides', async () => {
+    const reportSignupConversion = vi.fn();
+    getBrandModuleMock.mockResolvedValue({
+      getSignupAttribution: () => ({ gclid: 'abc123', utmSource: 'google' }),
+      reportSignupConversion,
+    });
+    usePublicConfigStore.setState({ ads });
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ ok: true, tenant: { id: 't1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTenantCreation(makeArgs()));
+    await result.current({ tierKey: null, b2b: null });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.attribution).toEqual({ gclid: 'abc123', utmSource: 'google' });
+    expect(reportSignupConversion).toHaveBeenCalledTimes(1);
+    expect(reportSignupConversion).toHaveBeenCalledWith(ads);
+  });
+
+  it('omits the attribution key when the brand module returns undefined', async () => {
+    getBrandModuleMock.mockResolvedValue({ getSignupAttribution: () => undefined });
+    usePublicConfigStore.setState({ ads });
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ ok: true, tenant: { id: 't1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTenantCreation(makeArgs()));
+    await result.current({ tierKey: null, b2b: null });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).not.toHaveProperty('attribution');
+  });
+
+  it('omits the attribution key without a brand module', async () => {
+    usePublicConfigStore.setState({ ads });
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ ok: true, tenant: { id: 't1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTenantCreation(makeArgs()));
+    await result.current({ tierKey: null, b2b: null });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).not.toHaveProperty('attribution');
+  });
+
+  it('does not report a conversion when the signup fails', async () => {
+    const reportSignupConversion = vi.fn();
+    getBrandModuleMock.mockResolvedValue({
+      getSignupAttribution: () => ({ gclid: 'abc123' }),
+      reportSignupConversion,
+    });
+    usePublicConfigStore.setState({ ads });
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ error: 'boom' }, false, 400));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTenantCreation(makeArgs()));
+    await result.current({ tierKey: null, b2b: null });
+
+    expect(reportSignupConversion).not.toHaveBeenCalled();
+  });
+
+  it('still posts the signup when the brand attribution call throws', async () => {
+    getBrandModuleMock.mockResolvedValue({
+      getSignupAttribution: () => {
+        throw new Error('brand broken');
+      },
+    });
+    usePublicConfigStore.setState({ ads });
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ ok: true, tenant: { id: 't1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const setError = vi.fn();
+
+    const { result } = renderHook(() => useTenantCreation(makeArgs({ setError })));
+    await result.current({ tierKey: null, b2b: null });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).not.toHaveProperty('attribution');
+    // The only setError call is the initial reset with null: no signup error
+    // surfaced from the throwing brand module.
+    expect(setError).toHaveBeenCalledTimes(1);
+    expect(setError).toHaveBeenCalledWith(null);
+    expect(window.location.hash).toBe('#/app');
   });
 });
