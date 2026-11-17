@@ -100,7 +100,7 @@ async function buildAndPublishMicrophoneTrack(room: Room, state: LocalTrackState
   } catch {}
 
   await room.localParticipant.publishTrack(
-    track as unknown as LocalTrack,
+    track,
     // stopMicTrackOnMute is pinned to false on purpose (hybrid mute): the SDK
     // must NEVER stop the capture on mute(), otherwise softMuteMicrophone would
     // tear down the device instead of just sending an RTP-mute frame — killing
@@ -135,7 +135,7 @@ async function publishFallbackMicrophoneTrack(room: Room, state: LocalTrackState
   }
   const fallbackTrack = await createLocalAudioTrack(audioOpts);
   await room.localParticipant.publishTrack(
-    fallbackTrack as unknown as LocalTrack,
+    fallbackTrack,
     // Pinned false, same rationale as buildAndPublishMicrophoneTrack: the
     // hybrid soft-mute owns the capture lifecycle, not the SDK's stopOnMute.
     {
@@ -282,7 +282,7 @@ export async function unpublishMicrophone({
       }
     } catch {}
 
-    await room.localParticipant.unpublishTrack(state.track as unknown as LocalTrack);
+    await room.localParticipant.unpublishTrack(state.track);
     (state.track as unknown as TrackLike).stop?.();
     // Voice-isolation pipeline: the published track is a WebAudio destination
     // track, not the real microphone capture. Close the underlying capture

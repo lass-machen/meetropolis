@@ -207,7 +207,7 @@ export async function unpublishCamera({
       }
     } catch {}
 
-    await room.localParticipant.unpublishTrack(state.track as unknown as LocalTrack);
+    await room.localParticipant.unpublishTrack(state.track);
     (state.track as unknown as TrackLike).stop?.();
   } catch (error) {
     AVLogger.warn('track.cam.unpublish_error', { error: String(error) });
