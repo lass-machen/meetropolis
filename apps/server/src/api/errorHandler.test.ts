@@ -10,6 +10,20 @@ import { logger } from '../logger.js';
 import { errorHandler } from './errorHandler.js';
 import { AppError } from '../errors/AppError.js';
 
+class NamedOperationalError extends AppError {
+  constructor() {
+    super('named operational', 403, 'FORBIDDEN');
+    this.name = 'NamedOperationalError';
+  }
+}
+
+class NamedUnexpectedError extends Error {
+  constructor() {
+    super('named unexpected');
+    this.name = 'NamedUnexpectedError';
+  }
+}
+
 function buildApp() {
   const app = express();
   app.use('/raw', express.raw({ type: () => true, limit: '1kb' }));
@@ -22,6 +36,12 @@ function buildApp() {
   });
   app.get('/app-error', () => {
     throw AppError.forbidden('no');
+  });
+  app.get('/named-operational', () => {
+    throw new NamedOperationalError();
+  });
+  app.get('/named-unexpected', () => {
+    throw new NamedUnexpectedError();
   });
   app.get('/boom', () => {
     throw new Error('database exploded');
@@ -127,5 +147,25 @@ describe('errorHandler', () => {
 
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe('INTERNAL_ERROR');
+  });
+
+  it('logs the error class for an operational error at warn level', async () => {
+    const res = await request(buildApp()).get('/named-operational');
+
+    expect(res.status).toBe(403);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    const payload = vi.mocked(logger.warn).mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.event).toBe('http.error');
+    expect(payload.errorClass).toBe('NamedOperationalError');
+  });
+
+  it('logs the error class for an unexpected error at error level', async () => {
+    const res = await request(buildApp()).get('/named-unexpected');
+
+    expect(res.status).toBe(500);
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    const payload = vi.mocked(logger.error).mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.event).toBe('http.error');
+    expect(payload.errorClass).toBe('NamedUnexpectedError');
   });
 });

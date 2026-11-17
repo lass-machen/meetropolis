@@ -112,6 +112,7 @@ function logErrorWithContext(err: unknown, req: Request, normalized: NormalizedE
     correlationId,
     statusCode: normalized.statusCode,
     code: normalized.code,
+    errorClass: err instanceof Error ? err.name : 'NonError',
     isOperational: normalized.isOperational,
     method: req.method,
     path: route,
