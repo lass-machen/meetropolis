@@ -172,7 +172,7 @@ function RegisterFooter({ onLogin }: { onLogin: () => void }) {
           style={{
             all: 'unset',
             cursor: 'pointer',
-            color: 'var(--pub-accent-purple)',
+            color: 'var(--pub-accent-purple-dark)',
             textDecoration: 'none',
             fontWeight: 600,
           }}

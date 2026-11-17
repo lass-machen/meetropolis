@@ -80,7 +80,7 @@ function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
           style={{
             cursor: 'pointer',
             fontSize: 13,
-            color: 'var(--pub-accent-purple)',
+            color: 'var(--pub-accent-purple-dark)',
             textDecoration: 'none',
           }}
         >
@@ -171,7 +171,7 @@ function LoginFooter({ onRegister, onInvite, registrationEnabled }: LoginFooterP
             className="pub-auth-text-link"
             style={{
               cursor: 'pointer',
-              color: 'var(--pub-accent-purple)',
+              color: 'var(--pub-accent-purple-dark)',
               textDecoration: 'none',
               fontWeight: 600,
             }}
@@ -188,7 +188,7 @@ function LoginFooter({ onRegister, onInvite, registrationEnabled }: LoginFooterP
           className="pub-auth-text-link"
           style={{
             cursor: 'pointer',
-            color: 'var(--pub-accent-purple)',
+            color: 'var(--pub-accent-purple-dark)',
             textDecoration: 'none',
             fontWeight: 600,
           }}

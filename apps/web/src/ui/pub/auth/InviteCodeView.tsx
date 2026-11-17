@@ -147,7 +147,7 @@ function InviteFooter({ onLogin, onRegister, registrationEnabled }: InviteFooter
           style={{
             all: 'unset',
             cursor: 'pointer',
-            color: 'var(--pub-accent-purple)',
+            color: 'var(--pub-accent-purple-dark)',
             textDecoration: 'none',
             fontWeight: 600,
           }}
@@ -164,7 +164,7 @@ function InviteFooter({ onLogin, onRegister, registrationEnabled }: InviteFooter
             style={{
               all: 'unset',
               cursor: 'pointer',
-              color: 'var(--pub-accent-purple)',
+              color: 'var(--pub-accent-purple-dark)',
               textDecoration: 'none',
               fontWeight: 600,
             }}

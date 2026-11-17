@@ -163,13 +163,13 @@
 }
 
 .pub-btn--primary {
-  background: var(--pub-accent-purple);
+  background: var(--pub-accent-purple-dark);
   color: var(--palette-legacy-hex-ffffff);
   padding: 12px 24px;
 }
 
 .pub-btn--primary:hover {
-  background: var(--pub-accent-purple-dark);
+  background: var(--palette-legacy-hex-6d28d9);
 }
 
 .pub-btn--secondary {

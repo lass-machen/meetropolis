@@ -47,7 +47,7 @@ function LegalLink({ href, children }: { href: string; children?: ReactNode }) {
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      style={{ color: 'var(--pub-accent-purple)', textDecoration: 'underline' }}
+      style={{ color: 'var(--pub-accent-purple-dark)', textDecoration: 'underline' }}
     >
       {children}
     </a>
