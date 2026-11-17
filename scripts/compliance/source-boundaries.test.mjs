@@ -514,3 +514,116 @@ describe('checkSourceBoundaries ordering and input', () => {
     assert.deepEqual(Array.from(files.keys()), [POLICY_PATH, PLUGIN_PATH, 'apps/server/src/other.ts']);
   });
 });
+
+function manifestPolicy(pluginContent) {
+  return policyBytes((policy) => {
+    policy.sourceImports.pinnedFiles = [
+      {
+        path: PLUGIN_PATH,
+        sha256: sha256Hex(Buffer.from(pluginContent, 'utf8')),
+        reason: 'Fixture plugin pin.',
+      },
+    ];
+    policy.sourceImports.pinnedDynamicImports = [];
+  });
+}
+
+function manifestEntries(extra, pluginContent = 'export {};\n') {
+  return { [POLICY_PATH]: manifestPolicy(pluginContent), [PLUGIN_PATH]: pluginContent, ...extra };
+}
+
+describe('checkSourceBoundaries manifests and lockfiles', () => {
+  it('reports a protected dependency in package.json', () => {
+    const content = '{\n  "name": "fixture",\n  "dependencies": {\n    "@signalyr/sdk-node": "1.0.0"\n  }\n}\n';
+    const result = run(manifestEntries({ 'package.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_MANIFEST_PRIVATE']);
+    assert.equal(result.issues[0].path, 'package.json');
+    assert.equal(result.issues[0].severity, 'error');
+    assert.equal(result.issues[0].line, 4);
+    assert.deepEqual(Object.keys(result.issues[0]).sort(), ['code', 'line', 'path', 'severity']);
+  });
+
+  it('reports a protected devDependency in package.json', () => {
+    const content = '{\n  "name": "fixture",\n  "devDependencies": {\n    "@meetropolis/tenancy": "*"\n  }\n}\n';
+    const result = run(manifestEntries({ 'package.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_MANIFEST_PRIVATE']);
+    assert.equal(result.issues[0].path, 'package.json');
+    assert.equal(result.issues[0].line, 4);
+  });
+
+  it('reports a protected alias target in package.json', () => {
+    const content =
+      '{\n  "name": "fixture",\n  "dependencies": {\n    "safe-name": "npm:@meetropolis/enterprise-web@1.0.0"\n  }\n}\n';
+    const result = run(manifestEntries({ 'package.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_MANIFEST_PRIVATE']);
+    assert.equal(result.issues[0].path, 'package.json');
+    assert.equal(result.issues[0].line, 4);
+  });
+
+  it('leaves public dependencies in package.json alone', () => {
+    const content =
+      '{\n  "name": "fixture",\n  "dependencies": {\n    "left-pad": "1.0.0",\n    "@meetropolis/shared": "1.0.0",\n    "@meetropolis/web": "1.0.0"\n  }\n}\n';
+    const result = run(manifestEntries({ 'package.json': content }));
+    assert.deepEqual(result.issues, []);
+  });
+
+  it('reports a protected optionalDependency in a nested package.json', () => {
+    const content =
+      '{\n  "name": "nested-fixture",\n  "optionalDependencies": {\n    "@meetropolis/tenancy": "*"\n  }\n}\n';
+    const result = run(manifestEntries({ 'apps/x/package.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_MANIFEST_PRIVATE']);
+    assert.equal(result.issues[0].path, 'apps/x/package.json');
+    assert.equal(result.issues[0].line, 4);
+  });
+
+  it('reports a protected package entry in package-lock.json', () => {
+    const content =
+      '{\n  "name": "fixture",\n  "packages": {\n    "": {},\n    "node_modules/@signalyr/sdk-browser": {\n      "version": "1.0.0"\n    }\n  }\n}\n';
+    const result = run(manifestEntries({ 'package-lock.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_LOCK_PRIVATE']);
+    assert.equal(result.issues[0].path, 'package-lock.json');
+    assert.equal(result.issues[0].line, 5);
+  });
+
+  it('reports a protected entry dependency in package-lock.json', () => {
+    const content =
+      '{\n  "packages": {\n    "apps/web": {\n      "dependencies": {\n        "@meetropolis/brand-web": "*"\n      }\n    }\n  }\n}\n';
+    const result = run(manifestEntries({ 'package-lock.json': content }));
+    assert.deepEqual(issueCodes(result), ['SOURCE_LOCK_PRIVATE']);
+    assert.equal(result.issues[0].path, 'package-lock.json');
+    assert.equal(result.issues[0].line, 5);
+  });
+
+  it('leaves public entries in package-lock.json alone', () => {
+    const content =
+      '{\n  "packages": {\n    "": { "name": "fixture" },\n    "node_modules/left-pad": { "version": "1.0.0" },\n    "apps/web": { "dependencies": { "left-pad": "*" } }\n  }\n}\n';
+    const result = run(manifestEntries({ 'package-lock.json': content }));
+    assert.deepEqual(result.issues, []);
+  });
+
+  it('fails invalid package.json data constantly', () => {
+    assertInvalid(() => run(manifestEntries({ 'package.json': '{ not json' })), []);
+    assertInvalid(() => run(manifestEntries({ 'package.json': '[1, 2]' })), []);
+  });
+
+  it('finds no manifest or lockfile issues in the real manifests', () => {
+    const manifestPaths = [
+      'package.json',
+      'package-lock.json',
+      'packages/shared/package.json',
+      'tools/asset-lab/package.json',
+      'tools/asset-lab/package-lock.json',
+    ];
+    for (const dir of fs.readdirSync(path.join(REPO_ROOT, 'apps'))) {
+      const candidate = path.join('apps', dir, 'package.json');
+      if (fs.existsSync(path.join(REPO_ROOT, candidate))) manifestPaths.push(candidate);
+    }
+    const entries = { [POLICY_PATH]: fs.readFileSync(path.join(REPO_ROOT, POLICY_PATH)) };
+    for (const name of manifestPaths) entries[name] = fs.readFileSync(path.join(REPO_ROOT, name));
+    const result = run(entries);
+    const codes = issueCodes(result).filter(
+      (code) => code === 'SOURCE_MANIFEST_PRIVATE' || code === 'SOURCE_LOCK_PRIVATE',
+    );
+    assert.deepEqual(codes, []);
+  });
+});
