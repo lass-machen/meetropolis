@@ -86,6 +86,7 @@ function applyClearPendingChanges(state: EditorState): Partial<EditorState> {
       objectUpdates: [],
       zonesModified: false,
       spawnUpdate: null,
+      spawnRemoved: false,
     },
   };
 }
@@ -129,7 +130,11 @@ export function reduceObject(state: EditorState, action: ObjectActions): Partial
     case 'SET_PENDING_SPAWN':
       return {
         spawn: { x: action.x, y: action.y },
-        pendingChanges: { ...state.pendingChanges, spawnUpdate: { x: action.x, y: action.y } },
+        pendingChanges: {
+          ...state.pendingChanges,
+          spawnUpdate: { x: action.x, y: action.y },
+          spawnRemoved: false,
+        },
       };
     case 'CLEAR_PENDING_CHANGES':
       return applyClearPendingChanges(state);

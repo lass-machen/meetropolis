@@ -117,6 +117,7 @@ export type PendingChanges = {
   objectUpdates: Array<{ id: number | string; updates: Partial<MapObjectRecord> }>;
   zonesModified: boolean;
   spawnUpdate: { x: number; y: number } | null;
+  spawnRemoved: boolean;
 };
 
 export type ViewToggles = {
