@@ -1,5 +1,6 @@
 import type { NpcSpawnCommand } from '@meetropolis/shared';
 import { logger } from '../index.js';
+import { npcVideoGrant } from './livekitGrant.js';
 import { parseWavFrames, transcodeToPcm } from './mediaPlayer.js';
 
 // Lazy imports for @livekit/rtc-node (may not be available in all environments)
@@ -41,10 +42,7 @@ export class LivekitPublisher {
       const sdk = await getLkServerSdk();
 
       const at = new sdk.AccessToken(livekitApiKey, livekitApiSecret, { identity });
-      // canSubscribe must be true: the Rust SDK's wait_pc_connection() waits for
-      // the subscriber PeerConnection to reach "connected" state. With canSubscribe: false,
-      // the server never sends a subscriber offer, causing a 15s timeout.
-      at.addGrant({ room: roomName, roomJoin: true, canPublish: true, canSubscribe: true });
+      at.addGrant(npcVideoGrant(roomName));
       const token = await at.toJwt();
 
       this.room = new lk.Room();
