@@ -3,10 +3,18 @@ import type { Prisma } from './generated/prisma/index.js';
 
 export type PackKind = 'asset' | 'avatar';
 
-export interface PackVisibilityRequest {
-  tenantId?: string;
-  packKind: PackKind;
-  at: Date;
+export type PackVisibilityRequest =
+  | { purpose?: 'visibility'; tenantId?: string; packKind: PackKind; at: Date }
+  | { purpose: 'member-bytes'; tenantId: string; packKind: PackKind; packUuid: string; at: Date };
+
+export interface MemberPackByteAccess {
+  packUuid: string;
+  /** The pack is enterprise catalogue merchandise. */
+  catalogued: boolean;
+  /** The tenant holds an active grant for the current pack version. */
+  entitled: boolean;
+  /** File path inside the pack named by the published catalogue preview, or null. */
+  publishedPreviewRelativePath: string | null;
 }
 
 export interface PackVisibilityResult {
@@ -14,6 +22,7 @@ export interface PackVisibilityResult {
   catalogPackUuids: readonly string[];
   /** The catalogue subset published or granted to this audience. */
   accessiblePackUuids?: readonly string[];
+  memberByteAccess?: MemberPackByteAccess;
 }
 
 // Local minimal type so the build works without the workspace/shared module.
