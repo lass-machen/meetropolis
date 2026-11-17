@@ -182,9 +182,7 @@ async function withoutLiveSession(
 
 /** Matched checks without current tenant access; throws so the round aborts. */
 async function withoutTenantAccess(prisma: ReconcilerPrisma, checks: UserCheck[]): Promise<RoundRemoval[]> {
-  const grants = await Promise.all(
-    checks.map((check) => hasTenantAccess(prisma, check.identity, check.tenantId)),
-  );
+  const grants = await Promise.all(checks.map((check) => hasTenantAccess(prisma, check.identity, check.tenantId)));
   return checks
     .filter((_, index) => !grants[index])
     .map((check) => ({ roomName: check.roomName, identity: check.identity }));
