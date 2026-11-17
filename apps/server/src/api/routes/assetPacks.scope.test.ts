@@ -765,6 +765,34 @@ describe('POST /maps/:id/objects/bulk: the bulk path is no bypass', () => {
     expect(res.status).toBe(200);
   });
 
+  it('stores the pack item image instead of a client-supplied image from another pack', async () => {
+    const prisma = makePrisma();
+    const app = makeApp(prisma);
+    const auth = sessionBearer('lm-user');
+    const foreign = {
+      ...OBJECT_BODY,
+      assetPackUuid: 'pixel-agents-furniture',
+      dataUrl: '/packs/other-tenant-pack/desk.png',
+    };
+
+    const single = await request(app)
+      .post('/maps/map-1/objects')
+      .set('Authorization', auth)
+      .set('X-Tenant', 'lass-machen')
+      .send(foreign);
+    const bulk = await request(app)
+      .post('/maps/map-1/objects/bulk')
+      .set('Authorization', auth)
+      .set('X-Tenant', 'lass-machen')
+      .send({ objects: [foreign] });
+
+    expect([single.status, bulk.status]).toEqual([200, 200]);
+    const stored = vi
+      .mocked(prisma.mapObject.create)
+      .mock.calls.map(([args]) => (args as { data: { dataUrl: string } }).data.dataUrl);
+    expect(stored).toEqual(['/packs/pixel-agents-furniture/desk.png', '/packs/pixel-agents-furniture/desk.png']);
+  });
+
   it('rejects the whole batch when one entry names a foreign private pack', async () => {
     const prisma = makePrisma();
     const app = makeApp(prisma);
