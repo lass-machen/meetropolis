@@ -86,7 +86,12 @@ const prisma = createPrismaClient();
 // The journal directory is trimmed here, the one place both callers pass.
 const sharedPlanResolverForDir = createSharedPlanResolver(
   (journalDir: string) =>
-    createJournalPlanResolver({ prisma, journalDir, retentionDays: process.env.BACKUP_RETENTION_DAYS }),
+    createJournalPlanResolver({
+      prisma,
+      journalDir,
+      retentionDays: process.env.BACKUP_RETENTION_DAYS,
+      maxCopyLifetimeDays: process.env.BACKUP_MAX_COPY_LIFETIME_DAYS,
+    }),
   (error) => logger.warn({ event: 'tenant_delete.journal_resolver_unavailable', error: String(error) }),
 );
 const sharedJournalPlanResolver = (journalDir: string) => sharedPlanResolverForDir(journalDir.trim());
@@ -110,7 +115,12 @@ function registerAccountJournalFromEnv() {
   const journalDir = process.env.DELETION_JOURNAL_DIR?.trim();
   registerAccountDeletionJournal(
     journalDir
-      ? createAccountJournalPlanResolver({ prisma, journalDir, retentionDays: process.env.BACKUP_RETENTION_DAYS })
+      ? createAccountJournalPlanResolver({
+          prisma,
+          journalDir,
+          retentionDays: process.env.BACKUP_RETENTION_DAYS,
+          maxCopyLifetimeDays: process.env.BACKUP_MAX_COPY_LIFETIME_DAYS,
+        })
       : undefined,
   );
 }

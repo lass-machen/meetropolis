@@ -16,6 +16,7 @@ import {
   appendJournalEntry,
   createIdempotencyKey,
   decideJournalIntents,
+  journalUntilFor,
   notePendingDeletionOutcome,
   parseRetentionDays,
   prepareJournalForWrite,
@@ -28,6 +29,7 @@ import type { DeletionTaskRunResult } from './deletionTaskWorker.js';
 // Restore replay, re-exported for callers that load this module as the entry
 // point of the tenant deletion services.
 export { replayCommittedDeletions } from './tenantDeletionReplay.js';
+export { journalUntilFor, parseMaxCopyLifetimeDays } from './tenantDeletionJournal.js';
 
 // A tenant with large maps deletes tens of thousands of map chunks in one transaction; the Prisma default of 5 s is not enough.
 export const TENANT_DELETION_TX_TIMEOUT_MS = 120_000;
@@ -271,18 +273,13 @@ const JOURNAL_POLICY_VERSION = 'tenant-deletion-journal-v1';
 /** Fixed object generation for file tasks: files carry no version counter. */
 export const FILE_TASK_GENERATION = '1';
 
-/**
- * Maximum lifetime of any backup copy. A journal intent stays valid this long
- * after its deletion transaction, independent of the configured retention, so
- * a restored copy can always be matched against the journal.
- */
-export const TENANT_DELETION_JOURNAL_MAX_COPY_LIFETIME_MS = 14 * 24 * 60 * 60 * 1000;
-
 /** Options for the file-backed deletion plan resolver. */
 export interface JournalPlanResolverOptions {
   prisma: PrismaClient;
   journalDir: string;
   retentionDays: unknown;
+  /** Raw BACKUP_MAX_COPY_LIFETIME_DAYS setting: maximum lifetime of any backup copy in days. */
+  maxCopyLifetimeDays: unknown;
   /** Only for the restore replay tool: lets the resolver run while a restore marker is present. */
   allowDuringRestoreReplay?: boolean;
 }
@@ -327,7 +324,8 @@ function toFileTasks(sources: JournalTaskSource[]): TenantDeletionTaskPlan[] {
 /**
  * Builds a resolver that persists every deletion intent to the file journal
  * before returning the plan. Unavailable journal state (missing or read-only
- * directory, broken chain or checkpoint, invalid retention setting) yields
+ * directory, broken chain or checkpoint, invalid retention setting, missing,
+ * invalid or too short copy lifetime) yields
  * undefined so the route answers 409; database errors propagate. While a restore is pending, every call
  * yields undefined as well, unless the restore replay tool allows it.
  */
@@ -345,6 +343,8 @@ export async function createJournalPlanResolver(options: JournalPlanResolverOpti
     if (retentionDays === undefined) return undefined;
     const transactionMs = getTimeMs(input.transactionTime);
     if (transactionMs === null) return undefined;
+    const journalUntil = journalUntilFor(transactionMs, options.maxCopyLifetimeDays, options.retentionDays);
+    if (journalUntil === undefined) return undefined;
     try {
       if (!(await prepareJournalForWrite(journalDir))) return undefined;
       const tenant = await tx.tenant.findUnique({
@@ -357,7 +357,6 @@ export async function createJournalPlanResolver(options: JournalPlanResolverOpti
         tx.avatarPack.findMany({ where: { tenantId: input.tenantId }, select: { uuid: true } }),
         tx.customAvatar.findMany({ where: { tenantId: input.tenantId }, select: { uuid: true } }),
       ]);
-      const journalUntil = new Date(transactionMs + TENANT_DELETION_JOURNAL_MAX_COPY_LIFETIME_MS);
       const key = createIdempotencyKey();
       await appendJournalEntry(journalDir, {
         type: 'intent',
@@ -415,10 +414,13 @@ export function runDeletionTasksOnce(options: {
   now: Date;
   maxAttempts?: number;
   leaseMs?: number;
+  maxCopyLifetimeDays: unknown;
+  retentionDays: unknown;
 }): Promise<DeletionTaskRunResult> {
+  const { maxCopyLifetimeDays, retentionDays, ...passOptions } = options;
   return runDeletionTasks({
-    ...options,
-    maxCopyLifetimeMs: TENANT_DELETION_JOURNAL_MAX_COPY_LIFETIME_MS,
+    ...passOptions,
+    maxCopyLifetimeMs: journalUntilFor(0, maxCopyLifetimeDays, retentionDays)?.getTime(),
     abortAfterMs: undecidedIntentAbortAfterMs(),
   });
 }

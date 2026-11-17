@@ -5,17 +5,12 @@ import {
   JournalUnavailableError,
   appendJournalEntry,
   createIdempotencyKey,
-  parseRetentionDays,
+  journalUntilFor,
   prepareJournalForWrite,
   recordPendingFailure,
 } from './tenantDeletionJournal.js';
 import type { JournalPlanResolverOptions } from './tenantDeletionPlanning.js';
-import {
-  FILE_TASK_GENERATION,
-  TENANT_DELETION_JOURNAL_MAX_COPY_LIFETIME_MS,
-  dedupeKeyFor,
-  readTransactionTimeMs,
-} from './tenantDeletionPlanning.js';
+import { FILE_TASK_GENERATION, dedupeKeyFor, readTransactionTimeMs } from './tenantDeletionPlanning.js';
 import { isRestorePending } from './tenantDeletionRestoreMarker.js';
 
 /**
@@ -58,12 +53,13 @@ export function createAccountJournalPlanResolver(options: JournalPlanResolverOpt
   const { journalDir, allowDuringRestoreReplay } = options;
   return async (tx, userId) => {
     if (allowDuringRestoreReplay !== true && (await isRestorePending(journalDir))) return undefined;
-    if (parseRetentionDays(options.retentionDays) === undefined) return undefined;
     try {
       const transactionMs = await readTransactionTimeMs(tx, undefined);
+      const journalUntilDate = journalUntilFor(transactionMs, options.maxCopyLifetimeDays, options.retentionDays);
+      if (journalUntilDate === undefined) return undefined;
       if (!(await prepareJournalForWrite(journalDir))) return undefined;
       const at = new Date(transactionMs).toISOString();
-      const journalUntil = new Date(transactionMs + TENANT_DELETION_JOURNAL_MAX_COPY_LIFETIME_MS).toISOString();
+      const journalUntil = journalUntilDate.toISOString();
       const key = createIdempotencyKey();
       await appendJournalEntry(journalDir, {
         type: 'intent',

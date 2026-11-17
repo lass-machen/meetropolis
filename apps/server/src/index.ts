@@ -455,7 +455,12 @@ try {
 let deletionTaskWorker: ReturnType<typeof startDeletionTaskWorker> | undefined;
 const deletionJournalDir = process.env.DELETION_JOURNAL_DIR;
 if (deletionJournalDir) {
-  deletionTaskWorker = startDeletionTaskWorker({ prisma: getApiPrismaClient(), journalDir: deletionJournalDir });
+  deletionTaskWorker = startDeletionTaskWorker({
+    prisma: getApiPrismaClient(),
+    journalDir: deletionJournalDir,
+    maxCopyLifetimeDays: process.env.BACKUP_MAX_COPY_LIFETIME_DAYS,
+    retentionDays: process.env.BACKUP_RETENTION_DAYS,
+  });
 }
 
 // Tenant-call access: the reconciler removes participants without a live, session-bound grant.

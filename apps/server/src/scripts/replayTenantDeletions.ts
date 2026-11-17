@@ -71,6 +71,7 @@ function managedDeleter(
         prisma,
         journalDir,
         retentionDays: process.env.BACKUP_RETENTION_DAYS,
+        maxCopyLifetimeDays: process.env.BACKUP_MAX_COPY_LIFETIME_DAYS,
         allowDuringRestoreReplay: true,
       });
       return (await resolver)(tx, input);
@@ -124,6 +125,7 @@ async function main(): Promise<void> {
         prisma,
         journalDir,
         retentionDays: process.env.BACKUP_RETENTION_DAYS,
+        maxCopyLifetimeDays: process.env.BACKUP_MAX_COPY_LIFETIME_DAYS,
         allowDuringRestoreReplay: true,
       }),
     );

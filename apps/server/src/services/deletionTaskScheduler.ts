@@ -14,7 +14,13 @@ function errorName(error: unknown): string {
  * every `intervalMs`; a tick is skipped while a pass is still running. A failed pass is logged by its
  * error name only and does not end the schedule. The timer is unref'd, so it never keeps the process alive.
  */
-export function startDeletionTaskWorker(options: { prisma: PrismaClient; journalDir: string; intervalMs?: number }): {
+export function startDeletionTaskWorker(options: {
+  prisma: PrismaClient;
+  journalDir: string;
+  intervalMs?: number;
+  maxCopyLifetimeDays: unknown;
+  retentionDays: unknown;
+}): {
   stop(): Promise<void>;
 } {
   let running: Promise<void> | undefined;
@@ -22,7 +28,13 @@ export function startDeletionTaskWorker(options: { prisma: PrismaClient; journal
   const runPass = async (): Promise<void> => {
     const now = new Date();
     try {
-      await runDeletionTasksOnce({ prisma: options.prisma, journalDir: options.journalDir, now });
+      await runDeletionTasksOnce({
+        prisma: options.prisma,
+        journalDir: options.journalDir,
+        now,
+        maxCopyLifetimeDays: options.maxCopyLifetimeDays,
+        retentionDays: options.retentionDays,
+      });
     } catch (error) {
       logger.error({ event: 'tenant_deletion.worker_run_failed', errorName: errorName(error) });
     }

@@ -20,7 +20,11 @@ export interface TenantDeletionTaskPlan {
   storageKey?: string;
 }
 
-/** Internal plan input; `journalUntil` is checked as a real date at runtime. */
+/**
+ * Internal plan input; `journalUntil` is checked as a real date at runtime.
+ * The host planner sets it to the deletion time plus BACKUP_MAX_COPY_LIFETIME_DAYS
+ * and returns no plan when that setting is missing or invalid.
+ */
 export interface TenantDeletionPlanInput {
   idempotencyKey: string;
   policyVersion: string;

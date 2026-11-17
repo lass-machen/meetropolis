@@ -62,6 +62,7 @@ describe('findStartupConfigFindings', () => {
       ...validEnv(),
       DELETION_JOURNAL_DIR: dir,
       BACKUP_RETENTION_DAYS: '7',
+      BACKUP_MAX_COPY_LIFETIME_DAYS: '14',
     });
     expect(findings).toEqual([{ key: 'DELETION_JOURNAL_DIR', reason: 'restore pending' }]);
   });
@@ -71,6 +72,7 @@ describe('findStartupConfigFindings', () => {
       ...validEnv(),
       DELETION_JOURNAL_DIR: makeTempDir(),
       BACKUP_RETENTION_DAYS: 'Marker-Value-91c',
+      BACKUP_MAX_COPY_LIFETIME_DAYS: '14',
     });
     expect(findings).toEqual([{ key: 'BACKUP_RETENTION_DAYS', reason: 'invalid deletion journal setting' }]);
     expect(findings[0]?.reason ?? '').not.toContain('Marker-Value-91c');

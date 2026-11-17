@@ -90,6 +90,7 @@ const journalDirs: string[] = [];
 const envSnapshot = {
   journalDir: process.env.DELETION_JOURNAL_DIR,
   retentionDays: process.env.BACKUP_RETENTION_DAYS,
+  lifetimeDays: process.env.BACKUP_MAX_COPY_LIFETIME_DAYS,
 };
 
 function restoreDeletionEnv(): void {
@@ -97,6 +98,8 @@ function restoreDeletionEnv(): void {
   else process.env.DELETION_JOURNAL_DIR = envSnapshot.journalDir;
   if (envSnapshot.retentionDays === undefined) delete process.env.BACKUP_RETENTION_DAYS;
   else process.env.BACKUP_RETENTION_DAYS = envSnapshot.retentionDays;
+  if (envSnapshot.lifetimeDays === undefined) delete process.env.BACKUP_MAX_COPY_LIFETIME_DAYS;
+  else process.env.BACKUP_MAX_COPY_LIFETIME_DAYS = envSnapshot.lifetimeDays;
 }
 
 afterEach(async () => {
@@ -112,6 +115,7 @@ describe('enterprise admin deletion plan config', () => {
     journalDirs.push(journalDir);
     process.env.DELETION_JOURNAL_DIR = journalDir;
     process.env.BACKUP_RETENTION_DAYS = '14';
+    process.env.BACKUP_MAX_COPY_LIFETIME_DAYS = '14';
 
     const config = await captureTenantAdminConfig();
     expect(typeof resolveTenantDeletionPlanOf(config)).toBe('function');
@@ -120,6 +124,7 @@ describe('enterprise admin deletion plan config', () => {
   it('registerApi leaves resolveTenantDeletionPlan undefined without DELETION_JOURNAL_DIR', async () => {
     delete process.env.DELETION_JOURNAL_DIR;
     process.env.BACKUP_RETENTION_DAYS = '14';
+    process.env.BACKUP_MAX_COPY_LIFETIME_DAYS = '14';
 
     const config = await captureTenantAdminConfig();
     expect(resolveTenantDeletionPlanOf(config)).toBeUndefined();
@@ -130,6 +135,7 @@ describe('enterprise admin deletion plan config', () => {
     journalDirs.push(journalDir);
     process.env.DELETION_JOURNAL_DIR = journalDir;
     process.env.BACKUP_RETENTION_DAYS = '14';
+    process.env.BACKUP_MAX_COPY_LIFETIME_DAYS = '14';
 
     const plan: PlanInput = {
       idempotencyKey: 'w3-key',
@@ -161,6 +167,7 @@ describe('enterprise admin deletion plan config', () => {
     journalDirs.push(journalDir);
     process.env.DELETION_JOURNAL_DIR = journalDir;
     process.env.BACKUP_RETENTION_DAYS = '14';
+    process.env.BACKUP_MAX_COPY_LIFETIME_DAYS = '14';
 
     const plan: PlanInput = {
       idempotencyKey: 'w4-key',

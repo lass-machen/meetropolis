@@ -39,7 +39,11 @@ describe('checkDeletionJournalConfig', () => {
 
   describe('with a usable journal directory', () => {
     it.each(['1', '13'])('is valid with BACKUP_RETENTION_DAYS %s', async (days) => {
-      const env = { DELETION_JOURNAL_DIR: dir, BACKUP_RETENTION_DAYS: days };
+      const env = {
+        DELETION_JOURNAL_DIR: dir,
+        BACKUP_RETENTION_DAYS: days,
+        BACKUP_MAX_COPY_LIFETIME_DAYS: '30',
+      };
       expect(await checkWithoutWrites(dir, env)).toEqual({ ok: true });
     });
 
@@ -54,18 +58,54 @@ describe('checkDeletionJournalConfig', () => {
         key: 'BACKUP_RETENTION_DAYS',
       });
     });
+
+    it('rejects a missing BACKUP_MAX_COPY_LIFETIME_DAYS', async () => {
+      const env = { DELETION_JOURNAL_DIR: dir, BACKUP_RETENTION_DAYS: '7' };
+      expect(await checkWithoutWrites(dir, env)).toEqual({ ok: false, key: 'BACKUP_MAX_COPY_LIFETIME_DAYS' });
+    });
+
+    it.each(['0', '030', 'abc', ''])('rejects BACKUP_MAX_COPY_LIFETIME_DAYS %j', async (lifetime) => {
+      const env = {
+        DELETION_JOURNAL_DIR: dir,
+        BACKUP_RETENTION_DAYS: '7',
+        BACKUP_MAX_COPY_LIFETIME_DAYS: lifetime,
+      };
+      expect(await checkWithoutWrites(dir, env)).toEqual({ ok: false, key: 'BACKUP_MAX_COPY_LIFETIME_DAYS' });
+    });
+
+    it('rejects BACKUP_MAX_COPY_LIFETIME_DAYS below BACKUP_RETENTION_DAYS', async () => {
+      const env = {
+        DELETION_JOURNAL_DIR: dir,
+        BACKUP_RETENTION_DAYS: '7',
+        BACKUP_MAX_COPY_LIFETIME_DAYS: '6',
+      };
+      expect(await checkWithoutWrites(dir, env)).toEqual({ ok: false, key: 'BACKUP_MAX_COPY_LIFETIME_DAYS' });
+    });
+
+    it.each(['7', '30'])('accepts BACKUP_MAX_COPY_LIFETIME_DAYS %s with BACKUP_RETENTION_DAYS 7', async (lifetime) => {
+      const env = {
+        DELETION_JOURNAL_DIR: dir,
+        BACKUP_RETENTION_DAYS: '7',
+        BACKUP_MAX_COPY_LIFETIME_DAYS: lifetime,
+      };
+      expect(await checkWithoutWrites(dir, env)).toEqual({ ok: true });
+    });
   });
 
   describe('with an unusable journal directory', () => {
     it('rejects a directory that does not exist and does not create it', async () => {
-      const env = { DELETION_JOURNAL_DIR: path.join(dir, 'missing'), BACKUP_RETENTION_DAYS: '1' };
+      const env = {
+        DELETION_JOURNAL_DIR: path.join(dir, 'missing'),
+        BACKUP_RETENTION_DAYS: '1',
+        BACKUP_MAX_COPY_LIFETIME_DAYS: '14',
+      };
       expect(await checkWithoutWrites(dir, env)).toEqual({ ok: false, key: 'DELETION_JOURNAL_DIR' });
     });
 
     it('rejects a path that is a regular file', async () => {
       const file = path.join(dir, 'journal-file');
       await fs.writeFile(file, 'not a directory');
-      const env = { DELETION_JOURNAL_DIR: file, BACKUP_RETENTION_DAYS: '1' };
+      const env = { DELETION_JOURNAL_DIR: file, BACKUP_RETENTION_DAYS: '1', BACKUP_MAX_COPY_LIFETIME_DAYS: '14' };
       expect(await checkWithoutWrites(dir, env)).toEqual({ ok: false, key: 'DELETION_JOURNAL_DIR' });
     });
 
@@ -75,7 +115,7 @@ describe('checkDeletionJournalConfig', () => {
       await fs.mkdir(journal);
       await fs.chmod(journal, 0o500);
       try {
-        const env = { DELETION_JOURNAL_DIR: journal, BACKUP_RETENTION_DAYS: '1' };
+        const env = { DELETION_JOURNAL_DIR: journal, BACKUP_RETENTION_DAYS: '1', BACKUP_MAX_COPY_LIFETIME_DAYS: '14' };
         expect(await checkWithoutWrites(journal, env)).toEqual({ ok: false, key: 'DELETION_JOURNAL_DIR' });
       } finally {
         // Restores write access so that the afterEach cleanup can remove the directory.

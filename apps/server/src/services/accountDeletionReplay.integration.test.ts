@@ -65,7 +65,13 @@ class AbandonedTransaction extends Error {
 
 /** The account resolver as the deletion tool registers it for the test journal directory. */
 function accountPlanResolver(): AccountJournalResolver {
-  return createAccountJournalPlanResolver({ prisma, journalDir, retentionDays: '7', allowDuringRestoreReplay: true });
+  return createAccountJournalPlanResolver({
+    prisma,
+    journalDir,
+    retentionDays: '7',
+    maxCopyLifetimeDays: '14',
+    allowDuringRestoreReplay: true,
+  });
 }
 
 /** No test in this file expects a tenant deletion, so the callback fails if one is attempted. */

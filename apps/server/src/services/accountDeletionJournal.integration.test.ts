@@ -37,7 +37,9 @@ let journalDir = '';
 
 /** Registers the account resolver for the test journal directory. */
 function registerTestJournal(): void {
-  registerAccountDeletionJournal(createAccountJournalPlanResolver({ prisma, journalDir, retentionDays: '7' }));
+  registerAccountDeletionJournal(
+    createAccountJournalPlanResolver({ prisma, journalDir, retentionDays: '7', maxCopyLifetimeDays: '14' }),
+  );
 }
 
 async function createTenant(): Promise<string> {
@@ -180,7 +182,12 @@ async function dropBlockingUserTrigger(): Promise<void> {
  */
 async function openAccountIntent(userId: string, avatarUuid: string | null): Promise<string> {
   const key = await prisma.$transaction(async (tx) => {
-    const resolve = createAccountJournalPlanResolver({ prisma, journalDir, retentionDays: '7' });
+    const resolve = createAccountJournalPlanResolver({
+      prisma,
+      journalDir,
+      retentionDays: '7',
+      maxCopyLifetimeDays: '14',
+    });
     const plan = await resolve(tx, userId);
     if (plan === undefined) throw new Error('account journal plan unavailable');
     const journalId = await writeAccountJournalInTx(tx, plan, userId, avatarUuid);
@@ -194,7 +201,13 @@ async function openAccountIntent(userId: string, avatarUuid: string | null): Pro
 
 /** One pass of the production deletion worker over the test journal. */
 function runWorkerPass() {
-  return runDeletionTasksOnce({ prisma, journalDir, now: new Date() });
+  return runDeletionTasksOnce({
+    prisma,
+    journalDir,
+    now: new Date(),
+    maxCopyLifetimeDays: '14',
+    retentionDays: '7',
+  });
 }
 
 /** Passes per test: the worker takes at most 100 due tasks per pass, oldest first, in a shared database. */

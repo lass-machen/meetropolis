@@ -25,7 +25,7 @@ export interface RunDeletionTasksOptions {
   now: Date;
   maxAttempts?: number;
   leaseMs?: number;
-  maxCopyLifetimeMs: number;
+  maxCopyLifetimeMs: number | undefined;
   /**
    * Age after which an undecided journal intent may be fenced, see decideJournalIntents. The same age is
    * the minimum age of an account journal without tasks before it is completed.
@@ -133,6 +133,10 @@ async function decideOpenIntents(options: RunDeletionTasksOptions): Promise<void
 
 /** A failed compaction is logged by its code and counts as no removed keys. */
 async function compactExpired(options: RunDeletionTasksOptions): Promise<number> {
+  if (options.maxCopyLifetimeMs === undefined) {
+    logger.warn({ event: 'tenant_deletion.journal_unavailable', code: 'copy_lifetime_unavailable' });
+    return 0;
+  }
   try {
     return await compactExpiredJournals(options.prisma, options.journalDir, options.now, options.maxCopyLifetimeMs);
   } catch (error) {

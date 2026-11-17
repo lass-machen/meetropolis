@@ -1,8 +1,8 @@
 import { accessSync, constants, statSync } from 'node:fs';
-import { parseRetentionDays } from './tenantDeletionJournal.js';
+import { journalUntilFor, parseRetentionDays } from './tenantDeletionJournal.js';
 
 export type DeletionJournalConfigResult =
-  { ok: true } | { ok: false; key: 'BACKUP_RETENTION_DAYS' | 'DELETION_JOURNAL_DIR' };
+  { ok: true } | { ok: false; key: 'BACKUP_RETENTION_DAYS' | 'BACKUP_MAX_COPY_LIFETIME_DAYS' | 'DELETION_JOURNAL_DIR' };
 
 // Checks the static journal configuration at startup. It only reads: nothing is
 // written or created, no lock is taken and prepareJournalForWrite is not called.
@@ -11,6 +11,9 @@ export function checkDeletionJournalConfig(env: NodeJS.ProcessEnv): DeletionJour
   if (!journalDir) return { ok: true };
   if (parseRetentionDays(env.BACKUP_RETENTION_DAYS) === undefined) {
     return { ok: false, key: 'BACKUP_RETENTION_DAYS' };
+  }
+  if (journalUntilFor(0, env.BACKUP_MAX_COPY_LIFETIME_DAYS, env.BACKUP_RETENTION_DAYS) === undefined) {
+    return { ok: false, key: 'BACKUP_MAX_COPY_LIFETIME_DAYS' };
   }
   try {
     const stats = statSync(journalDir);
