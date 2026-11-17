@@ -8,6 +8,11 @@
 import client from 'prom-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// Load the dependencies of the entry once while this file is collected, so the
+// first case does not pay the cold module load inside its own time budget. Every
+// case still imports the entry itself fresh after vi.resetModules().
+import './startupConfigFindings.js';
+
 const MANAGED_KEYS = [
   'NODE_ENV',
   'LIVEKIT_API_KEY',
