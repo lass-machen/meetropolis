@@ -299,80 +299,96 @@ describe('bubble updates from another tenant', () => {
     vi.unstubAllEnvs();
   });
 
-  it('leave the other tenant group unchanged', async () => {
-    const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const [guest] = await seedPlayers(guestId, 1);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, INSIDE);
-    const eve = await connect(guest.token, INSIDE);
-    expectSameRoom([alice, bob, eve]);
-    const seen = collect(alice, 'bubble_state');
-    await formGroup(alice, bob);
-    expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
-    seen.length = 0;
-    eve.send('bubble_update', { members: [eve.sessionId, alice.sessionId] });
-    await sleep(QUIET_MS);
-    expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId]);
-    expect(groupMembers(eve, eve.sessionId)).toBeUndefined();
-    expect(seen).toEqual([]);
-  }, CASE_MS);
+  it(
+    'leave the other tenant group unchanged',
+    async () => {
+      const [hostA, hostB] = await seedPlayers(hostId, 2);
+      const [guest] = await seedPlayers(guestId, 1);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, INSIDE);
+      const eve = await connect(guest.token, INSIDE);
+      expectSameRoom([alice, bob, eve]);
+      const seen = collect(alice, 'bubble_state');
+      await formGroup(alice, bob);
+      expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
+      seen.length = 0;
+      eve.send('bubble_update', { members: [eve.sessionId, alice.sessionId] });
+      await sleep(QUIET_MS);
+      expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId]);
+      expect(groupMembers(eve, eve.sessionId)).toBeUndefined();
+      expect(seen).toEqual([]);
+    },
+    CASE_MS,
+  );
 });
 
 describe('bubble updates from another map', () => {
-  it('leave the group on the original map unchanged', async () => {
-    const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, INSIDE);
-    const carol = await connect(hostC.token, INSIDE);
-    expectSameRoom([alice, bob, carol]);
-    const seen = collect(alice, 'bubble_state');
-    await formGroup(alice, bob);
-    await moveTo(carol, studioId);
-    expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
-    seen.length = 0;
-    carol.send('bubble_update', { members: [carol.sessionId, alice.sessionId] });
-    await sleep(QUIET_MS);
-    expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId]);
-    expect(seen).toEqual([]);
-  }, CASE_MS);
+  it(
+    'leave the group on the original map unchanged',
+    async () => {
+      const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, INSIDE);
+      const carol = await connect(hostC.token, INSIDE);
+      expectSameRoom([alice, bob, carol]);
+      const seen = collect(alice, 'bubble_state');
+      await formGroup(alice, bob);
+      await moveTo(carol, studioId);
+      expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
+      seen.length = 0;
+      carol.send('bubble_update', { members: [carol.sessionId, alice.sessionId] });
+      await sleep(QUIET_MS);
+      expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId]);
+      expect(seen).toEqual([]);
+    },
+    CASE_MS,
+  );
 });
 
 describe('bubble updates from outside a group', () => {
-  it('leave that group intact', async () => {
-    const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, INSIDE);
-    const carol = await connect(hostC.token, INSIDE);
-    expectSameRoom([alice, bob, carol]);
-    const seen = collect(alice, 'bubble_state');
-    await formGroup(alice, bob);
-    expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
-    seen.length = 0;
-    carol.send('bubble_update', { members: [alice.sessionId] });
-    await sleep(QUIET_MS);
-    expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId]);
-    expect(seen).toEqual([]);
-  }, CASE_MS);
+  it(
+    'leave that group intact',
+    async () => {
+      const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, INSIDE);
+      const carol = await connect(hostC.token, INSIDE);
+      expectSameRoom([alice, bob, carol]);
+      const seen = collect(alice, 'bubble_state');
+      await formGroup(alice, bob);
+      expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
+      seen.length = 0;
+      carol.send('bubble_update', { members: [alice.sessionId] });
+      await sleep(QUIET_MS);
+      expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId]);
+      expect(seen).toEqual([]);
+    },
+    CASE_MS,
+  );
 });
 
 describe('bubble updates that rename a group', () => {
-  it('keep the existing group id', async () => {
-    const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, INSIDE);
-    expectSameRoom([alice, bob]);
-    const seen = collect(alice, 'bubble_state');
-    await formGroup(alice, bob);
-    const id = groupKey(alice, alice.sessionId);
-    expect(id, 'the server assigned a group id').toBeTruthy();
-    expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
-    seen.length = 0;
-    alice.send('bubble_update', { id: FORGED_GROUP_ID, members: [alice.sessionId, bob.sessionId] });
-    await sleep(QUIET_MS);
-    expect(groupKey(alice, alice.sessionId)).toBe(id);
-    expect(Object.keys(worldOf(alice).bubbleGroups)).not.toContain(FORGED_GROUP_ID);
-    expect(bubbleUsesId(seen, FORGED_GROUP_ID)).toBe(false);
-  }, CASE_MS);
+  it(
+    'keep the existing group id',
+    async () => {
+      const [hostA, hostB] = await seedPlayers(hostId, 2);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, INSIDE);
+      expectSameRoom([alice, bob]);
+      const seen = collect(alice, 'bubble_state');
+      await formGroup(alice, bob);
+      const id = groupKey(alice, alice.sessionId);
+      expect(id, 'the server assigned a group id').toBeTruthy();
+      expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
+      seen.length = 0;
+      alice.send('bubble_update', { id: FORGED_GROUP_ID, members: [alice.sessionId, bob.sessionId] });
+      await sleep(QUIET_MS);
+      expect(groupKey(alice, alice.sessionId)).toBe(id);
+      expect(Object.keys(worldOf(alice).bubbleGroups)).not.toContain(FORGED_GROUP_ID);
+      expect(bubbleUsesId(seen, FORGED_GROUP_ID)).toBe(false);
+    },
+    CASE_MS,
+  );
 });
 
 describe('bubble state sent when a client joins', () => {
@@ -384,61 +400,73 @@ describe('bubble state sent when a client joins', () => {
     vi.unstubAllEnvs();
   });
 
-  it('omits groups from another tenant', async () => {
-    const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const [guest] = await seedPlayers(guestId, 1);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, INSIDE);
-    await formGroup(alice, bob);
-    const eve = await connect(guest.token, INSIDE);
-    const full = collect(eve, 'full_state');
-    const bubbles = collect(eve, 'bubble_state');
-    expectSameRoom([alice, eve]);
-    await sleep(QUIET_MS);
-    expect(full.length, 'the join seed was delivered').toBeGreaterThan(0);
-    expect(bubbleMentions(bubbles, alice.sessionId)).toBe(false);
-    expect(bubbleMentions(bubbles, bob.sessionId)).toBe(false);
-  }, CASE_MS);
+  it(
+    'omits groups from another tenant',
+    async () => {
+      const [hostA, hostB] = await seedPlayers(hostId, 2);
+      const [guest] = await seedPlayers(guestId, 1);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, INSIDE);
+      await formGroup(alice, bob);
+      const eve = await connect(guest.token, INSIDE);
+      const full = collect(eve, 'full_state');
+      const bubbles = collect(eve, 'bubble_state');
+      expectSameRoom([alice, eve]);
+      await sleep(QUIET_MS);
+      expect(full.length, 'the join seed was delivered').toBeGreaterThan(0);
+      expect(bubbleMentions(bubbles, alice.sessionId)).toBe(false);
+      expect(bubbleMentions(bubbles, bob.sessionId)).toBe(false);
+    },
+    CASE_MS,
+  );
 });
 
 describe('zone access requests that name another map', () => {
-  it('leave that lock without a new request', async () => {
-    const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, OUTSIDE);
-    expectSameRoom([alice, bob]);
-    await waitForMap(alice, officeId);
-    await waitForMap(bob, officeId);
-    const seen = collect(alice, 'zone_lock_state');
-    await lockZone(alice);
-    seen.length = 0;
-    await moveTo(bob, studioId);
-    bob.send('zone_access_request', { zoneName: ZONE_NAME, mapId: officeId });
-    await sleep(QUIET_MS);
-    expect(pendingIds(alice)).toEqual([]);
-    expect(accessIds(alice)).toEqual([alice.sessionId]);
-    expect(seen).toEqual([]);
-  }, CASE_MS);
+  it(
+    'leave that lock without a new request',
+    async () => {
+      const [hostA, hostB] = await seedPlayers(hostId, 2);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, OUTSIDE);
+      expectSameRoom([alice, bob]);
+      await waitForMap(alice, officeId);
+      await waitForMap(bob, officeId);
+      const seen = collect(alice, 'zone_lock_state');
+      await lockZone(alice);
+      seen.length = 0;
+      await moveTo(bob, studioId);
+      bob.send('zone_access_request', { zoneName: ZONE_NAME, mapId: officeId });
+      await sleep(QUIET_MS);
+      expect(pendingIds(alice)).toEqual([]);
+      expect(accessIds(alice)).toEqual([alice.sessionId]);
+      expect(seen).toEqual([]);
+    },
+    CASE_MS,
+  );
 });
 
 describe('zone access responses without a pending request', () => {
-  it('leave the access list unchanged', async () => {
-    const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const alice = await connect(hostA.token, INSIDE);
-    const carol = await connect(hostB.token, OUTSIDE);
-    expectSameRoom([alice, carol]);
-    await waitForMap(alice, officeId);
-    await waitForMap(carol, officeId);
-    const seen = collect(carol, 'zone_lock_state');
-    await lockZone(alice);
-    const before = accessIds(alice);
-    seen.length = 0;
-    alice.send('zone_access_response', { zoneName: ZONE_NAME, sessionId: carol.sessionId, approved: true });
-    await sleep(QUIET_MS);
-    expect(accessIds(alice)).toEqual(before);
-    expect(pendingIds(alice)).toEqual([]);
-    expect(seen).toEqual([]);
-  }, CASE_MS);
+  it(
+    'leave the access list unchanged',
+    async () => {
+      const [hostA, hostB] = await seedPlayers(hostId, 2);
+      const alice = await connect(hostA.token, INSIDE);
+      const carol = await connect(hostB.token, OUTSIDE);
+      expectSameRoom([alice, carol]);
+      await waitForMap(alice, officeId);
+      await waitForMap(carol, officeId);
+      const seen = collect(carol, 'zone_lock_state');
+      await lockZone(alice);
+      const before = accessIds(alice);
+      seen.length = 0;
+      alice.send('zone_access_response', { zoneName: ZONE_NAME, sessionId: carol.sessionId, approved: true });
+      await sleep(QUIET_MS);
+      expect(accessIds(alice)).toEqual(before);
+      expect(pendingIds(alice)).toEqual([]);
+      expect(seen).toEqual([]);
+    },
+    CASE_MS,
+  );
 });
 
 describe('zone lock state sent when a client joins', () => {
@@ -450,163 +478,199 @@ describe('zone lock state sent when a client joins', () => {
     vi.unstubAllEnvs();
   });
 
-  it('omits locks from another tenant', async () => {
-    const [host] = await seedPlayers(hostId, 1);
-    const [guest] = await seedPlayers(guestId, 1);
-    const alice = await connect(host.token, INSIDE);
-    await waitForMap(alice, officeId);
-    await lockZone(alice);
-    const eve = await connect(guest.token, OUTSIDE);
-    const full = collect(eve, 'full_state');
-    const locks = collect(eve, 'zone_lock_state');
-    expectSameRoom([alice, eve]);
-    await sleep(QUIET_MS);
-    expect(full.length, 'the join seed was delivered').toBeGreaterThan(0);
-    expect(lockMentions(locks, ZONE_NAME, officeId)).toBe(false);
-  }, CASE_MS);
+  it(
+    'omits locks from another tenant',
+    async () => {
+      const [host] = await seedPlayers(hostId, 1);
+      const [guest] = await seedPlayers(guestId, 1);
+      const alice = await connect(host.token, INSIDE);
+      await waitForMap(alice, officeId);
+      await lockZone(alice);
+      const eve = await connect(guest.token, OUTSIDE);
+      const full = collect(eve, 'full_state');
+      const locks = collect(eve, 'zone_lock_state');
+      expectSameRoom([alice, eve]);
+      await sleep(QUIET_MS);
+      expect(full.length, 'the join seed was delivered').toBeGreaterThan(0);
+      expect(lockMentions(locks, ZONE_NAME, officeId)).toBe(false);
+    },
+    CASE_MS,
+  );
 });
 
 describe('a player forms a bubble', () => {
-  it('groups the sender with the named peer', async () => {
-    const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, INSIDE);
-    const seen = collect(bob, 'bubble_state');
-    alice.send('bubble_update', { members: [alice.sessionId, bob.sessionId] });
-    const announced = await waitUntil(
-      () => bubbleMentions(seen, alice.sessionId) && bubbleMentions(seen, bob.sessionId),
-      STEP_MS,
-    );
-    expect(announced).toBe(true);
-    expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId]);
-  }, CASE_MS);
+  it(
+    'groups the sender with the named peer',
+    async () => {
+      const [hostA, hostB] = await seedPlayers(hostId, 2);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, INSIDE);
+      const seen = collect(bob, 'bubble_state');
+      alice.send('bubble_update', { members: [alice.sessionId, bob.sessionId] });
+      const announced = await waitUntil(
+        () => bubbleMentions(seen, alice.sessionId) && bubbleMentions(seen, bob.sessionId),
+        STEP_MS,
+      );
+      expect(announced).toBe(true);
+      expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId]);
+    },
+    CASE_MS,
+  );
 });
 
 describe('a player joins a bubble', () => {
-  it('adds the sender to the existing group', async () => {
-    const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, INSIDE);
-    const carol = await connect(hostC.token, INSIDE);
-    await formGroup(alice, bob);
-    const id = groupKey(alice, alice.sessionId);
-    expect(id).toBeTruthy();
-    const seen = collect(bob, 'bubble_state');
-    carol.send('bubble_update', { id, members: [alice.sessionId, bob.sessionId, carol.sessionId] });
-    const joined = await waitUntil(() => bubbleMentions(seen, carol.sessionId), STEP_MS);
-    expect(joined).toBe(true);
-    expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId, carol.sessionId]);
-  }, CASE_MS);
+  it(
+    'adds the sender to the existing group',
+    async () => {
+      const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, INSIDE);
+      const carol = await connect(hostC.token, INSIDE);
+      await formGroup(alice, bob);
+      const id = groupKey(alice, alice.sessionId);
+      expect(id).toBeTruthy();
+      const seen = collect(bob, 'bubble_state');
+      carol.send('bubble_update', { id, members: [alice.sessionId, bob.sessionId, carol.sessionId] });
+      const joined = await waitUntil(() => bubbleMentions(seen, carol.sessionId), STEP_MS);
+      expect(joined).toBe(true);
+      expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId, carol.sessionId]);
+    },
+    CASE_MS,
+  );
 });
 
 describe('a player expands a bubble', () => {
-  it('adds the named peer to the sender group', async () => {
-    const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, INSIDE);
-    const carol = await connect(hostC.token, INSIDE);
-    await formGroup(alice, bob);
-    const id = groupKey(alice, alice.sessionId);
-    expect(id).toBeTruthy();
-    const seen = collect(carol, 'bubble_state');
-    alice.send('bubble_update', { id, members: [alice.sessionId, bob.sessionId, carol.sessionId] });
-    const expanded = await waitUntil(() => bubbleMentions(seen, carol.sessionId), STEP_MS);
-    expect(expanded).toBe(true);
-    expect(groupKey(alice, alice.sessionId)).toBe(id);
-    expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId, carol.sessionId]);
-  }, CASE_MS);
+  it(
+    'adds the named peer to the sender group',
+    async () => {
+      const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, INSIDE);
+      const carol = await connect(hostC.token, INSIDE);
+      await formGroup(alice, bob);
+      const id = groupKey(alice, alice.sessionId);
+      expect(id).toBeTruthy();
+      const seen = collect(carol, 'bubble_state');
+      alice.send('bubble_update', { id, members: [alice.sessionId, bob.sessionId, carol.sessionId] });
+      const expanded = await waitUntil(() => bubbleMentions(seen, carol.sessionId), STEP_MS);
+      expect(expanded).toBe(true);
+      expect(groupKey(alice, alice.sessionId)).toBe(id);
+      expect(groupMembers(alice, alice.sessionId)).toEqual([alice.sessionId, bob.sessionId, carol.sessionId]);
+    },
+    CASE_MS,
+  );
 });
 
 describe('a player leaves a bubble', () => {
-  it('keeps every member except the sender', async () => {
-    const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, INSIDE);
-    const carol = await connect(hostC.token, INSIDE);
-    await formGroup(alice, bob);
-    const id = groupKey(alice, alice.sessionId);
-    expect(id).toBeTruthy();
-    alice.send('bubble_update', { id, members: [alice.sessionId, bob.sessionId, carol.sessionId] });
-    const expanded = await waitUntil(
-      () => (groupMembers(alice, alice.sessionId) ?? []).includes(carol.sessionId),
-      STEP_MS,
-    );
-    expect(expanded).toBe(true);
-    const previous = groupMembers(alice, alice.sessionId) ?? [];
-    const remaining = previous.filter((sessionId) => sessionId !== alice.sessionId);
-    alice.send('bubble_update', { id, members: remaining });
-    const left = await waitUntil(() => {
-      const now = groupMembers(bob, bob.sessionId);
-      if (!now || now.length !== remaining.length) return false;
-      return remaining.every((sessionId, index) => now[index] === sessionId);
-    }, STEP_MS);
-    expect(left).toBe(true);
-  }, CASE_MS);
+  it(
+    'keeps every member except the sender',
+    async () => {
+      const [hostA, hostB, hostC] = await seedPlayers(hostId, 3);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, INSIDE);
+      const carol = await connect(hostC.token, INSIDE);
+      await formGroup(alice, bob);
+      const id = groupKey(alice, alice.sessionId);
+      expect(id).toBeTruthy();
+      alice.send('bubble_update', { id, members: [alice.sessionId, bob.sessionId, carol.sessionId] });
+      const expanded = await waitUntil(
+        () => (groupMembers(alice, alice.sessionId) ?? []).includes(carol.sessionId),
+        STEP_MS,
+      );
+      expect(expanded).toBe(true);
+      const previous = groupMembers(alice, alice.sessionId) ?? [];
+      const remaining = previous.filter((sessionId) => sessionId !== alice.sessionId);
+      alice.send('bubble_update', { id, members: remaining });
+      const left = await waitUntil(() => {
+        const now = groupMembers(bob, bob.sessionId);
+        if (!now || now.length !== remaining.length) return false;
+        return remaining.every((sessionId, index) => now[index] === sessionId);
+      }, STEP_MS);
+      expect(left).toBe(true);
+    },
+    CASE_MS,
+  );
 });
 
 describe('a player locks a zone', () => {
-  it('records the sender on the zone access list', async () => {
-    const [host] = await seedPlayers(hostId, 1);
-    const alice = await connect(host.token, INSIDE);
-    await waitForMap(alice, officeId);
-    const seen = collect(alice, 'zone_lock_state');
-    alice.send('zone_lock', { zoneName: ZONE_NAME });
-    const recorded = await waitUntil(
-      () => lockMentions(seen, ZONE_NAME, officeId) && accessIds(alice).includes(alice.sessionId),
-      STEP_MS,
-    );
-    expect(recorded).toBe(true);
-  }, CASE_MS);
+  it(
+    'records the sender on the zone access list',
+    async () => {
+      const [host] = await seedPlayers(hostId, 1);
+      const alice = await connect(host.token, INSIDE);
+      await waitForMap(alice, officeId);
+      const seen = collect(alice, 'zone_lock_state');
+      alice.send('zone_lock', { zoneName: ZONE_NAME });
+      const recorded = await waitUntil(
+        () => lockMentions(seen, ZONE_NAME, officeId) && accessIds(alice).includes(alice.sessionId),
+        STEP_MS,
+      );
+      expect(recorded).toBe(true);
+    },
+    CASE_MS,
+  );
 });
 
 describe('a player approves a zone request', () => {
-  it('adds the requester to the access list', async () => {
-    const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, OUTSIDE);
-    await waitForMap(alice, officeId);
-    await waitForMap(bob, officeId);
-    await lockZone(alice);
-    bob.send('zone_access_request', { zoneName: ZONE_NAME, mapId: officeId });
-    expect(await waitUntil(() => pendingIds(alice).includes(bob.sessionId), STEP_MS)).toBe(true);
-    alice.send('zone_access_response', { zoneName: ZONE_NAME, sessionId: bob.sessionId, approved: true });
-    const approved = await waitUntil(() => accessIds(alice).includes(bob.sessionId), STEP_MS);
-    expect(approved).toBe(true);
-    expect(pendingIds(alice)).not.toContain(bob.sessionId);
-  }, CASE_MS);
+  it(
+    'adds the requester to the access list',
+    async () => {
+      const [hostA, hostB] = await seedPlayers(hostId, 2);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, OUTSIDE);
+      await waitForMap(alice, officeId);
+      await waitForMap(bob, officeId);
+      await lockZone(alice);
+      bob.send('zone_access_request', { zoneName: ZONE_NAME, mapId: officeId });
+      expect(await waitUntil(() => pendingIds(alice).includes(bob.sessionId), STEP_MS)).toBe(true);
+      alice.send('zone_access_response', { zoneName: ZONE_NAME, sessionId: bob.sessionId, approved: true });
+      const approved = await waitUntil(() => accessIds(alice).includes(bob.sessionId), STEP_MS);
+      expect(approved).toBe(true);
+      expect(pendingIds(alice)).not.toContain(bob.sessionId);
+    },
+    CASE_MS,
+  );
 });
 
 describe('a player denies a zone request', () => {
-  it('tells the requester the zone stays closed', async () => {
-    const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, OUTSIDE);
-    await waitForMap(alice, officeId);
-    await waitForMap(bob, officeId);
-    await lockZone(alice);
-    const denied = collect(bob, 'zone_access_denied');
-    bob.send('zone_access_request', { zoneName: ZONE_NAME, mapId: officeId });
-    expect(await waitUntil(() => pendingIds(alice).includes(bob.sessionId), STEP_MS)).toBe(true);
-    alice.send('zone_access_response', { zoneName: ZONE_NAME, sessionId: bob.sessionId, approved: false });
-    const told = await waitUntil(() => deniedZone(denied, ZONE_NAME), STEP_MS);
-    expect(told).toBe(true);
-    expect(accessIds(alice)).toEqual([alice.sessionId]);
-    expect(pendingIds(alice)).not.toContain(bob.sessionId);
-  }, CASE_MS);
+  it(
+    'tells the requester the zone stays closed',
+    async () => {
+      const [hostA, hostB] = await seedPlayers(hostId, 2);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, OUTSIDE);
+      await waitForMap(alice, officeId);
+      await waitForMap(bob, officeId);
+      await lockZone(alice);
+      const denied = collect(bob, 'zone_access_denied');
+      bob.send('zone_access_request', { zoneName: ZONE_NAME, mapId: officeId });
+      expect(await waitUntil(() => pendingIds(alice).includes(bob.sessionId), STEP_MS)).toBe(true);
+      alice.send('zone_access_response', { zoneName: ZONE_NAME, sessionId: bob.sessionId, approved: false });
+      const told = await waitUntil(() => deniedZone(denied, ZONE_NAME), STEP_MS);
+      expect(told).toBe(true);
+      expect(accessIds(alice)).toEqual([alice.sessionId]);
+      expect(pendingIds(alice)).not.toContain(bob.sessionId);
+    },
+    CASE_MS,
+  );
 });
 
 describe('a player leaves the room', () => {
-  it('releases the zone lock when nobody with access remains', async () => {
-    const [hostA, hostB] = await seedPlayers(hostId, 2);
-    const alice = await connect(hostA.token, INSIDE);
-    const bob = await connect(hostB.token, OUTSIDE);
-    await waitForMap(alice, officeId);
-    await waitForMap(bob, officeId);
-    await lockZone(alice);
-    const seen = collect(bob, 'zone_lock_state');
-    await alice.leave();
-    const released = await waitUntil(() => !zoneLock(bob) && seen.length > 0, STEP_MS);
-    expect(released).toBe(true);
-    expect(lockMentions(seen, ZONE_NAME, officeId)).toBe(false);
-  }, CASE_MS);
+  it(
+    'releases the zone lock when nobody with access remains',
+    async () => {
+      const [hostA, hostB] = await seedPlayers(hostId, 2);
+      const alice = await connect(hostA.token, INSIDE);
+      const bob = await connect(hostB.token, OUTSIDE);
+      await waitForMap(alice, officeId);
+      await waitForMap(bob, officeId);
+      await lockZone(alice);
+      const seen = collect(bob, 'zone_lock_state');
+      await alice.leave();
+      const released = await waitUntil(() => !zoneLock(bob) && seen.length > 0, STEP_MS);
+      expect(released).toBe(true);
+      expect(lockMentions(seen, ZONE_NAME, officeId)).toBe(false);
+    },
+    CASE_MS,
+  );
 });
