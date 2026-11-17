@@ -11,7 +11,7 @@ import { BillingCancelPage } from '../../ui/pub/billing/BillingCancelPage';
 import { EmailVerifyPage } from '../../ui/pub/billing/EmailVerifyPage';
 import { AuthPage } from '../../ui/pub/auth/AuthPage';
 import { useTranslation } from 'react-i18next';
-import { getBrandModule, useHasBrandModule } from '../../lib/brandLoader';
+import { getBrandModule, useHasBrandModule, type PublicAdsConfig } from '../../lib/brandLoader';
 import { SimpleLegalNotice } from '../../ui/pub/legal/SimpleLegalNotice';
 import { ContactPage } from '../../ui/pub/contact/ContactPage';
 import { DesktopUpdateOverlay } from './components/DesktopUpdateOverlay';
@@ -38,7 +38,11 @@ const TermsOfServicePageLazy = React.lazy<React.ComponentType<LegalPageProps>>(a
   return { default: mod.TermsOfServicePage };
 });
 
-const PrivacyPolicyPageLazy = React.lazy<React.ComponentType<LegalPageProps>>(async () => {
+// The privacy page also receives the ads consent config, so the brand text can
+// describe the active consent mode.
+type PrivacyPageProps = LegalPageProps & { adsConfig?: PublicAdsConfig | null };
+
+const PrivacyPolicyPageLazy = React.lazy<React.ComponentType<PrivacyPageProps>>(async () => {
   const mod = await getBrandModule();
   if (!mod) return { default: SimpleLegalNotice };
   return { default: mod.PrivacyPolicyPage };
@@ -48,6 +52,15 @@ const ImpressumPageLazy = React.lazy<React.ComponentType<LegalPageProps>>(async 
   const mod = await getBrandModule();
   if (!mod) return { default: SimpleLegalNotice };
   return { default: mod.ImpressumPage };
+});
+
+// Optional brand consent banner. Resolves to null when the brand module is
+// absent or ships no AdsConsent export, so public routes stay unchanged in
+// OSS builds and older brand builds.
+const AdsConsentLazy = React.lazy<React.ComponentType<{ config: PublicAdsConfig | null }>>(async () => {
+  const mod = await getBrandModule();
+  if (!mod?.AdsConsent) return { default: () => null };
+  return { default: mod.AdsConsent };
 });
 
 function usePublicConfig(apiBase: string): boolean {
@@ -78,10 +91,18 @@ type RouteRenderProps = {
   params: RouteParams;
   apiBase: string;
   registrationEnabled: boolean;
+  adsConfig: PublicAdsConfig | null;
   navigate: (r: Route, qp?: Record<string, string>) => void;
 };
 
-function RouteContent({ route, params, apiBase, registrationEnabled, navigate }: RouteRenderProps): React.ReactElement {
+function RouteContent({
+  route,
+  params,
+  apiBase,
+  registrationEnabled,
+  adsConfig,
+  navigate,
+}: RouteRenderProps): React.ReactElement {
   switch (route) {
     case 'landing':
       return (
@@ -104,7 +125,11 @@ function RouteContent({ route, params, apiBase, registrationEnabled, navigate }:
     case 'privacy':
       return (
         <React.Suspense fallback={<div style={{ padding: 40 }}>Loading…</div>}>
-          <PrivacyPolicyPageLazy onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />
+          <PrivacyPolicyPageLazy
+            onBack={() => navigate('landing')}
+            registrationEnabled={registrationEnabled}
+            adsConfig={adsConfig}
+          />
         </React.Suspense>
       );
     case 'terms':
@@ -260,7 +285,11 @@ export function AppRoutes() {
   const { route, params, navigate } = useHashRoute();
   const apiBase = getApiBaseFromWindow();
   const registrationEnabled = usePublicConfig(apiBase);
+  const ads = usePublicConfigStore((s) => s.ads);
   const { loading: brandLoading, hasBrand } = useHasBrandModule();
+  // The consent banner belongs to the public surface only: the app shell,
+  // the agent-connect slot and the guest-auth invite carry no marketing.
+  const isPublicRoute = route !== 'app' && route !== 'connect' && route !== 'guest-auth';
 
   React.useEffect(() => {
     if (!registrationEnabled && route === 'register') {
@@ -299,8 +328,14 @@ export function AppRoutes() {
         params={params}
         apiBase={apiBase}
         registrationEnabled={registrationEnabled}
+        adsConfig={ads}
         navigate={navigate}
       />
+      {isPublicRoute && (
+        <React.Suspense fallback={null}>
+          <AdsConsentLazy config={ads} />
+        </React.Suspense>
+      )}
       {/* Above the auth gate so update notifications reach the login screen too. */}
       <DesktopUpdateOverlay />
     </>
