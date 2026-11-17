@@ -56,6 +56,8 @@ const mem = {
   chunks: [] as ChunkRec[],
   tilesets: [] as TilesetRec[],
   zones: [] as any[],
+  // Advisory lock keys in the order the routes took them.
+  lockKeys: [] as string[],
   // Membership of the seeded caller in the resolved tenant. The genuine editor
   // writes (paint, resize, rename, editor-state, zones) require owner/admin;
   // reads AND tileset registration accept any role (tileset registration runs
@@ -68,7 +70,9 @@ const mem = {
 // api.ts imports PrismaClient from './generated/prisma/index.js'.
 vi.mock('./generated/prisma/index.js', () => {
   class PrismaClientMock {
-    $queryRaw() {
+    $queryRaw(query?: { values?: unknown[] }) {
+      const key = query?.values?.[0];
+      if (typeof key === 'string') mem.lockKeys.push(key);
       return [];
     }
     $transaction(callback: (client: PrismaClientMock) => Promise<unknown>) {
@@ -444,6 +448,27 @@ describe('v2 map editor auth + membership gate', () => {
       .set('x-tenant', 'default')
       .send({ key: `k_${Math.random().toString(36).slice(2)}`, imageUrl: '/x.png', tileWidth: 16, tileHeight: 16 });
     expect(res.status).toBe(200);
+  });
+
+  it('locks the pack a registered tileset image points into after the map', async () => {
+    const app = await createApp();
+    mem.membership = { role: 'member' };
+    mem.lockKeys = [];
+    const res = await request(app)
+      .post('/maps/test/tilesets')
+      .set('Authorization', sessionBearer('member1'))
+      .set('x-tenant', 'default')
+      .send({
+        key: `k_${Math.random().toString(36).slice(2)}`,
+        imageUrl: 'https://api.example.test/packs/office-pack/generations/g1/tiles.png',
+        tileWidth: 16,
+        tileHeight: 16,
+      });
+    expect(res.status).toBe(200);
+    const mapLock = mem.lockKeys.findIndex((key) => key.startsWith('meetropolis:map:'));
+    const packLock = mem.lockKeys.indexOf('meetropolis:asset-pack:office-pack');
+    expect(mapLock).toBeGreaterThanOrEqual(0);
+    expect(packLock).toBeGreaterThan(mapLock);
   });
 
   it('gates editor-state PUT to owner/admin (member -> 403)', async () => {
