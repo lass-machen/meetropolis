@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { logger } from '../../../lib/logger';
 import { clearDesktopAuthToken } from '../../../lib/desktopAuth';
 import { EditorService } from '../../../services/EditorService';
@@ -103,6 +103,13 @@ async function reconcileMicState(
 function useAvHandlers(params: UseWorldEventHandlersParams) {
   const { avRef, avState, setAvState, setSelectedMicId, setSelectedCamId, gameBridge } = params;
 
+  // i18n key of the last failed capture attempt (mic/cam/share enable or
+  // share start). A deliberate disable/stop never sets this. Success of a
+  // capture attempt or an explicit dismiss clears it. No raw error or
+  // device names are stored here; texts live in the locales (av.*).
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const dismissCaptureError = useCallback(() => setCaptureError(null), []);
+
   const handleToggleMic = useCallback(async () => {
     const enabled = !avState.mic;
     await ensureMicAudioContext(avRef);
@@ -111,8 +118,10 @@ function useAvHandlers(params: UseWorldEventHandlersParams) {
       await avRef.current?.setMicrophoneEnabled(enabled);
     } catch {
       setAvState((s) => ({ ...s, mic: !enabled }));
+      if (enabled) setCaptureError('av.microphoneCaptureFailed');
       return;
     }
+    if (enabled) setCaptureError(null);
     await reconcileMicState(avRef, enabled, setAvState);
   }, [avState.mic, avRef, setAvState]);
 
@@ -131,7 +140,10 @@ function useAvHandlers(params: UseWorldEventHandlersParams) {
       await avRef.current?.setCameraEnabled(enabled);
     } catch (_e) {
       setAvState((s) => ({ ...s, cam: !enabled }));
+      if (enabled) setCaptureError('av.cameraCaptureFailed');
+      return;
     }
+    if (enabled) setCaptureError(null);
   }, [avState.cam, avRef, setAvState]);
 
   const handleSelectCam = useCallback(
@@ -146,12 +158,18 @@ function useAvHandlers(params: UseWorldEventHandlersParams) {
     try {
       if (!avState.share) {
         const ok = await avRef.current?.startScreenshare();
-        if (ok) setAvState((s) => ({ ...s, share: true }));
+        if (ok) {
+          setAvState((s) => ({ ...s, share: true }));
+          setCaptureError(null);
+        } else {
+          setCaptureError('av.screenshareCaptureFailed');
+        }
       } else {
         await avRef.current?.stopScreenshare();
         setAvState((s) => ({ ...s, share: false }));
       }
     } catch (e) {
+      if (!avState.share) setCaptureError('av.screenshareCaptureFailed');
       logger.warn('[WorldApp] Failed to toggle screenshare', e);
     }
   }, [avState.share, avRef, setAvState]);
@@ -187,6 +205,8 @@ function useAvHandlers(params: UseWorldEventHandlersParams) {
     handleToggleShare,
     handleToggleDnd,
     handleRecenter,
+    captureError,
+    dismissCaptureError,
   };
 }
 
