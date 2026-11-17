@@ -430,7 +430,12 @@ describe('v2 map editor auth + membership gate', () => {
       .post('/maps/test/tilesets')
       .set('Authorization', sessionBearer('admin1'))
       .set('x-tenant', 'default')
-      .send({ key: `k_${Math.random().toString(36).slice(2)}`, imageUrl: '/x.png', tileWidth: 16, tileHeight: 16 });
+      .send({
+        key: `k_${Math.random().toString(36).slice(2)}`,
+        imageUrl: '/assets/x.png',
+        tileWidth: 16,
+        tileHeight: 16,
+      });
     expect(res.status).toBe(200);
   });
 
@@ -446,7 +451,12 @@ describe('v2 map editor auth + membership gate', () => {
       .post('/maps/test/tilesets')
       .set('Authorization', sessionBearer('member1'))
       .set('x-tenant', 'default')
-      .send({ key: `k_${Math.random().toString(36).slice(2)}`, imageUrl: '/x.png', tileWidth: 16, tileHeight: 16 });
+      .send({
+        key: `k_${Math.random().toString(36).slice(2)}`,
+        imageUrl: '/assets/x.png',
+        tileWidth: 16,
+        tileHeight: 16,
+      });
     expect(res.status).toBe(200);
   });
 
@@ -469,6 +479,51 @@ describe('v2 map editor auth + membership gate', () => {
     const packLock = mem.lockKeys.indexOf('meetropolis:asset-pack:office-pack');
     expect(mapLock).toBeGreaterThanOrEqual(0);
     expect(packLock).toBeGreaterThan(mapLock);
+  });
+
+  it('stores only the path of an absolute tileset image URL', async () => {
+    const app = await createApp();
+    mem.membership = { role: 'member' };
+    // The double resolves an existing registration per map, not per key.
+    mem.tilesets = [];
+    const key = `k_${Math.random().toString(36).slice(2)}`;
+    const res = await request(app)
+      .post('/maps/test/tilesets')
+      .set('Authorization', sessionBearer('member1'))
+      .set('x-tenant', 'default')
+      .send({ key, imageUrl: 'https://tracker.example/assets/tilesets/a.png', tileWidth: 16, tileHeight: 16 });
+    expect(res.status).toBe(200);
+    expect(mem.tilesets.find((tileset) => tileset.key === key)?.imageUrl).toBe('/assets/tilesets/a.png');
+  });
+
+  it('rejects a tileset image outside the asset paths with 400', async () => {
+    const app = await createApp();
+    mem.membership = { role: 'member' };
+    const key = `k_${Math.random().toString(36).slice(2)}`;
+    const res = await request(app)
+      .post('/maps/test/tilesets')
+      .set('Authorization', sessionBearer('member1'))
+      .set('x-tenant', 'default')
+      .send({ key, imageUrl: '/assets/%2e%2e/secret.png', tileWidth: 16, tileHeight: 16 });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'invalid_tileset_image' });
+    expect(mem.tilesets.some((tileset) => tileset.key === key)).toBe(false);
+  });
+
+  it('limits tileset registrations to 120 per user in 10 minutes', async () => {
+    const app = await createApp();
+    mem.membership = { role: 'member' };
+    const auth = sessionBearer('member-rate');
+    const register = (index: number) =>
+      request(app)
+        .post('/maps/test/tilesets')
+        .set('Authorization', auth)
+        .set('x-tenant', 'default')
+        .send({ key: `rate_${index}`, imageUrl: '/assets/x.png', tileWidth: 16, tileHeight: 16 });
+    for (let index = 0; index < 120; index++) {
+      expect((await register(index)).status).toBe(200);
+    }
+    expect((await register(120)).status).toBe(429);
   });
 
   it('gates editor-state PUT to owner/admin (member -> 403)', async () => {
