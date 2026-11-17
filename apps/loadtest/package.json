@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@colyseus/sdk": "^0.18.10",
-    "@livekit/rtc-node": "^1.1.0",
+    "@livekit/rtc-node": "^1.2.2",
     "@meetropolis/shared": "*",
     "dotenv": "^17.4.2",
     "livekit-server-sdk": "^2.19.1"

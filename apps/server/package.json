@@ -58,7 +58,7 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@livekit/rtc-node": "^1.1.0",
+    "@livekit/rtc-node": "^1.2.2",
     "@types/compression": "^1.8.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
