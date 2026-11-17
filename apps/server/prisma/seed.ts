@@ -8,6 +8,7 @@ import { importTmjIntoMap } from '../src/scripts/importMapV2.lib.js';
 import { resolveTemplateTenantSlug } from '../src/services/templateTenant.js';
 import { ATELIER_STANDARD_MAP_FILE, ATELIER_STANDARD_MAP_NAME } from '../src/services/atelierStandardMap.js';
 import { ATELIER_PACK_UUID, loadAtelierProductData } from './atelierCatalog.js';
+import { acquirePackAdvisoryLock } from '../src/api/utils/advisoryLocks.js';
 
 // Production seed-admin policy: fail closed on missing or public-template
 // credentials before the driver adapter is constructed and before any write.
@@ -294,56 +295,62 @@ async function main() {
         'Check that the image build copies apps/web/public into the seed stage.',
     );
   }
-  await prisma.assetPack.upsert({
-    where: { uuid: 'pixel-agents-furniture' },
-    create: {
-      uuid: 'pixel-agents-furniture',
-      name: 'Pixel Agents Furniture',
-      description:
-        'Built-in office furniture set snapshotted from pablodelucca/pixel-agents (MIT). See THIRD_PARTY_LICENSES/MIT-pixel-agents.txt and tools/map-builder/ for the build pipeline.',
-      author: 'pablodelucca (snapshotted by Meetropolis)',
-      version: '1.0.0',
-      terrain: [],
-      structures: [],
-      objects: furnitureItems,
-      autotiles: [],
-    },
-    update: {
-      version: '1.0.0',
-      // Refresh the shipped object list — but never overwrite a populated pack
-      // with an empty one. If the asset directory is absent (a build stage that
-      // does not copy apps/web/public), an unconditional write would wipe every
-      // furniture entry on the very next deploy and orphan all placed objects.
-      ...(furnitureItems.length > 0 ? { objects: furnitureItems } : {}),
-    },
+  await prisma.$transaction(async (tx) => {
+    await acquirePackAdvisoryLock(tx, 'pixel-agents-furniture');
+    await tx.assetPack.upsert({
+      where: { uuid: 'pixel-agents-furniture' },
+      create: {
+        uuid: 'pixel-agents-furniture',
+        name: 'Pixel Agents Furniture',
+        description:
+          'Built-in office furniture set snapshotted from pablodelucca/pixel-agents (MIT). See THIRD_PARTY_LICENSES/MIT-pixel-agents.txt and tools/map-builder/ for the build pipeline.',
+        author: 'pablodelucca (snapshotted by Meetropolis)',
+        version: '1.0.0',
+        terrain: [],
+        structures: [],
+        objects: furnitureItems,
+        autotiles: [],
+      },
+      update: {
+        version: '1.0.0',
+        // Refresh the shipped object list — but never overwrite a populated pack
+        // with an empty one. If the asset directory is absent (a build stage that
+        // does not copy apps/web/public), an unconditional write would wipe every
+        // furniture entry on the very next deploy and orphan all placed objects.
+        ...(furnitureItems.length > 0 ? { objects: furnitureItems } : {}),
+      },
+    });
   });
 
   // Atelier v1 is shipped catalog content. Existing operator customizations
   // remain untouched except for the one-time A28 autotile backfill: the old
   // seed intentionally wrote an empty list while walls_auto identities were
   // unstable, so an empty list is the unambiguous pre-A28 state.
-  const existingAtelierPack = await prisma.assetPack.findUnique({ where: { uuid: ATELIER_PACK_UUID } });
   const { catalog, pack } = loadAtelierProductData(repoRoot);
-  if (!existingAtelierPack) {
-    await prisma.assetPack.create({
-      data: {
-        uuid: ATELIER_PACK_UUID,
-        name: `${catalog.palette.name} (Atelier v1)`,
-        description: 'Eigene Pixelgrafiken der Atelier-Generation v1 für helle Bürowelten.',
-        author: pack.author,
-        version: catalog.palette.packVersion,
-        terrain: pack.terrain,
-        structures: pack.structures,
-        objects: pack.objects,
-        autotiles: pack.autotiles,
-      },
-    });
-  } else if (Array.isArray(existingAtelierPack.autotiles) && existingAtelierPack.autotiles.length === 0) {
-    await prisma.assetPack.update({
-      where: { uuid: ATELIER_PACK_UUID },
-      data: { autotiles: pack.autotiles },
-    });
-  }
+  await prisma.$transaction(async (tx) => {
+    await acquirePackAdvisoryLock(tx, ATELIER_PACK_UUID);
+    const current = await tx.assetPack.findUnique({ where: { uuid: ATELIER_PACK_UUID } });
+    if (!current) {
+      await tx.assetPack.create({
+        data: {
+          uuid: ATELIER_PACK_UUID,
+          name: `${catalog.palette.name} (Atelier v1)`,
+          description: 'Eigene Pixelgrafiken der Atelier-Generation v1 für helle Bürowelten.',
+          author: pack.author,
+          version: catalog.palette.packVersion,
+          terrain: pack.terrain,
+          structures: pack.structures,
+          objects: pack.objects,
+          autotiles: pack.autotiles,
+        },
+      });
+    } else if (Array.isArray(current.autotiles) && current.autotiles.length === 0) {
+      await tx.assetPack.update({
+        where: { uuid: ATELIER_PACK_UUID },
+        data: { autotiles: pack.autotiles },
+      });
+    }
+  });
 
   // ---------------------------------------------------------------------
   // Starter map for the `default` tenant. Without a Map row the frontend's

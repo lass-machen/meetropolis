@@ -289,16 +289,33 @@ async function handleArchiveAssetPack(
     res.status(400).json({ error: 'invalid identifier' });
     return;
   }
-  const pack = await prisma.assetPack.findFirst({ where: assetPackIdentityWhere(identifier), select: { id: true } });
+  const pack = await prisma.assetPack.findFirst({
+    where: assetPackIdentityWhere(identifier),
+    select: { id: true, uuid: true },
+  });
   if (!pack) {
     res.status(404).json({ error: 'not found' });
     return;
   }
-  const updated = await prisma.assetPack.update({
-    where: { id: pack.id },
-    data: { archived: parsed.data.archived },
-  });
-  res.json(updated);
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      await acquirePackAdvisoryLock(tx, pack.uuid);
+      const current = await tx.assetPack.findUnique({ where: { id: pack.id } });
+      if (!current) return null;
+      return tx.assetPack.update({
+        where: { id: pack.id },
+        data: { archived: parsed.data.archived },
+      });
+    });
+    if (!updated) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
+    res.json(updated);
+  } catch (e) {
+    logger.error('[AssetPacks] archive failed', e);
+    res.status(500).json({ error: 'internal error' });
+  }
 }
 
 async function handleDeleteAssetPack(
