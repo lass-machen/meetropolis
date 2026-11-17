@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { getApiBaseFromWindow } from './runtimeConfig';
+import { loadMemberImage } from '../game/services/assetLoader';
 
 export type V2Tileset = {
   id: string;
@@ -141,31 +142,21 @@ export async function preloadTilesetImages(scene: Phaser.Scene, tilesets: V2Tile
   const byKey = new Map(toLoad.map((def) => [def.key, def]));
   const failedKeys = new Set<string>();
 
-  await new Promise<void>((resolve) => {
-    const onLoadError = (file: { key?: string }) => {
-      const key = file?.key;
-      if (!key || !byKey.has(key)) return;
-      failedKeys.add(key);
-      logger.warn(`[MapV2] Tileset image failed to load: "${key}"; continuing without it`);
-    };
-    const onComplete = () => {
-      cleanup();
-      resolve();
-    };
-    const cleanup = () => {
-      scene.load.off('complete', onComplete);
-      scene.load.off('loaderror', onLoadError);
-    };
-
-    scene.load.on('loaderror', onLoadError);
-    scene.load.once('complete', onComplete);
-
-    for (const { key, url } of toLoad) {
-      const resolvedUrl = url.startsWith('/') ? `${baseUrl()}${url}` : url;
-      scene.load.image(key, resolvedUrl);
-    }
-    scene.load.start();
-  });
+  // Protected tileset files (/packs/...) load through the authenticated
+  // member-asset helper; other refs pass through it unchanged. A failed
+  // load keeps the previous behavior: warn and fall back to a generated
+  // placeholder so the map load chain continues with the remaining tilesets.
+  await Promise.all(
+    toLoad.map(async (def) => {
+      try {
+        const resolvedUrl = def.url.startsWith('/') ? `${baseUrl()}${def.url}` : def.url;
+        await loadMemberImage(scene, def.key, resolvedUrl);
+      } catch {
+        failedKeys.add(def.key);
+        logger.warn(`[MapV2] Tileset image failed to load: "${def.key}"; continuing without it`);
+      }
+    }),
+  );
 
   for (const key of failedKeys) {
     const def = byKey.get(key);
