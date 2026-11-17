@@ -38,3 +38,32 @@ export async function acquirePackAdvisoryLocks(tx: MapDb, packUuids: Iterable<st
   const sorted = [...new Set(packUuids)].sort();
   for (const packUuid of sorted) await acquirePackAdvisoryLock(tx, packUuid);
 }
+
+const PACK_SEGMENT_PATTERN = /\/packs\/([A-Za-z0-9_-]+)\//;
+
+/** The pack whose files an absolute or relative asset URL points into, if any. */
+export function packUuidOfAssetUrl(url: string): string | null {
+  let pathname = url;
+  if (/^https?:\/\//i.test(url)) {
+    try {
+      pathname = new URL(url).pathname;
+    } catch {
+      return null;
+    }
+  }
+  return PACK_SEGMENT_PATTERN.exec(pathname)?.[1] ?? null;
+}
+
+/**
+ * Takes the pack locks for every pack the given URLs point into, so a stored
+ * reference and the reference-checked file cleanup never interleave. Callers
+ * holding map locks must take them first.
+ */
+export async function acquirePackLocksForAssetUrls(tx: MapDb, urls: Iterable<string>): Promise<void> {
+  const packUuids: string[] = [];
+  for (const url of urls) {
+    const packUuid = packUuidOfAssetUrl(url);
+    if (packUuid) packUuids.push(packUuid);
+  }
+  await acquirePackAdvisoryLocks(tx, packUuids);
+}

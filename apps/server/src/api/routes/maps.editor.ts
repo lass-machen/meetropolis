@@ -7,7 +7,7 @@ import { pathParam } from '../utils/requestHelpers.js';
 import { isTenantAccessDenied } from '../utils/tenantAccessState.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { findMapById } from './maps.read.js';
-import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
+import { acquireMapAdvisoryLock, acquirePackLocksForAssetUrls } from '../utils/advisoryLocks.js';
 
 export interface EditorAuthInfo {
   userId: string;
@@ -107,6 +107,7 @@ const tilesetSchema = z.object({
 async function addTilesetWithMapLock(prisma: PrismaClient, mapId: string, data: z.infer<typeof tilesetSchema>) {
   return prisma.$transaction(async (tx) => {
     await acquireMapAdvisoryLock(tx, mapId);
+    await acquirePackLocksForAssetUrls(tx, [data.imageUrl]);
     const existing = await tx.mapTileset.findFirst({ where: { mapId, key: data.key } });
     if (existing) {
       const tilesets = await tx.mapTileset.findMany({ where: { mapId }, orderBy: { slot: 'asc' } });

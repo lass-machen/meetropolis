@@ -6,7 +6,7 @@ import { rleEncodeBooleans, rleEncodeNumbers, encodeRlePairsToBuffer } from '../
 import type { RequestWithMulterFile } from '../../types/multer.js';
 import { reconcileCollisionTiles, rectCollisionTiles } from '../utils/collisionReconciler.js';
 import { importedLayerStorageName, isInternalMapLayer, isReservedImportLayer } from '../utils/mapLayerPolicy.js';
-import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
+import { acquireMapAdvisoryLock, acquirePackLocksForAssetUrls } from '../utils/advisoryLocks.js';
 import { assertObjectFootprints, sendFootprintError } from '../utils/mapObjectWriteLimits.js';
 
 type TxClient = Prisma.TransactionClient;
@@ -206,6 +206,10 @@ function importTiledMap(prisma: PrismaClient, tenantId: string, mapName: string,
       data: { tenantId, name: mapName, width: mapWidth, height: mapHeight, tileWidth, tileHeight, chunkSize, meta: {} },
     });
     await acquireMapAdvisoryLock(tx, map.id);
+    await acquirePackLocksForAssetUrls(
+      tx,
+      tiledTilesets.map((tileset) => tileset.image ?? ''),
+    );
 
     await importTilesetsFromTiled(tx, map.id, tiledTilesets, tileWidth, tileHeight);
     await importTileLayers(tx, map.id, tiledLayers, chunkSize, mapWidth, mapHeight);
