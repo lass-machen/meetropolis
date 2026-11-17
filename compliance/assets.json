@@ -2525,6 +2525,21 @@
       "note": "Text evidence present; no missing license text to be invented"
     },
     {
+      "path": "apps/web/public/fonts/PressStart2P-Regular.ttf",
+      "sha256": "034c77f1f05ec89421e4a63f0e3a4ca1ecf852cc6d2bf611f126f275728e017d",
+      "type": ".ttf",
+      "license": "OFL-1.1",
+      "copyright": "The Press Start 2P Project Authors (cody@zone38.net)",
+      "origin": {
+        "kind": "upstream",
+        "source": "Font 'Press Start 2P' from the public google/fonts archive, ofl/pressstart2p/PressStart2P-Regular.ttf, version 3.000",
+        "revision": "dbd72d6ef9ebea750d33c02c7189633e972d6a40",
+        "evidence": "sha256 matches the pinned upstream file, license text included"
+      },
+      "verification": "verified",
+      "note": "Unchanged full upstream TTF, version 3.000"
+    },
+    {
       "path": "apps/web/public/fonts/PressStart2P.woff2",
       "sha256": "7c1b4ae8d867c0d73cc4373cff62b6d880d900965b8e0f54bfe70b886a45cd0c",
       "type": ".woff2",
