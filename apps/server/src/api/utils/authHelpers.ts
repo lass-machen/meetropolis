@@ -205,11 +205,7 @@ export async function requireInternalOwner(
   userId: string,
   prisma: PrismaClient,
 ): Promise<boolean> {
-  try {
-    return await isInternalOwner(prisma, userId);
-  } catch {
-    return false;
-  }
+  return isInternalOwner(prisma, userId);
 }
 
 /**
