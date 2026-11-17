@@ -60,8 +60,9 @@ export type TenancyModule = {
 /**
  * Concurrent-user limit for OSS self-hosted installations.
  *
- * The value is a compile-time constant - 25 concurrent users across the
- * entire server, regardless of how many tenants exist. There is intentionally
+ * Re-exported from `@meetropolis/shared` so the numeric boundary stays a
+ * single compile-time constant (25 concurrent users across the entire
+ * server, regardless of how many tenants exist). There is intentionally
  * no env-var override; raising the cap requires installing the proprietary
  * tenancy module, which gates the bypass behind `bypassOssLimit()`.
  *
@@ -71,7 +72,7 @@ export type TenancyModule = {
  * past it has made a deliberate, traceable choice rather than flipping an
  * env var.
  */
-export const OSS_USER_LIMIT = 25;
+export { OSS_USER_LIMIT } from '@meetropolis/shared';
 
 // zod 4 reworked the `z.function()` API completely (now a function factory
 // with `.implement()`). For pure shape validation of imported modules a
