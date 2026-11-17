@@ -96,7 +96,7 @@ function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
           placeholder="••••••••"
           value={password}
           onChange={(e) => onChange(e.target.value)}
-          required
+          aria-required={true}
         />
       </div>
     </div>
@@ -124,7 +124,7 @@ function LoginFields({ email, password, onEmail, onPassword, onForgot }: LoginFi
         autoComplete="username"
         value={email}
         onChange={(e) => onEmail(e.target.value)}
-        required
+        aria-required={true}
       />
       <PasswordField password={password} onChange={onPassword} onForgot={onForgot} />
     </div>

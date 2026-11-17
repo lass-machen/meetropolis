@@ -18,6 +18,18 @@ function renderView() {
 }
 
 describe('LoginView required fields', () => {
+  it('marks email and password with aria-required instead of the native required attribute', () => {
+    renderView();
+
+    const email = screen.getByLabelText('auth.emailLabel');
+    const password = screen.getByPlaceholderText('••••••••');
+
+    expect(email).not.toHaveAttribute('required');
+    expect(password).not.toHaveAttribute('required');
+    expect(email).toHaveAttribute('aria-required', 'true');
+    expect(password).toHaveAttribute('aria-required', 'true');
+  });
+
   it('shows a localized message and does not submit when required fields are empty', () => {
     const onSubmit = renderView();
 
