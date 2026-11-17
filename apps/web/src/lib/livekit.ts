@@ -69,8 +69,9 @@ function extractTokenErrorReason(body: unknown): string | undefined {
   const error = (body as { error?: unknown }).error;
   if (typeof error === 'string' && error.trim()) return error.trim();
   if (typeof error === 'object' && error !== null) {
-    const code = (error as { code?: unknown }).code;
+    const { code, message } = error as { code?: unknown; message?: unknown };
     if (typeof code === 'string' && code.trim()) return code.trim();
+    if (typeof message === 'string' && message.trim()) return message.trim();
   }
   return undefined;
 }
@@ -87,7 +88,8 @@ async function buildTokenError(res: Response): Promise<Error> {
         reason = undefined;
       }
     }
-  } catch {
+  } catch (err) {
+    if ((err as { name?: string })?.name === 'AbortError') throw err;
     reason = undefined;
   }
   if (reason) {
