@@ -90,7 +90,11 @@ export function verifyAuthJwt(raw: string): { userId: string; tenantId?: string;
     if (typeof payload.sub !== 'string') return null;
     const tenantId = typeof payload.tid === 'string' ? payload.tid : undefined;
     if (payload.scope !== undefined && payload.scope !== 'email_verification') return null;
-    return { userId: payload.sub, tenantId, ...(payload.scope === 'email_verification' ? { verificationOnly: true as const } : {}) };
+    return {
+      userId: payload.sub,
+      tenantId,
+      ...(payload.scope === 'email_verification' ? { verificationOnly: true as const } : {}),
+    };
   } catch {
     return null;
   }
