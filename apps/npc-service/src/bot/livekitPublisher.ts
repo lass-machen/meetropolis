@@ -19,6 +19,8 @@ async function getLkServerSdk(): Promise<typeof import('livekit-server-sdk')> {
 
 interface LivekitTrackHandle {
   stop?: () => void | Promise<void>;
+  // Set for video handles so a new publish of the same source replaces the old one
+  source?: number;
 }
 
 export class LivekitPublisher {
@@ -157,19 +159,49 @@ export class LivekitPublisher {
   }
 
   async publishVideo(filePath: string, loop?: boolean, _mimeType?: string): Promise<void> {
-    if (!this.connected) await this.connect();
-    const identity = this.command.npc.identity;
-    logger.info(`[LivekitPublisher ${identity}] publishVideo: ${filePath} loop=${!!loop}`);
-    // TODO: Implement video frame pipeline
-    logger.warn(`[LivekitPublisher ${identity}] Video publishing not yet implemented (requires FFmpeg pipeline)`);
+    const lk = await getLkRtcNode();
+    await this.publishVideoFile(filePath, loop, lk.TrackSource.SOURCE_CAMERA, 'npc-video');
   }
 
   async publishScreenshare(filePath: string, loop?: boolean, _mimeType?: string): Promise<void> {
+    const lk = await getLkRtcNode();
+    await this.publishVideoFile(filePath, loop, lk.TrackSource.SOURCE_SCREENSHARE, 'npc-screenshare');
+  }
+
+  private async publishVideoFile(
+    filePath: string,
+    loop: boolean | undefined,
+    source: import('@livekit/rtc-node').TrackSource,
+    trackName: string,
+  ): Promise<void> {
     if (!this.connected) await this.connect();
     const identity = this.command.npc.identity;
-    logger.info(`[LivekitPublisher ${identity}] publishScreenshare: ${filePath} loop=${!!loop}`);
-    // TODO: Implement screenshare pipeline (similar to video but as screen source)
-    logger.warn(`[LivekitPublisher ${identity}] Screenshare publishing not yet implemented`);
+    logger.info(`[LivekitPublisher ${identity}] ${trackName}: ${filePath} loop=${!!loop}`);
+    await this.stopTracksBySource(source);
+    const lk = await getLkRtcNode();
+    // Loaded lazily like the LiveKit SDK above; keeps the module's import block unchanged
+    const { startVideoTrack } = await import('./videoTrack.js');
+    const playback = await startVideoTrack(lk, this.room!.localParticipant!, filePath, { source, trackName, loop });
+    const handle: LivekitTrackHandle = { source, stop: playback.stop };
+    this.activeTracks.push(handle);
+    try {
+      await playback.done;
+    } finally {
+      const idx = this.activeTracks.indexOf(handle);
+      if (idx >= 0) this.activeTracks.splice(idx, 1);
+    }
+  }
+
+  private async stopTracksBySource(source: import('@livekit/rtc-node').TrackSource): Promise<void> {
+    const matching = this.activeTracks.filter((t) => t.source === source);
+    this.activeTracks = this.activeTracks.filter((t) => t.source !== source);
+    for (const track of matching) {
+      try {
+        await track.stop?.();
+      } catch {
+        /* ignore track stop errors */
+      }
+    }
   }
 
   async stopAllMedia(): Promise<void> {
