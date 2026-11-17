@@ -8,7 +8,7 @@
     "predev": "prisma generate --schema=./prisma/schema.prisma && prisma db push --schema=./prisma/schema.prisma && prisma db seed --schema=./prisma/schema.prisma",
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json && node ./scripts/copy-generated.mjs && node ./scripts/copy-catalog.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.seed.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.seed.json && tsc -p tsconfig.test.json",
     "start": "node dist/index.js",
     "test": "vitest run --project server",
     "test:db": "vitest run --project server-db --project server-db-exclusive",
