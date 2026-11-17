@@ -1,4 +1,5 @@
 import type express from 'express';
+import type { Redis } from 'ioredis';
 import multer from 'multer';
 import { Transform, type Writable } from 'node:stream';
 import type { PrismaClient } from '../../generated/prisma/index.js';
@@ -11,6 +12,8 @@ import {
 } from '../utils/authHelpers.js';
 import { detectMimeFromMagic } from '../utils/mediaMime.js';
 import { AppError } from '../../errors/AppError.js';
+import { logger } from '../../logger.js';
+import { getSharedRedis } from '../../ops/redisConnection.js';
 
 const MiB = 1024 * 1024;
 export type UploadKind = 'asset' | 'avatar' | 'npc' | 'admin_map' | 'tmj';
@@ -31,10 +34,149 @@ const FILE_LIMITS: Record<UploadKind, number> = {
 type Budget = { start: number; attempts: number; active: number };
 const budgets = new Map<string, Budget>();
 const WINDOW_MS = 10 * 60_000;
+const MAX_ATTEMPTS = 10;
+const MAX_ACTIVE = 2;
+const ACTIVE_TTL_MS = 30 * 60_000;
+const REDIS_FAILURE_LOG_INTERVAL_MS = 30_000;
+const ACQUIRE_UPLOAD_BUDGET_SCRIPT = `
+local active = tonumber(redis.call('GET', KEYS[2]) or '0')
+local attempts = tonumber(redis.call('GET', KEYS[1]) or '0')
+if active >= tonumber(ARGV[3]) or attempts >= tonumber(ARGV[2]) then
+  return 0
+end
+if redis.call('INCR', KEYS[1]) == 1 then
+  redis.call('PEXPIRE', KEYS[1], ARGV[1])
+end
+redis.call('INCR', KEYS[2])
+redis.call('PEXPIRE', KEYS[2], ARGV[4])
+return 1
+`;
+const RELEASE_UPLOAD_BUDGET_SCRIPT = `
+local active = tonumber(redis.call('GET', KEYS[1]) or '0')
+if active > 0 then
+  return redis.call('DECR', KEYS[1])
+end
+return 0
+`;
+let lastRedisFailureLoggedAt = 0;
+
+function logRedisFailure(error: unknown): void {
+  const now = Date.now();
+  if (now - lastRedisFailureLoggedAt < REDIS_FAILURE_LOG_INTERVAL_MS) return;
+  lastRedisFailureLoggedAt = now;
+  logger.error({
+    event: 'upload_budget.redis_failed',
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
+
+type UploadBudgetResult =
+  { status: 'acquired'; release: () => void } | { status: 'limited' } | { status: 'unavailable' };
+
+async function acquireRedisBudget(
+  redis: Redis,
+  userId: string,
+  res: express.Response,
+  next: express.NextFunction,
+): Promise<UploadBudgetResult> {
+  const attemptsKey = `upload:attempts:${userId}`;
+  const activeKey = `upload:active:${userId}`;
+  try {
+    const acquired = await redis.eval(
+      ACQUIRE_UPLOAD_BUDGET_SCRIPT,
+      2,
+      attemptsKey,
+      activeKey,
+      WINDOW_MS,
+      MAX_ATTEMPTS,
+      MAX_ACTIVE,
+      ACTIVE_TTL_MS,
+    );
+    if (acquired !== 1 && acquired !== '1') {
+      let retryAfter = 1;
+      try {
+        const active = Number((await redis.get(activeKey)) ?? 0);
+        if (active < MAX_ACTIVE) {
+          const ttl = await redis.pttl(attemptsKey);
+          retryAfter = Math.max(1, Math.ceil((ttl > 0 ? ttl : WINDOW_MS) / 1000));
+        }
+      } catch (error) {
+        logRedisFailure(error);
+      }
+      res.setHeader('Retry-After', retryAfter);
+      next(AppError.tooManyRequests('Please wait before another upload.', 'UPLOAD_RATE_LIMITED'));
+      return { status: 'limited' };
+    }
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      void (async () => {
+        try {
+          await redis.eval(RELEASE_UPLOAD_BUDGET_SCRIPT, 1, activeKey);
+        } catch (error) {
+          logRedisFailure(error);
+        }
+      })();
+    };
+    return { status: 'acquired', release };
+  } catch (error) {
+    logRedisFailure(error);
+    return { status: 'unavailable' };
+  }
+}
+
+function acquireLocalBudget(
+  userId: string,
+  res: express.Response,
+  next: express.NextFunction,
+): { status: 'acquired'; release: () => void } | { status: 'limited' } {
+  const now = Date.now();
+  for (const [key, value] of budgets) if (!value.active && now - value.start >= WINDOW_MS) budgets.delete(key);
+  const budget = budgets.get(userId) ?? { start: now, attempts: 0, active: 0 };
+  if (now - budget.start >= WINDOW_MS) {
+    budget.start = now;
+    budget.attempts = 0;
+  }
+  budgets.set(userId, budget);
+  if (budget.active >= MAX_ACTIVE || budget.attempts >= MAX_ATTEMPTS) {
+    res.setHeader(
+      'Retry-After',
+      budget.active >= MAX_ACTIVE ? 1 : Math.max(1, Math.ceil((budget.start + WINDOW_MS - now) / 1000)),
+    );
+    next(AppError.tooManyRequests('Please wait before another upload.', 'UPLOAD_RATE_LIMITED'));
+    return { status: 'limited' };
+  }
+  budget.attempts++;
+  budget.active++;
+  let released = false;
+  const release = () => {
+    if (!released) {
+      released = true;
+      budget.active--;
+    }
+  };
+  return { status: 'acquired', release };
+}
+
+function registerBudgetRelease(req: express.Request, res: express.Response, release: () => void): void {
+  res.once('finish', release);
+  res.once('close', release);
+  req.once('aborted', release);
+  req.once('error', release);
+}
+
 const abortParsers = new WeakMap<express.Request, (error: Error) => void>();
 const reportParserErrors = new WeakMap<express.Request, (error: Error) => void>();
 
-/** Verify identity and role before any parser starts collecting data. */
+/**
+ * Verify identity and role before any parser starts collecting data.
+ * Without a shared Redis client the upload budget stays in the process-local
+ * map below; with Redis one Lua script checks and counts attempts and active
+ * uploads atomically across processes. If Redis fails, the guard falls back
+ * to the local map for that request, and release() always settles the budget
+ * on the path that counted the attempt.
+ */
 export function uploadGuard(prisma: PrismaClient, kind: UploadKind): express.RequestHandler {
   return (req, res, next) => {
     void (async () => {
@@ -61,35 +203,19 @@ export function uploadGuard(prisma: PrismaClient, kind: UploadKind): express.Req
         res.status(403).json({ error: 'forbidden' });
         return;
       }
-      const now = Date.now();
-      for (const [key, value] of budgets) if (!value.active && now - value.start >= WINDOW_MS) budgets.delete(key);
-      const budget = budgets.get(auth.userId) ?? { start: now, attempts: 0, active: 0 };
-      if (now - budget.start >= WINDOW_MS) {
-        budget.start = now;
-        budget.attempts = 0;
+      let release: (() => void) | null = null;
+      const redis = getSharedRedis();
+      if (redis) {
+        const outcome = await acquireRedisBudget(redis, auth.userId, res, next);
+        if (outcome.status === 'limited') return;
+        if (outcome.status === 'acquired') release = outcome.release;
       }
-      budgets.set(auth.userId, budget);
-      if (budget.active >= 2 || budget.attempts >= 10) {
-        res.setHeader(
-          'Retry-After',
-          budget.active >= 2 ? 1 : Math.max(1, Math.ceil((budget.start + WINDOW_MS - now) / 1000)),
-        );
-        next(AppError.tooManyRequests('Please wait before another upload.', 'UPLOAD_RATE_LIMITED'));
-        return;
+      if (!release) {
+        const outcome = acquireLocalBudget(auth.userId, res, next);
+        if (outcome.status === 'limited') return;
+        release = outcome.release;
       }
-      budget.attempts++;
-      budget.active++;
-      let released = false;
-      const release = () => {
-        if (!released) {
-          released = true;
-          budget.active--;
-        }
-      };
-      res.once('finish', release);
-      res.once('close', release);
-      req.once('aborted', release);
-      req.once('error', release);
+      registerBudgetRelease(req, res, release);
       const limit = REQUEST_LIMITS[kind];
       const declared = Number(req.headers['content-length']);
       if (Number.isFinite(declared) && declared > limit) {
