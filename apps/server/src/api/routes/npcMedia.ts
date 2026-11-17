@@ -82,7 +82,8 @@ async function handleUploadMedia(
   const mime = detectedMime || file.mimetype;
   if (!ALLOWED_MEDIA[mime]) return res.status(400).json({ error: 'unsupported_media_type', detected: mime });
 
-  if (mime.startsWith('audio/') && file.size > 25 * 1024 * 1024) return res.status(413).json({ error: 'Audio file too large.', code: 'UPLOAD_TOO_LARGE' });
+  if (mime.startsWith('audio/') && file.size > 25 * 1024 * 1024)
+    return res.status(413).json({ error: 'Audio file too large.', code: 'UPLOAD_TOO_LARGE' });
 
   // Optional override mediaType from query (for screenshare)
   const mediaTypeQuery = req.query.mediaType as string | undefined;
@@ -211,7 +212,9 @@ export function registerNpcMediaRoutes(app: express.Application, prisma: PrismaC
 
   const upload = uploadParser('npc');
 
-  app.post('/npcs/:id/media', uploadGuard(prisma, 'npc'), boundedMultipart(upload.single('file')), (req, res) => handleUploadMedia(req, res, prisma, mediaDir));
+  app.post('/npcs/:id/media', uploadGuard(prisma, 'npc'), boundedMultipart(upload.single('file')), (req, res) =>
+    handleUploadMedia(req, res, prisma, mediaDir),
+  );
   app.get('/npcs/:id/media', (req, res) => handleListMedia(req, res, prisma));
   app.delete('/npcs/:id/media/:mediaId', (req, res) => handleDeleteMedia(req, res, prisma, mediaDir));
 }
