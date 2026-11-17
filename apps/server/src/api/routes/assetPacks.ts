@@ -19,7 +19,6 @@ import {
   validateConfigAssetReferences,
   extractAssetsToTmpDir,
   rewriteConfig,
-  moveTmpToFinal,
   persistAssetPackRecord,
   readUploadedZipBuffer,
   parseUploadedConfig,
@@ -28,6 +27,11 @@ import {
   MissingReferencedAssetError,
   ReferencedAssetConflictError,
 } from './assetPacks.processor.js';
+import {
+  createAssetPackGeneration,
+  publishAssetPackGeneration,
+  type AssetPackGenerationPaths,
+} from './assetPackGenerations.js';
 import { acquirePackAdvisoryLock } from '../utils/advisoryLocks.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,15 +51,16 @@ function assetPackIdentityWhere(identifier: string): { id: number } | { uuid: st
 async function persistUploadedPack(params: {
   prisma: PrismaClient;
   packsDir: string;
-  tmpDir: string;
+  generation: AssetPackGenerationPaths;
   cfg: AssetPackConfig;
   rewritten: ReturnType<typeof rewriteConfig>;
   assetMap: ReadonlyMap<string, string>;
   repairMissingSnapshots: boolean;
   userId: string;
 }) {
-  const { prisma, packsDir, tmpDir, cfg, rewritten, assetMap, repairMissingSnapshots, userId } = params;
-  const finalDir = path.resolve(packsDir, cfg.uuid);
+  const { prisma, packsDir, generation, cfg, rewritten, assetMap, repairMissingSnapshots, userId } = params;
+  const tmpDir = generation.tmpDir;
+  const packDir = path.resolve(packsDir, cfg.uuid);
   const repairSources = new Map<string, string>();
   for (const [original, hashed] of assetMap) {
     repairSources.set(original.replace(/^assets\//, ''), path.resolve(tmpDir, hashed));
@@ -71,14 +76,15 @@ async function persistUploadedPack(params: {
           itemId: existCheck.itemId,
         });
       }
-      await preserveReferencedPackAssets(tx, cfg.uuid, finalDir, tmpDir, {
+      await preserveReferencedPackAssets(tx, cfg.uuid, packDir, tmpDir, {
+        retainInPlace: true,
         repairMissing: repairMissingSnapshots,
         repairSources,
         onRepair: ({ url, source }) =>
           logger.warn({ event: 'asset_pack.snapshot_repaired', uuid: cfg.uuid, url, source, repairedBy: userId }),
       });
-      await moveTmpToFinal(tmpDir, finalDir);
-      return persistAssetPackRecord(tx, cfg, rewritten, existCheck.existing);
+      await publishAssetPackGeneration(generation);
+      return persistAssetPackRecord(tx, cfg, rewritten, existCheck.existing, generation.id);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
@@ -138,7 +144,7 @@ async function handleAssetPackUpload(
     res.status(auth.status).json({ error: auth.error });
     return;
   }
-  let tmpDir: string | undefined;
+  let generation: AssetPackGenerationPaths | undefined;
   try {
     try {
       logger.info('[AssetPacks] upload request received');
@@ -152,8 +158,8 @@ async function handleAssetPackUpload(
     const { cfg, assetEntries } = prepared;
 
     const uuid = cfg.uuid;
-    tmpDir = path.resolve(packsDir, `.tmp-${uuid}-${Date.now()}`);
-    await fsp.mkdir(tmpDir, { recursive: true });
+    generation = await createAssetPackGeneration(packsDir, uuid);
+    const tmpDir = generation.tmpDir;
 
     const extracted = await extractAssetsToTmpDir(assetEntries, tmpDir);
     if (!extracted.ok) {
@@ -161,14 +167,14 @@ async function handleAssetPackUpload(
       return;
     }
 
-    const rewritten = rewriteConfig(cfg, uuid, extracted.assetMap);
+    const rewritten = rewriteConfig(cfg, uuid, extracted.assetMap, generation.id);
 
     const uploadFields = req.body as { repairMissingSnapshots?: unknown } | undefined;
     const repairMissingSnapshots = uploadFields?.repairMissingSnapshots === 'true';
     const rec = await persistUploadedPack({
       prisma,
       packsDir,
-      tmpDir,
+      generation,
       cfg,
       rewritten,
       assetMap: extracted.assetMap,
@@ -200,7 +206,15 @@ async function handleAssetPackUpload(
     logger.error('[AssetPacks] upload failed', e);
     res.status(500).json({ error: 'upload failed' });
   } finally {
-    if (tmpDir) await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+    // Only our own generation tmp dir may go here — never the pack root, a
+    // published generation, or a legacy directory. After a successful publish
+    // the tmp path is already gone, so this is a no-op on the happy path. A
+    // transaction failure after publish can leave the published generation
+    // unreferenced on disk; that orphan cleanup is a separate package.
+    const ownTmp = generation?.tmpDir;
+    if (ownTmp && path.basename(ownTmp).startsWith('.tmp-')) {
+      await fsp.rm(ownTmp, { recursive: true, force: true }).catch(() => undefined);
+    }
   }
 }
 

@@ -339,6 +339,9 @@ model AssetPack {
   objects      Json
   autotiles    Json               @default("[]")
   archived     Boolean            @default(false)
+  // Active generation id. NULL = legacy pack whose files live
+  // directly under the pack directory; no backfill by design.
+  currentGeneration String?
   tenantId     String?
   tenant       Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt    DateTime           @default(now())
@@ -669,4 +672,4 @@ model DeletionTask {
 }
 
 // Optional commercial modules can extend this schema at build time via
-// their own tooling. See docs/enterprise.md.
+// their own tooling.
