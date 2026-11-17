@@ -39,8 +39,6 @@ export class Screenshare implements Disposable {
   private _desiredSharing = false;
   private _tracks: LocalTrack[] = [];
   private _trackEndedCleanups: Array<() => void> = [];
-  private _reacquireTimer: ReturnType<typeof setTimeout> | null = null;
-  private _visibilityHandler: (() => void) | null = null;
   private _disposed = false;
 
   constructor(private readonly deps: ScreenshareDeps) {}
@@ -75,7 +73,6 @@ export class Screenshare implements Disposable {
     }
 
     this._desiredSharing = true;
-    this._clearReacquire();
     this._isPending = true;
     AVLogger.info('screenshare.start');
 
@@ -161,8 +158,6 @@ export class Screenshare implements Disposable {
   async stop(options?: { preserveDesired?: boolean }): Promise<void> {
     if (this._disposed) return;
 
-    this._clearReacquire();
-
     if (!options?.preserveDesired) {
       this._desiredSharing = false;
     }
@@ -228,7 +223,6 @@ export class Screenshare implements Disposable {
     if (this._disposed) return;
     this._disposed = true;
 
-    this._clearReacquire();
     this.stop().catch(() => {});
   }
 
@@ -370,32 +364,15 @@ export class Screenshare implements Disposable {
     if (!mst) return;
 
     const handler = () => {
-      // Determine if this was a user action or system/WebKit killing the track
-      const isPageVisible = typeof document !== 'undefined' && document.visibilityState === 'visible';
-      const isSystemEnded = !isPageVisible;
-
+      // Any ended event finishes the desired share: the user or the system
+      // stopped the capture, and page visibility alone proves no intent
+      // to share again. Only an explicit start() may capture anew.
       AVLogger.warn('screenshare.track_ended', {
-        isPageVisible,
-        isSystemEnded,
         readyState: mst.readyState,
       });
 
-      if (isSystemEnded) {
-        // System killed the track (App Nap, Stage Manager, etc.)
-        // Do not clear _desiredSharing: restore the share when possible.
-        AVLogger.warn('screenshare.ended_by_system');
-        this._isSharing = false;
-        void this._endAppNapPrevention();
-        this._tracks = [];
-        this._cleanupTrackEndedHandlers();
-        // Try to re-acquire after a short delay when page becomes visible
-        this._scheduleReacquire();
-      } else {
-        // User explicitly stopped sharing via browser UI
-        AVLogger.info('screenshare.ended_by_user');
-        this._desiredSharing = false;
-        this.stop().catch(() => {});
-      }
+      this._desiredSharing = false;
+      this.stop().catch(() => {});
     };
 
     mst.addEventListener('ended', handler, { once: true });
@@ -415,51 +392,6 @@ export class Screenshare implements Disposable {
       } catch {}
     }
     this._trackEndedCleanups = [];
-  }
-
-  /**
-   * Schedule re-acquisition of screenshare when the page becomes visible again.
-   * This handles macOS killing the capture track when the app goes to the background
-   * (e.g. Stage Manager, App Nap).
-   */
-  private _scheduleReacquire(): void {
-    // Clean up any existing listener
-    this._clearReacquire();
-
-    if (!this._desiredSharing || this._disposed) return;
-
-    const handler = () => {
-      if (document.visibilityState === 'visible' && this._desiredSharing && !this._isSharing && !this._isPending) {
-        AVLogger.info('screenshare.reacquire_on_visible');
-        this._clearReacquire();
-        // Small delay to let the system settle
-        this._reacquireTimer = setTimeout(() => {
-          this._reacquireTimer = null;
-          if (this._desiredSharing && !this._isSharing && !this._isPending) {
-            this.start().catch((err) => {
-              AVLogger.warn('screenshare.reacquire_failed', { error: String(err) });
-            });
-          }
-        }, 500);
-      }
-    };
-
-    this._visibilityHandler = handler;
-    document.addEventListener('visibilitychange', handler);
-  }
-
-  /**
-   * Clear any pending reacquire timer and visibility listener.
-   */
-  private _clearReacquire(): void {
-    if (this._reacquireTimer) {
-      clearTimeout(this._reacquireTimer);
-      this._reacquireTimer = null;
-    }
-    if (this._visibilityHandler) {
-      document.removeEventListener('visibilitychange', this._visibilityHandler);
-      this._visibilityHandler = null;
-    }
   }
 
   private cleanupTracks(tracks: LocalTrack[]): void {
