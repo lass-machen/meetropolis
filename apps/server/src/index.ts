@@ -71,6 +71,7 @@ import { startDeletionTaskWorker } from './services/deletionTaskScheduler.js';
 import { startAvAccessServices } from './rooms/lifecycle/avAccessServices.js';
 import { createColyseusScalingOptions } from './ops/colyseusScaling.js';
 import { closeSharedRedis } from './ops/redisConnection.js';
+import { installSessionInvalidationRelay } from './api/utils/sessionInvalidationRelay.js';
 
 // The origin allowlist is read once, before anything is served. A missing or
 // malformed list is not a startable configuration: the server refuses to start
@@ -337,6 +338,9 @@ const wsUpgradeLimiter = createWsUpgradeLimiter(wsUpgradeLimitSettings, trustPro
 // With REDIS_URL set, presence, room registry and public address are shared
 // across server processes; without it the server stays single-process.
 const scalingOptions = createColyseusScalingOptions(process.env);
+if (scalingOptions.presence) {
+  installSessionInvalidationRelay(scalingOptions.presence);
+}
 const gameServer = new ColyseusServer({
   ...scalingOptions,
   transport: new WebSocketTransport({
