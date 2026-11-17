@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { InvitesTab } from './InvitesTab';
-import { translateApiError } from '../../../lib/apiErrors';
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-i18next')>()),
@@ -18,8 +17,9 @@ type Invite = {
   lastSendError: string | null;
   createdAt: string;
   usedAt: string | null;
-  url: string | null;
 };
+
+const RESEND_URL = 'https://public.example/#/?invite=NEWCODE';
 
 const BASE_INVITE: Invite = {
   id: 'id-base',
@@ -31,7 +31,6 @@ const BASE_INVITE: Invite = {
   lastSendError: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   usedAt: null,
-  url: 'https://public.example/#/?invite=XYZ',
 };
 
 const PENDING: Invite = { ...BASE_INVITE, id: 'id-pending', email: 'pending@example.test' };
@@ -78,7 +77,7 @@ function stubApi(del: { ok: boolean; status: number } | 'network-error' = { ok: 
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ emailSent: resendEmailSent }),
+        json: () => Promise.resolve({ emailSent: resendEmailSent, inviteUrl: RESEND_URL }),
       });
     }
     if (getReject) return Promise.reject(new TypeError('offline'));
@@ -130,25 +129,28 @@ afterEach(() => {
 });
 
 describe('InvitesTab invite links', () => {
-  it('copies the URL supplied by the server', async () => {
+  it('shows no copy action for list entries', async () => {
     stubApi();
     render(<InvitesTab apiBase="/api" />);
 
     const row = (await screen.findByText('pending@example.test')).closest('tr') as HTMLElement;
-    fireEvent.click(within(row).getByText('tenant.inviteCopy'));
-
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith('https://public.example/#/?invite=XYZ'));
+    expect(within(row).queryByText('tenant.inviteCopy')).toBeNull();
+    expect(within(row).queryByText('tenant.copyLink')).toBeNull();
+    expect(screen.queryByText(RESEND_URL)).toBeNull();
+    expect(writeText).not.toHaveBeenCalled();
   });
 
-  it('shows a translated error and does not copy when the server has no URL', async () => {
-    serverInvites = [{ ...PENDING, url: null }];
+  it('shows the new link from the resend response and copies it', async () => {
     stubApi();
     render(<InvitesTab apiBase="/api" />);
 
-    fireEvent.click(await screen.findByText('tenant.inviteCopy'));
+    const row = (await screen.findByText('pending@example.test')).closest('tr') as HTMLElement;
+    fireEvent.click(within(row).getByText('tenant.inviteResend'));
 
-    expect(writeText).not.toHaveBeenCalled();
-    expect(await screen.findByText(translateApiError('public_base_url_missing'))).toBeTruthy();
+    expect(await screen.findByText(RESEND_URL)).toBeTruthy();
+    fireEvent.click(screen.getByText('tenant.copyLink'));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(RESEND_URL));
   });
 });
 
@@ -295,7 +297,9 @@ describe('InvitesTab accepted invites', () => {
     const acceptedRow = (await screen.findByText('accepted@example.test')).closest('tr') as HTMLElement;
     const expiredRow = (await screen.findByText('expired@example.test')).closest('tr') as HTMLElement;
     expect(within(acceptedRow).queryByText('tenant.inviteCopy')).toBeNull();
+    expect(within(acceptedRow).queryByText('tenant.copyLink')).toBeNull();
     expect(within(expiredRow).queryByText('tenant.inviteCopy')).toBeNull();
+    expect(within(expiredRow).queryByText('tenant.copyLink')).toBeNull();
   });
 });
 

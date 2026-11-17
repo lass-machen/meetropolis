@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { translateApiError } from '../../../lib/apiErrors';
-import { Section, Button, Badge, Table, THead, TBody, Tr, Th, Td, Alert, useConfirmDialog } from '../../system';
+import { Section, Button, Badge, Card, Table, THead, TBody, Tr, Th, Td, Alert, useConfirmDialog } from '../../system';
 
 type InviteStatus = 'pending' | 'accepted' | 'expired';
 
@@ -16,7 +16,6 @@ type Invite = {
   lastSendError?: string | null;
   createdAt?: string;
   usedAt?: string | null;
-  url?: string | null;
 };
 
 interface InvitesTabProps {
@@ -35,6 +34,7 @@ function useInvitesTab(apiBase: string, t: TFunction) {
   const [loadFailed, setLoadFailed] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<Notice>(null);
+  const [resentInvite, setResentInvite] = React.useState<{ inviteUrl: string | null } | null>(null);
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const load = React.useCallback(async () => {
@@ -61,13 +61,15 @@ function useInvitesTab(apiBase: string, t: TFunction) {
   const handleResend = async (id: string) => {
     setError(null);
     setNotice(null);
+    setResentInvite(null);
     try {
       const res = await fetch(`${apiBase}/invites/${encodeURIComponent(id)}/resend`, {
         method: 'POST',
         credentials: 'include',
       });
       if (res.ok) {
-        const body = (await res.json()) as { emailSent?: boolean };
+        const body = (await res.json()) as { emailSent?: boolean; inviteUrl?: string };
+        setResentInvite({ inviteUrl: body.inviteUrl ?? null });
         setNotice({
           text: t(body.emailSent ? 'tenant.inviteResent' : 'tenant.inviteResendNotDelivered'),
           intent: body.emailSent ? 'success' : 'warning',
@@ -104,13 +106,15 @@ function useInvitesTab(apiBase: string, t: TFunction) {
     await load();
   };
 
-  const handleCopy = async (invite: Invite) => {
-    if (!invite.url) {
+  const handleCopyResentLink = async () => {
+    if (!resentInvite) return;
+    if (!resentInvite.inviteUrl) {
       setError(translateApiError('public_base_url_missing'));
       return;
     }
     try {
-      await navigator.clipboard.writeText(invite.url);
+      await navigator.clipboard.writeText(resentInvite.inviteUrl);
+      setNotice({ text: t('tenant.linkCopied'), intent: 'success' });
     } catch {
       setError(t('tenant.linkCopyFailed'));
     }
@@ -122,11 +126,12 @@ function useInvitesTab(apiBase: string, t: TFunction) {
     loadFailed,
     error,
     notice,
+    resentInvite,
     setError,
     load,
     handleResend,
     handleRevoke,
-    handleCopy,
+    handleCopyResentLink,
     confirmDialog,
   };
 }
@@ -191,13 +196,11 @@ function DeliveryCell({ invite, t }: { invite: Invite; t: TFunction }) {
 function InviteRow({
   inv,
   t,
-  onCopy,
   onResend,
   onRevoke,
 }: {
   inv: Invite;
   t: TFunction;
-  onCopy: (invite: Invite) => void | Promise<void>;
   onResend: (id: string) => void | Promise<void>;
   onRevoke: (id: string) => void | Promise<void>;
 }) {
@@ -213,17 +216,6 @@ function InviteRow({
         <DeliveryCell invite={inv} t={t} />
       </Td>
       <Td style={{ paddingRight: 0, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        {inv.status === 'pending' && (
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => {
-              void onCopy(inv);
-            }}
-          >
-            {t('tenant.inviteCopy')}
-          </Button>
-        )}
         {inv.status !== 'accepted' && (
           <Button
             size="sm"
@@ -259,11 +251,12 @@ export function InvitesTab({ apiBase }: InvitesTabProps) {
     loadFailed,
     error,
     notice,
+    resentInvite,
     setError,
     load,
     handleResend,
     handleRevoke,
-    handleCopy,
+    handleCopyResentLink,
     confirmDialog,
   } = useInvitesTab(apiBase, t);
 
@@ -278,6 +271,39 @@ export function InvitesTab({ apiBase }: InvitesTabProps) {
         <Alert intent={notice.intent} style={{ marginBottom: 12 }}>
           {notice.text}
         </Alert>
+      )}
+      {resentInvite && (
+        <Card
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 16,
+            padding: '12px 16px',
+            background: 'rgba(0,0,0,0.3)',
+          }}
+        >
+          <code
+            style={{
+              flex: 1,
+              fontFamily: 'monospace',
+              fontSize: 14,
+              color: 'var(--accent, #3b82f6)',
+              wordBreak: 'break-all',
+            }}
+          >
+            {resentInvite.inviteUrl}
+          </code>
+          <Button
+            variant="primary"
+            onClick={() => {
+              void handleCopyResentLink();
+            }}
+            style={{ fontSize: 12, padding: '6px 12px' }}
+          >
+            {t('tenant.copyLink')}
+          </Button>
+        </Card>
       )}
       {!loading && loadFailed && (
         <div>
@@ -314,14 +340,7 @@ export function InvitesTab({ apiBase }: InvitesTabProps) {
           {!loading && invites.length > 0 && (
             <TBody>
               {invites.map((inv) => (
-                <InviteRow
-                  key={inv.id}
-                  inv={inv}
-                  t={t}
-                  onCopy={handleCopy}
-                  onResend={handleResend}
-                  onRevoke={handleRevoke}
-                />
+                <InviteRow key={inv.id} inv={inv} t={t} onResend={handleResend} onRevoke={handleRevoke} />
               ))}
             </TBody>
           )}
