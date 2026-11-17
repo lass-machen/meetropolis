@@ -284,6 +284,19 @@ describe('memberAssetRoutes', () => {
     expect(authzMocks.authorize).not.toHaveBeenCalled();
   });
 
+  it('never serves a file below a dot directory of a pack, even when it exists', async () => {
+    authzMocks.authorize.mockResolvedValue('allowed');
+    await fs.mkdir(path.join(roots.packs, PACK_UUID, '.meta'), { recursive: true });
+    await fs.writeFile(path.join(roots.packs, PACK_UUID, '.meta', 'evictions.json'), '{}');
+    await fs.writeFile(path.join(roots.packs, PACK_UUID, '.hidden.png'), PNG_BYTES);
+    for (const rest of ['.meta/evictions.json', '%2emeta/evictions.json', '%2Emeta/evictions.json', '.hidden.png']) {
+      const res = await rawGet(app, `${MEMBER_ASSETS_PREFIX}/packs/${PACK_UUID}/${rest}`);
+      expect({ rest, status: res.status }).toEqual({ rest, status: 404 });
+      expect(res.cacheControl).toBe('no-store');
+    }
+    expect(authzMocks.authorize).not.toHaveBeenCalled();
+  });
+
   it('serves the npc-media namespace for allowed', async () => {
     authzMocks.authorize.mockResolvedValue('allowed');
 
