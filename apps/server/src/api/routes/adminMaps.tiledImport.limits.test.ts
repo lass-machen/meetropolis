@@ -1,10 +1,11 @@
 /**
  * Footprint limits for the Tiled admin import behind POST /admin/maps/import.
  *
- * `importObjectLayers` validates the stored tile size of every object with
- * `assertObjectFootprints` before writing the row. The check runs inside the
- * import transaction, so a violation rolls map, layers and earlier objects
- * back; the handler answers 400 `object_footprint_too_large`.
+ * Tiled objects carry no asset pack, so the import stores none of them and
+ * reports them as skipped. It still validates the stored tile size of every
+ * object with `assertObjectFootprints` inside the import transaction, so a
+ * violation rolls map and layers back; the handler answers 400
+ * `object_footprint_too_large`.
  */
 import { describe, expect, it, vi } from 'vitest';
 
@@ -68,11 +69,11 @@ function makeHarness(tmj: ReturnType<typeof makeTmj>) {
 }
 
 describe('handleImportAdminMap — object footprint limits', () => {
-  it('imports a 16384 px object on a 16 px tile map (stored 1024 x 1024 = 4096 tiles)', async () => {
-    const { prisma, req, res, mapObjectCreate } = makeHarness(makeTmj([{ width: 16384, height: 16384 }]));
+  it('accepts a 16384 px object on a 16 px tile map (stored 1024 x 1024 = 4096 tiles)', async () => {
+    const { prisma, req, res } = makeHarness(makeTmj([{ width: 16384, height: 16384 }]));
     await handleImportAdminMap(prisma, req, res);
-    expect(mapObjectCreate).toHaveBeenCalledTimes(1);
-    expect(res.json).toHaveBeenCalledWith({ id: 'map-new', name: 'imported' });
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ id: 'map-new', name: 'imported', skippedObjects: 1 });
   });
 
   it('answers 400 object_footprint_too_large for a 16400 px wide object without writing it', async () => {
@@ -81,5 +82,19 @@ describe('handleImportAdminMap — object footprint limits', () => {
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({ error: 'object_footprint_too_large' });
     expect(mapObjectCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleImportAdminMap — objects without an asset pack', () => {
+  it('stores no map objects for Tiled objects and reports how many it skipped', async () => {
+    const { prisma, req, res, mapObjectCreate } = makeHarness(
+      makeTmj([
+        { width: 16, height: 16 },
+        { width: 32, height: 32 },
+      ]),
+    );
+    await handleImportAdminMap(prisma, req, res);
+    expect(mapObjectCreate).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ id: 'map-new', name: 'imported', skippedObjects: 2 });
   });
 });
