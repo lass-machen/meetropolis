@@ -176,9 +176,9 @@ describe('deletion journal account lines', () => {
 
   describe('appendJournalEntry with an invalid reference', () => {
     beforeEach(async () => {
-      for (const input of CHAIN_INPUTS) {
-        await appendJournalEntry(dir, input);
-      }
+      // The chain files equal what the writer produces for CHAIN_INPUTS (checked
+      // byte for byte by the case above), written without the writer's disk flushes.
+      await writeChainFiles(dir, CHAIN_LINES);
     });
 
     it.each(REJECTED_INPUTS)('%s', async (_description, input) => {
