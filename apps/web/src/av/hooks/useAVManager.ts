@@ -297,7 +297,9 @@ export function useAVManager({
   onConnected,
 }: UseAVManagerArgs) {
   const isConnectingRef = React.useRef(false);
-  const suspendedRef = React.useRef(false);
+  // AV starts suspended until the confirmed world join resumes it via
+  // resumeAv. Every connect path already checks this ref.
+  const suspendedRef = React.useRef(true);
   const hasAutoConnectedRef = React.useRef(false);
   const refreshingDevicesRef = React.useRef(false);
 
