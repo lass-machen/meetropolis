@@ -16,8 +16,13 @@ vi.mock('../api/utils/sessionAuth.js', () => ({
   validateTenantSessionFresh: sessionMocks.validate,
 }));
 
+const tenancyMocks = vi.hoisted(() => ({
+  resolver: undefined as undefined | ((...args: unknown[]) => Promise<unknown>),
+}));
+
 vi.mock('../tenancyLoader.js', () => ({
-  getTenancyModule: () => Promise.resolve({ version: 1, isMultiTenantEnabled: () => false }),
+  getTenancyModule: () =>
+    Promise.resolve({ version: 1, isMultiTenantEnabled: () => false, resolvePackVisibility: tenancyMocks.resolver }),
 }));
 
 import { validateTenantSessionFresh } from '../api/utils/sessionAuth.js';
@@ -163,6 +168,7 @@ function allowSession(access: 'member' | 'platform_operator' = 'member'): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  tenancyMocks.resolver = undefined;
 });
 
 describe('authorizeMemberAsset: identity first', () => {
@@ -405,6 +411,208 @@ describe('authorizeMemberAsset: npc media', () => {
     expect(foreign).toBe('not_found');
     const mediaWhere = seen.find((call) => call.model === 'npcMediaFile')?.where;
     expect(JSON.stringify(mediaWhere)).toContain(TENANT);
+  });
+});
+
+describe('authorizeMemberAsset: catalogue merchandise bytes', () => {
+  function stubMemberAccess(access: {
+    packUuid: string;
+    catalogued: boolean;
+    entitled: boolean;
+    publishedPreviewRelativePath: string | null;
+  }) {
+    const resolver = vi.fn(() =>
+      Promise.resolve({
+        catalogPackUuids: access.catalogued ? [access.packUuid] : [],
+        accessiblePackUuids: access.catalogued ? [access.packUuid] : [],
+        memberByteAccess: access,
+      }),
+    );
+    tenancyMocks.resolver = resolver;
+    return resolver;
+  }
+
+  it('hides a catalogued pack file that is not the preview when the tenant is not entitled', async () => {
+    allowSession();
+    stubMemberAccess({
+      packUuid: 'global-pack',
+      catalogued: true,
+      entitled: false,
+      publishedPreviewRelativePath: 'preview.png',
+    });
+    const { prisma } = makePrisma(baseFixture());
+    const decision = await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: { kind: 'asset-pack', packUuid: 'global-pack', relativePath: 'global-pack/desk.png' },
+    });
+    expect(decision).toBe('not_found');
+  });
+
+  it('allows exactly the published preview of a catalogued pack when the tenant is not entitled', async () => {
+    allowSession();
+    stubMemberAccess({
+      packUuid: 'global-pack',
+      catalogued: true,
+      entitled: false,
+      publishedPreviewRelativePath: 'preview.png',
+    });
+    const { prisma } = makePrisma(baseFixture());
+    const decision = await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: { kind: 'asset-pack', packUuid: 'global-pack', relativePath: 'global-pack/preview.png' },
+    });
+    expect(decision).toBe('allowed');
+  });
+
+  it('allows any file of a catalogued pack when the tenant is entitled', async () => {
+    allowSession();
+    stubMemberAccess({
+      packUuid: 'global-pack',
+      catalogued: true,
+      entitled: true,
+      publishedPreviewRelativePath: 'preview.png',
+    });
+    const { prisma } = makePrisma(baseFixture());
+    const decision = await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: { kind: 'asset-pack', packUuid: 'global-pack', relativePath: 'global-pack/desk.png' },
+    });
+    expect(decision).toBe('allowed');
+  });
+
+  it('allows any file of an uncatalogued pack', async () => {
+    allowSession();
+    stubMemberAccess({
+      packUuid: 'global-pack',
+      catalogued: false,
+      entitled: false,
+      publishedPreviewRelativePath: null,
+    });
+    const { prisma } = makePrisma(baseFixture());
+    const decision = await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: { kind: 'asset-pack', packUuid: 'global-pack', relativePath: 'global-pack/desk.png' },
+    });
+    expect(decision).toBe('allowed');
+  });
+
+  it('hides a nested file that only shares the preview file name', async () => {
+    allowSession();
+    stubMemberAccess({
+      packUuid: 'global-pack',
+      catalogued: true,
+      entitled: false,
+      publishedPreviewRelativePath: 'preview.png',
+    });
+    const { prisma } = makePrisma(baseFixture());
+    const decision = await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: { kind: 'asset-pack', packUuid: 'global-pack', relativePath: 'global-pack/sub/preview.png' },
+    });
+    expect(decision).toBe('not_found');
+  });
+
+  it('falls back to the catalogue set when memberByteAccess is missing', async () => {
+    allowSession();
+    const { prisma } = makePrisma(baseFixture());
+    tenancyMocks.resolver = vi.fn(() =>
+      Promise.resolve({
+        catalogPackUuids: ['global-pack'],
+        accessiblePackUuids: ['global-pack'],
+      }),
+    );
+    const catalogued = await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: { kind: 'asset-pack', packUuid: 'global-pack', relativePath: 'global-pack/desk.png' },
+    });
+    tenancyMocks.resolver = vi.fn(() =>
+      Promise.resolve({
+        catalogPackUuids: [],
+        accessiblePackUuids: [],
+      }),
+    );
+    const uncatalogued = await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: { kind: 'asset-pack', packUuid: 'global-pack', relativePath: 'global-pack/desk.png' },
+    });
+    expect(catalogued).toBe('not_found');
+    expect(uncatalogued).toBe('allowed');
+  });
+
+  it('allows only the published preview of a catalogued avatar pack when the tenant is not entitled', async () => {
+    allowSession();
+    stubMemberAccess({
+      packUuid: 'global-avatar-pack',
+      catalogued: true,
+      entitled: false,
+      publishedPreviewRelativePath: 'preview.png',
+    });
+    const { prisma } = makePrisma(baseFixture());
+    const preview = await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: {
+        kind: 'avatar-pack',
+        packUuid: 'global-avatar-pack',
+        relativePath: 'avatars/global-avatar-pack/preview.png',
+      },
+    });
+    const other = await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: {
+        kind: 'avatar-pack',
+        packUuid: 'global-avatar-pack',
+        relativePath: 'avatars/global-avatar-pack/other.png',
+      },
+    });
+    expect(preview).toBe('allowed');
+    expect(other).toBe('not_found');
+  });
+
+  it('rethrows a resolver failure instead of deciding', async () => {
+    allowSession();
+    tenancyMocks.resolver = vi.fn(() => Promise.reject(new Error('catalogue unavailable')));
+    const { prisma } = makePrisma(baseFixture());
+    await expect(
+      authorizeMemberAsset(prisma, {
+        rawToken: 'token',
+        tenantId: TENANT,
+        target: { kind: 'asset-pack', packUuid: 'global-pack', relativePath: 'global-pack/desk.png' },
+      }),
+    ).rejects.toThrow('catalogue unavailable');
+  });
+
+  it('asks the resolver for member bytes with the tenant, pack kind and pack uuid', async () => {
+    allowSession();
+    const resolver = stubMemberAccess({
+      packUuid: 'global-pack',
+      catalogued: false,
+      entitled: false,
+      publishedPreviewRelativePath: null,
+    });
+    const { prisma } = makePrisma(baseFixture());
+    await authorizeMemberAsset(prisma, {
+      rawToken: 'token',
+      tenantId: TENANT,
+      target: { kind: 'asset-pack', packUuid: 'global-pack', relativePath: 'global-pack/desk.png' },
+    });
+    expect(resolver).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        purpose: 'member-bytes',
+        tenantId: TENANT,
+        packKind: 'asset',
+        packUuid: 'global-pack',
+      }),
+    );
   });
 });
 

@@ -8,7 +8,8 @@
  * API-token path — and the file's owning row must then be visible inside
  * the caller's tenant pack scope. Anything else is `not_found` (never
  * `forbidden`, so pack UUIDs are not enumerable). Database errors propagate
- * to the caller, which answers 503.
+ * to the caller, which answers 503. Catalogue merchandise needs an active
+ * grant, except the exact published preview file.
  */
 import type { PrismaClient } from '../generated/prisma/index.js';
 import { validateTenantSessionFresh } from '../api/utils/sessionAuth.js';
@@ -18,9 +19,56 @@ import {
   customAvatarScopeWhere,
   resolveTenantPackScope,
 } from '../services/packScope.js';
+import { logger } from '../logger.js';
+import { getTenancyModule, type MemberPackByteAccess, type PackKind } from '../tenancyLoader.js';
 import type { MemberAssetTarget } from './memberAssetPath.js';
 
 export type MemberAssetDecision = 'allowed' | 'unauthenticated' | 'forbidden' | 'not_found';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
+function isMemberPackByteAccess(value: unknown, packUuid: string): value is MemberPackByteAccess {
+  return (
+    isRecord(value) &&
+    value.packUuid === packUuid &&
+    typeof value.catalogued === 'boolean' &&
+    typeof value.entitled === 'boolean' &&
+    (typeof value.publishedPreviewRelativePath === 'string' || value.publishedPreviewRelativePath === null)
+  );
+}
+
+async function memberPackBytesAllowed(
+  prisma: PrismaClient,
+  tenantId: string,
+  packKind: PackKind,
+  packUuid: string,
+  relativePath: string,
+): Promise<boolean> {
+  const tenancy = await getTenancyModule();
+  const resolver = tenancy.resolvePackVisibility;
+  if (!resolver) return true;
+  const result = await resolver(prisma, { purpose: 'member-bytes', tenantId, packKind, packUuid, at: new Date() });
+  const access: unknown = isRecord(result) ? result.memberByteAccess : undefined;
+  if (!isMemberPackByteAccess(access, packUuid)) {
+    const catalogPackUuids: unknown = isRecord(result) ? result.catalogPackUuids : undefined;
+    logger.warn('[Packs] enterprise resolver returned invalid memberByteAccess; falling back to the catalogue set', {
+      packKind,
+      tenantId,
+      packUuid,
+    });
+    // Without a trustworthy catalogue every pack counts as merchandise.
+    if (!Array.isArray(catalogPackUuids) || !catalogPackUuids.every((uuid) => typeof uuid === 'string')) return false;
+    return !catalogPackUuids.includes(packUuid);
+  }
+  if (!access.catalogued) return true;
+  if (access.entitled) return true;
+  const preview = access.publishedPreviewRelativePath;
+  if (typeof preview !== 'string') return false;
+  const expected = packKind === 'asset' ? `${packUuid}/${preview}` : `avatars/${packUuid}/${preview}`;
+  return relativePath === expected;
+}
 
 export async function authorizeMemberAsset(
   prisma: PrismaClient,
@@ -38,7 +86,16 @@ export async function authorizeMemberAsset(
         where: { AND: [{ uuid: input.target.packUuid }, assetPackScopeWhere(scope)] },
         select: { id: true },
       });
-      return row ? 'allowed' : 'not_found';
+      if (!row) return 'not_found';
+      return (await memberPackBytesAllowed(
+        prisma,
+        input.tenantId,
+        'asset',
+        input.target.packUuid,
+        input.target.relativePath,
+      ))
+        ? 'allowed'
+        : 'not_found';
     }
     case 'avatar-pack': {
       const scope = await resolveTenantPackScope(prisma, input.tenantId, 'avatar');
@@ -46,7 +103,16 @@ export async function authorizeMemberAsset(
         where: { AND: [{ uuid: input.target.packUuid }, avatarPackScopeWhere(scope)] },
         select: { id: true },
       });
-      return row ? 'allowed' : 'not_found';
+      if (!row) return 'not_found';
+      return (await memberPackBytesAllowed(
+        prisma,
+        input.tenantId,
+        'avatar',
+        input.target.packUuid,
+        input.target.relativePath,
+      ))
+        ? 'allowed'
+        : 'not_found';
     }
     case 'custom-avatar': {
       const scope = await resolveTenantPackScope(prisma, input.tenantId, 'avatar');
