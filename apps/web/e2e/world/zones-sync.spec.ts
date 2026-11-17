@@ -514,3 +514,316 @@ test('Case 3: emptied zone list reaches both open clients live', async ({ stack,
     await expectZoneListEmpty(clientB.page);
   });
 });
+
+type ArrowKey = 'ArrowRight' | 'ArrowDown' | 'ArrowLeft' | 'ArrowUp';
+
+type ScenePose = {
+  x: number;
+  y: number;
+  tile: number;
+  mapName: string;
+  direction: 'up' | 'down' | 'left' | 'right';
+  remotes: Array<{ x: number; y: number }>;
+};
+
+const ARROW_KEYS: ArrowKey[] = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
+
+/**
+ * Reads the live Main scene through window.__PHASER_GAME__
+ * (apps/web/src/game/phaserGame.ts:51). Scene key is 'Main'
+ * (apps/web/src/game/scenes/MainScene.ts:103). The hero is
+ * playerManager.getHero() (MainScene.ts:35, playerManager.ts:86); remote
+ * sprites come from remotePlayersManager.getAllRemotes()
+ * (remotePlayersManager.ts:245) after updateRemotePlayer
+ * (apps/web/src/game/bridge.ts:217, playerHandlers.ts:214). Tile size is
+ * mapRef.tileWidth (MainScene.ts:45), otherwise 16 (MainScene.ts:123).
+ */
+async function readScenePose(page: Page): Promise<ScenePose | null> {
+  return page.evaluate(() => {
+    const isObj = (value: unknown): value is Record<string, unknown> =>
+      typeof value === 'object' && value !== null && !Array.isArray(value);
+    const game = window.__PHASER_GAME__;
+    if (!isObj(game) || !isObj(game.scene) || typeof game.scene.getScene !== 'function') return null;
+    const scene: unknown = (game.scene.getScene as (key: string) => unknown)('Main');
+    if (!isObj(scene)) return null;
+    const mapRef = isObj(scene.mapRef) ? scene.mapRef : null;
+    const tile = mapRef && typeof mapRef.tileWidth === 'number' && mapRef.tileWidth > 0 ? mapRef.tileWidth : 16;
+    const mapName = typeof scene.currentMapName === 'string' ? scene.currentMapName : '';
+    const playerManager = isObj(scene.playerManager) ? scene.playerManager : null;
+    if (!playerManager || typeof playerManager.getHero !== 'function') return null;
+    const hero: unknown = (playerManager.getHero as () => unknown)();
+    if (!isObj(hero) || typeof hero.x !== 'number' || typeof hero.y !== 'number') return null;
+    let direction: 'up' | 'down' | 'left' | 'right' = 'down';
+    if (typeof playerManager.getCurrentDirection === 'function') {
+      const rawDirection: unknown = (playerManager.getCurrentDirection as () => unknown)();
+      if (rawDirection === 'up' || rawDirection === 'down' || rawDirection === 'left' || rawDirection === 'right') {
+        direction = rawDirection;
+      }
+    }
+    const remotes: Array<{ x: number; y: number }> = [];
+    const remoteManager = isObj(scene.remotePlayersManager) ? scene.remotePlayersManager : null;
+    if (remoteManager && typeof remoteManager.getAllRemotes === 'function') {
+      const all: unknown = (remoteManager.getAllRemotes as () => unknown)();
+      if (all instanceof Map) {
+        for (const sprite of all.values()) {
+          if (isObj(sprite) && typeof sprite.x === 'number' && typeof sprite.y === 'number') {
+            remotes.push({ x: sprite.x, y: sprite.y });
+          }
+        }
+      }
+    }
+    return { x: hero.x, y: hero.y, tile, mapName, direction, remotes };
+  });
+}
+
+async function requireScenePose(page: Page): Promise<ScenePose> {
+  let pose: ScenePose | null = null;
+  await expect
+    .poll(
+      async () => {
+        pose = await readScenePose(page);
+        return pose !== null;
+      },
+      { timeout: UI_TIMEOUT_MS, message: 'Main scene hero was not readable via window.__PHASER_GAME__.' },
+    )
+    .toBe(true);
+  if (!pose) throw new Error('Main scene hero was not readable via window.__PHASER_GAME__.');
+  return pose;
+}
+
+/** Arrow keys drive the hero (MainScene.ts:263, playerManager.ts:165). A blocked direction returns null. */
+async function holdArrowUntil(
+  page: Page,
+  key: ArrowKey,
+  done: (pose: ScenePose) => boolean,
+): Promise<ScenePose | null> {
+  await page.locator('canvas').first().click();
+  await page.keyboard.down(key);
+  let matched: ScenePose | null = null;
+  try {
+    await expect
+      .poll(
+        async () => {
+          const pose = await readScenePose(page);
+          if (!pose || !done(pose)) return false;
+          matched = pose;
+          return true;
+        },
+        { timeout: 2_500 },
+      )
+      .toBe(true);
+  } catch {
+    return null;
+  } finally {
+    await page.keyboard.up(key);
+  }
+  return matched;
+}
+
+async function moveHeroUntil(page: Page, done: (pose: ScenePose) => boolean): Promise<ScenePose> {
+  for (const key of ARROW_KEYS) {
+    const pose = await holdArrowUntil(page, key, done);
+    if (pose) return pose;
+  }
+  throw new Error('Arrow keys did not reach the required hero position.');
+}
+
+function zoneHalfExtent(tile: number): number {
+  return tile * 6;
+}
+
+function heroInsideZoneRect(pose: { x: number; y: number }, rect: ZonePoint[]): boolean {
+  const xs = rect.map((point) => point.x);
+  const ys = rect.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  return pose.x > minX && pose.x < maxX && pose.y > minY && pose.y < maxY;
+}
+
+function chebyshev(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+}
+
+function zoneRectAround(center: { x: number; y: number }, half: number): ZonePoint[] {
+  return [
+    { x: center.x - half, y: center.y - half },
+    { x: center.x + half, y: center.y - half },
+    { x: center.x + half, y: center.y + half },
+    { x: center.x - half, y: center.y + half },
+  ];
+}
+
+function participantButton(page: Page, user: TestUser) {
+  const escaped = user.displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return page.getByRole('complementary').getByRole('button', { name: new RegExp(escaped, 'i') });
+}
+
+/** Puts the hero back so a later test does not inherit a saved position (useGameInitialization.ts:85). */
+async function restorePlayerPosition(page: Page, apiUrl: string, pose: ScenePose): Promise<string[]> {
+  try {
+    const response = await page.context().request.post(`${apiUrl}/auth/position`, {
+      data: {
+        x: Math.round(pose.x),
+        y: Math.round(pose.y),
+        direction: pose.direction,
+        ...(pose.mapName ? { mapName: pose.mapName } : {}),
+      },
+    });
+    if (!response.ok()) return [`POST /auth/position failed: HTTP ${response.status()}.`];
+    return [];
+  } catch (error) {
+    return [`POST /auth/position failed: ${error instanceof Error ? error.message : String(error)}`];
+  }
+}
+
+function trackEditorStateGets(page: Page, mapId: string): { sawZone: (name: string) => boolean; stop: () => void } {
+  const bodies: unknown[] = [];
+  const onResponse = (response: PageResponse): void => {
+    if (response.request().method() !== 'GET') return;
+    if (!response.url().includes(`/maps/${mapId}/editor-state`)) return;
+    void response
+      .json()
+      .then((body: unknown) => {
+        bodies.push(body);
+      })
+      .catch(() => {});
+  };
+  page.on('response', onResponse);
+  return {
+    sawZone: (name: string) => bodies.some((body) => zoneNames(body).includes(name)),
+    stop: () => page.off('response', onResponse),
+  };
+}
+
+/**
+ * Local zone membership is ZoneManager.current (zoneManager.ts:15, update at
+ * :35), refreshed only on local movement (useGameInitialization.ts:208) and
+ * shown as hud.zone (HudPanel.tsx:83, useHudTicker.ts:47). The other client
+ * drops a participant who stands in a different zone (useParticipants.ts:86).
+ */
+async function nudgeInsideZone(page: Page, rect: ZonePoint[]): Promise<void> {
+  const start = await requireScenePose(page);
+  if (!heroInsideZoneRect(start, rect)) throw new Error('Hero is outside the zone before the membership nudge.');
+  await moveHeroUntil(
+    page,
+    (pose) => Math.hypot(pose.x - start.x, pose.y - start.y) > 2 && heroInsideZoneRect(pose, rect),
+  );
+}
+
+/**
+ * Entering and leaving: a zone is placed around client B. B steps inside so
+ * the HUD shows the name, and both participant lists drop the other user.
+ * B then walks out; the HUD name disappears and both lists show each other.
+ */
+test('entering and leaving a zone updates both clients', async ({ stack, seed, loginAs, request }) => {
+  test.setTimeout(180_000);
+  requireIsolatedStack(stack);
+  const { owner, admin, mapId, tenantSlug } = requireOwnerAndAdmin(seed);
+  const ownerApi = new MeetropolisApi(request, stack.apiUrl, tenantSlug);
+  await ownerApi.login(owner.email, passwordFor(owner));
+  const zoneName = `e2e-we-${Date.now().toString(36)}`;
+
+  await withBaseline(request, stack.apiUrl, mapId, async () => {
+    const [clientA, clientB] = await openClients(loginAs, owner, admin);
+    const origin = await requireScenePose(clientB.page);
+    const positionErrors: string[] = [];
+    try {
+      await waitForParticipant(clientA.page, clientB.user);
+      await waitForParticipant(clientB.page, clientA.user);
+      const poseA = await requireScenePose(clientA.page);
+      let poseB = await requireScenePose(clientB.page);
+      const half = zoneHalfExtent(poseB.tile);
+      if (chebyshev(poseA, poseB) <= half + poseB.tile) {
+        poseB = await moveHeroUntil(clientB.page, (pose) => chebyshev(poseA, pose) > half + pose.tile);
+      }
+      const rect = zoneRectAround(poseB, half);
+      const watchA = trackEditorStateGets(clientA.page, mapId);
+      const watchB = trackEditorStateGets(clientB.page, mapId);
+      try {
+        await putEditorState(request, stack.apiUrl, mapId, {
+          zones: [{ name: zoneName, points: rect }],
+          replaceZones: true,
+        });
+        await expect
+          .poll(() => watchA.sawZone(zoneName) && watchB.sawZone(zoneName), {
+            timeout: LIVE_SYNC_TIMEOUT_MS,
+            message: 'Both clients must reload the zone via GET editor-state.',
+          })
+          .toBe(true);
+      } finally {
+        watchA.stop();
+        watchB.stop();
+      }
+
+      await nudgeInsideZone(clientB.page, rect);
+      try {
+        await expect(clientB.page.getByText(zoneName, { exact: true })).toBeVisible({ timeout: 3_000 });
+      } catch {
+        await nudgeInsideZone(clientB.page, rect);
+        await expect(clientB.page.getByText(zoneName, { exact: true })).toBeVisible({
+          timeout: LIVE_SYNC_TIMEOUT_MS,
+        });
+      }
+      await expect(clientA.page.getByText(zoneName, { exact: true })).toHaveCount(0);
+      await expect(participantButton(clientA.page, clientB.user)).toBeHidden({ timeout: LIVE_SYNC_TIMEOUT_MS });
+      await expect(participantButton(clientB.page, clientA.user)).toBeHidden({ timeout: LIVE_SYNC_TIMEOUT_MS });
+
+      await moveHeroUntil(clientB.page, (pose) => !heroInsideZoneRect(pose, rect));
+      await expect(clientB.page.getByText(zoneName, { exact: true })).toHaveCount(0, {
+        timeout: LIVE_SYNC_TIMEOUT_MS,
+      });
+      await expect(participantButton(clientA.page, clientB.user)).toBeVisible({ timeout: LIVE_SYNC_TIMEOUT_MS });
+      await expect(participantButton(clientB.page, clientA.user)).toBeVisible({ timeout: LIVE_SYNC_TIMEOUT_MS });
+    } finally {
+      positionErrors.push(...(await restorePlayerPosition(clientB.page, stack.apiUrl, origin)));
+    }
+    if (positionErrors.length > 0) throw new Error(positionErrors.join('; '));
+  });
+});
+
+/**
+ * Remote avatar: B walks at least one tile. A must show a remote sprite on
+ * that tile (remotePlayersManager.ts:96 applies the server position).
+ */
+test('remote avatar mirrors movement', async ({ stack, seed, loginAs, request }) => {
+  test.setTimeout(180_000);
+  requireIsolatedStack(stack);
+  const { owner, admin, mapId, tenantSlug } = requireOwnerAndAdmin(seed);
+  const ownerApi = new MeetropolisApi(request, stack.apiUrl, tenantSlug);
+  await ownerApi.login(owner.email, passwordFor(owner));
+
+  await withBaseline(request, stack.apiUrl, mapId, async () => {
+    const [clientA, clientB] = await openClients(loginAs, owner, admin);
+    const origin = await requireScenePose(clientB.page);
+    const positionErrors: string[] = [];
+    try {
+      await waitForParticipant(clientA.page, clientB.user);
+      await waitForParticipant(clientB.page, clientA.user);
+      const before = await requireScenePose(clientB.page);
+      await moveHeroUntil(clientB.page, (pose) => Math.hypot(pose.x - before.x, pose.y - before.y) >= pose.tile);
+      const settled = await requireScenePose(clientB.page);
+      expect(Math.hypot(settled.x - before.x, settled.y - before.y)).toBeGreaterThanOrEqual(before.tile);
+      const tolerance = Math.max(settled.tile / 2, 8);
+      await expect
+        .poll(
+          async () => {
+            const watcher = await readScenePose(clientA.page);
+            if (!watcher) return false;
+            return watcher.remotes.some(
+              (remote) => Math.hypot(remote.x - settled.x, remote.y - settled.y) <= tolerance,
+            );
+          },
+          {
+            timeout: LIVE_SYNC_TIMEOUT_MS,
+            message: 'Client A did not place a remote sprite on client B tile.',
+          },
+        )
+        .toBe(true);
+    } finally {
+      positionErrors.push(...(await restorePlayerPosition(clientB.page, stack.apiUrl, origin)));
+    }
+    if (positionErrors.length > 0) throw new Error(positionErrors.join('; '));
+  });
+});
