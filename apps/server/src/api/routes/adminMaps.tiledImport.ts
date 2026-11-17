@@ -149,46 +149,24 @@ async function importTileLayers(
   }
 }
 
-async function importObjectLayers(
-  tx: TxClient,
-  mapId: string,
-  layers: TiledLayer[],
-  tileWidth: number,
-  tileHeight: number,
-  chunkSize: number,
-) {
+/**
+ * Tiled object layers carry no asset pack and no image, so they cannot become
+ * map objects. Their footprints are still validated as part of the input; the
+ * objects are counted and reported instead of being stored.
+ */
+function countSkippedObjects(layers: TiledLayer[], tileWidth: number, tileHeight: number): number {
+  let skipped = 0;
   for (const layer of layers) {
     if (layer.type !== 'objectgroup' || !Array.isArray(layer.objects)) continue;
 
     for (const obj of layer.objects) {
-      const ox = typeof obj.x === 'number' ? Math.floor(obj.x / tileWidth) : 0;
-      const oy = typeof obj.y === 'number' ? Math.floor(obj.y / tileHeight) : 0;
       const ow = typeof obj.width === 'number' ? Math.max(1, Math.ceil(obj.width / tileWidth)) : 1;
       const oh = typeof obj.height === 'number' ? Math.max(1, Math.ceil(obj.height / tileHeight)) : 1;
-
       assertObjectFootprints([{ width: ow, height: oh }], { tileWidth, tileHeight });
-      await tx.mapObject.create({
-        data: {
-          mapId,
-          assetPackUuid: 'tiled-import',
-          itemId:
-            (typeof obj.name === 'string' ? obj.name : '') ||
-            (typeof obj.type === 'string' ? obj.type : '') ||
-            `obj-${typeof obj.id === 'string' || typeof obj.id === 'number' ? obj.id : 0}`,
-          category: 'objects',
-          tileX: ox,
-          tileY: oy,
-          chunkX: Math.floor(ox / chunkSize),
-          chunkY: Math.floor(oy / chunkSize),
-          width: ow,
-          height: oh,
-          collide: false,
-          zIndex: 0,
-          dataUrl: '',
-        },
-      });
+      skipped += 1;
     }
   }
+  return skipped;
 }
 
 function importTiledMap(prisma: PrismaClient, tenantId: string, mapName: string, json: TiledMapJson) {
@@ -213,7 +191,7 @@ function importTiledMap(prisma: PrismaClient, tenantId: string, mapName: string,
 
     await importTilesetsFromTiled(tx, map.id, tiledTilesets, tileWidth, tileHeight);
     await importTileLayers(tx, map.id, tiledLayers, chunkSize, mapWidth, mapHeight);
-    await importObjectLayers(tx, map.id, tiledLayers, tileWidth, tileHeight, chunkSize);
+    const skippedObjects = countSkippedObjects(tiledLayers, tileWidth, tileHeight);
 
     if (
       tiledLayers.some(
@@ -230,7 +208,7 @@ function importTiledMap(prisma: PrismaClient, tenantId: string, mapName: string,
 
     await tx.room.create({ data: { name: 'lobby', tenantId, mapId: map.id } });
 
-    return map;
+    return { map, skippedObjects };
   });
 }
 
@@ -280,10 +258,10 @@ export async function handleImportAdminMap(
       });
       return;
     }
-    const result = await importTiledMap(prisma, tenantId, mapName, json);
+    const { map, skippedObjects } = await importTiledMap(prisma, tenantId, mapName, json);
 
-    logger.info({ event: 'admin_maps.imported', mapId: result.id, tenantId, name: mapName });
-    res.json({ id: result.id, name: result.name });
+    logger.info({ event: 'admin_maps.imported', mapId: map.id, tenantId, name: mapName, skippedObjects });
+    res.json({ id: map.id, name: map.name, skippedObjects });
   } catch (e: unknown) {
     if (sendFootprintError(res, e)) return;
     logger.error({ event: 'admin_maps.import.error', error: e instanceof Error ? e.message : String(e) });
