@@ -25,9 +25,9 @@ export interface ConnectionManagerDeps {
   dnd: DoNotDisturbInterface;
   screenshare: ScreenshareInterface;
   signalMonitor: { setRoom(room: Room | null): void };
-  // H4 audio-zone privacy: deny-all baseline, applied immediately on
-  // connect. See zonePermissionsManager.ts's module doc.
-  zonePermissions: { applyDenyAll(): void };
+  // H4 audio-zone privacy: deny-all or last server allow-list, applied
+  // immediately on connect. See zonePermissionsManager.ts's module doc.
+  zonePermissions: { applyBaseline(): void };
 }
 
 export class ConnectionManager implements Disposable {
@@ -112,12 +112,12 @@ export class ConnectionManager implements Disposable {
       this.deps.stateMachine.setRoom(room, name);
       this._currentRoomName = name;
 
-      // H4 audio-zone privacy: deny-all baseline BEFORE any track is
-      // published. Without this, a freshly published track would be
-      // subscribable by any client (LiveKit's default
+      // H4 audio-zone privacy: deny-all or the last server allow-list
+      // BEFORE any track is published. Without this, a freshly published
+      // track would be subscribable by any client (LiveKit's default
       // `allParticipantsAllowed: true`) until the first real
       // `av_zone_permissions` push arrives - see zonePermissionsManager.ts.
-      this.deps.zonePermissions.applyDenyAll();
+      this.deps.zonePermissions.applyBaseline();
 
       // Setup room events
       this.wireRoomEvents(room);
