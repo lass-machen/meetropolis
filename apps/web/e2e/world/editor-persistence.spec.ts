@@ -227,7 +227,8 @@ async function withBaseline(
   }
   const restoreErrors = await restoreBaseline(request, apiUrl, mapId, baseline);
   if (bodyError) {
-    if (restoreErrors.length > 0) throw new Error(`${bodyError.message} | Cleanup: ${restoreErrors.join('; ')}`);
+    // Rethrow the original error so the report keeps the failing call site.
+    if (restoreErrors.length > 0) bodyError.message += ` | Cleanup: ${restoreErrors.join('; ')}`;
     throw bodyError;
   }
   if (restoreErrors.length > 0) throw new Error(`Cleanup failed: ${restoreErrors.join('; ')}`);
