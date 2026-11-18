@@ -75,7 +75,8 @@ function buildFixtureInner(root) {
   git(repo, ['config', 'commit.gpgsign', 'false']);
   fs.writeFileSync(path.join(repo, '.gitignore'), 'node_modules/\n');
   const head = readGitCheckout({ cwd: REPO_ROOT }).head;
-  const snapshot = readGitFileSnapshot({ cwd: REPO_ROOT, commit: head, includeEnvExamples: false });
+  // The fixture carries the real example templates, so the gate has to review them.
+  const snapshot = readGitFileSnapshot({ cwd: REPO_ROOT, commit: head, includeEnvExamples: true });
   for (const [filePath, bytes] of snapshot.files) {
     const target = path.join(repo, filePath);
     fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -244,8 +245,16 @@ describe('license gate CLI', () => {
     assert.equal(report.exitCode, 1);
     assert.deepEqual(
       report.checks.map((check) => check.name),
-      ['snapshot', 'dependencies', 'assets', 'metadata', 'documentation', 'sourceBoundaries', 'dco'],
+      ['snapshot', 'dependencies', 'assets', 'metadata', 'documentation', 'sourceBoundaries', 'envExamples', 'dco'],
     );
+    const snapshotCheck = report.checks.find((check) => check.name === 'snapshot');
+    assert.equal(snapshotCheck.issueCount, 0);
+    assert.ok(!report.issues.some((issue) => issue.code === 'ENV_EXAMPLE_PENDING'));
+    const envIssues = report.issues.filter((issue) => issue.check === 'envExamples');
+    assert.ok(envIssues.some((issue) => issue.severity === 'error' && issue.path === '.env.example'));
+    for (const issue of envIssues) {
+      assert.ok(Number.isInteger(issue.line) && issue.line >= 1);
+    }
     const dco = report.checks.find((check) => check.name === 'dco');
     assert.equal(dco.status, 'not_requested');
     assert.equal(dco.recordCount, 0);
