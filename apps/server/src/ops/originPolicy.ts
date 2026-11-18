@@ -21,9 +21,12 @@ export const ORIGIN_ENV_KEY = 'CORS_ORIGIN';
 // traceparent: the browser telemetry SDK adds it to every fetch and XHR, so a
 // preflight without it would fail every API call while telemetry is active.
 // X-Asset-Protocol: desktop webviews announce the member-asset protocol version.
+// x-signalyr-sdk-*: the same SDK names itself on every relay post; without them
+// the browser blocks each event before it reaches the relay.
 export const ALLOWED_REQUEST_HEADERS =
   'Origin, X-Requested-With, Content-Type, Accept, Authorization, ' +
-  'x-tenant, x-correlation-id, x-av-identity, x-av-room, traceparent, X-Asset-Protocol';
+  'x-tenant, x-correlation-id, x-av-identity, x-av-room, traceparent, X-Asset-Protocol, ' +
+  'x-signalyr-sdk-name, x-signalyr-sdk-version';
 
 /** Methods a cross-origin request may use. */
 export const ALLOWED_REQUEST_METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
