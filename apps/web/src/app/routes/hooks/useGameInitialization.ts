@@ -58,21 +58,15 @@ function clearContainer(containerRef: React.RefObject<HTMLDivElement | null>) {
 export function buildSavePosition(params: UseGameInitializationParams) {
   const { localPosRef, lastSavedPositionRef, apiBase } = params;
   return async (opts?: { immediate?: boolean }) => {
-    const currentPos = localPosRef.current;
+    const { x, y } = localPosRef.current;
+    // Without a known position there is nothing to save; an unload save must
+    // not store the {0,0} default of lastSavedPositionRef.
+    if (typeof x !== 'number' || typeof y !== 'number') return;
     const currentDirection = (gameBridge as unknown as { lastDirection?: string }).lastDirection || 'down';
     const last = lastSavedPositionRef.current;
-    const hasMoved =
-      typeof currentPos.x === 'number' &&
-      typeof currentPos.y === 'number' &&
-      (Math.abs(currentPos.x - last.x) > 10 ||
-        Math.abs(currentPos.y - last.y) > 10 ||
-        currentDirection !== last.direction);
+    const hasMoved = Math.abs(x - last.x) > 10 || Math.abs(y - last.y) > 10 || currentDirection !== last.direction;
     if (!hasMoved && !opts?.immediate) return;
-    lastSavedPositionRef.current = {
-      x: currentPos.x || last.x,
-      y: currentPos.y || last.y,
-      direction: currentDirection,
-    };
+    lastSavedPositionRef.current = { x, y, direction: currentDirection };
     const currentMapName = useMapStore.getState().currentMapName;
     const payload = JSON.stringify({
       x: Math.round(lastSavedPositionRef.current.x),
