@@ -55,7 +55,7 @@ function clearContainer(containerRef: React.RefObject<HTMLDivElement | null>) {
   }
 }
 
-function buildSavePosition(params: UseGameInitializationParams) {
+export function buildSavePosition(params: UseGameInitializationParams) {
   const { localPosRef, lastSavedPositionRef, apiBase } = params;
   return async (opts?: { immediate?: boolean }) => {
     const currentPos = localPosRef.current;
