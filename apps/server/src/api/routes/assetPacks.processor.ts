@@ -317,80 +317,91 @@ function referencedRelativePath(url: string, uuid: string): string | null {
   return normalized;
 }
 
+type PreserveOptions = {
+  repairMissing?: boolean;
+  repairSources?: ReadonlyMap<string, string>;
+  onRepair?: (details: { url: string; source: string }) => void;
+  retainInPlace?: boolean;
+};
+
+// Generation uploads never replace the pack directory: referenced
+// files stay where they are and are only validated here. Nothing is copied
+// into the new generation, and no legacy or generation file is overwritten.
+async function retainReferencedAssetsInPlace(
+  urls: Set<string>,
+  uuid: string,
+  currentDir: string,
+  tmpDir: string,
+  options: PreserveOptions,
+): Promise<string[]> {
+  const preserved: string[] = [];
+  for (const url of urls) {
+    const relative = referencedRelativePath(url, uuid);
+    if (!relative) continue;
+    const inPlace = path.resolve(currentDir, relative);
+    const present = await fsp
+      .stat(inPlace)
+      .then((stat) => stat.isFile())
+      .catch(() => false);
+    if (present) continue;
+    if (!options.repairMissing) throw new MissingReferencedAssetError(url);
+    // Same precedence as the legacy path: uploaded bytes at the same
+    // relative location win over the explicit source map. Both live in the
+    // new generation tmp dir, so restoring from either never overwrites an
+    // existing legacy or generation file.
+    const uploadedCandidate = path.resolve(tmpDir, relative);
+    const uploadedPresent = await fsp
+      .stat(uploadedCandidate)
+      .then((stat) => stat.isFile())
+      .catch(() => false);
+    let repairSource = uploadedPresent ? uploadedCandidate : options.repairSources?.get(relative);
+    // Generation uploads land flat in the new tmp dir under their hashed
+    // file name, while referenced snapshots keep the generations/<id>/...
+    // path. The reference path is validated above, so only fall back to the
+    // uploaded file with the same basename: existing regular files only, no
+    // new URL, no path outside the tmp dir.
+    if (!repairSource && relative.startsWith('generations/')) {
+      const basenameCandidate = path.resolve(tmpDir, path.posix.basename(relative));
+      const basenamePresent = await fsp
+        .stat(basenameCandidate)
+        .then((stat) => stat.isFile())
+        .catch(() => false);
+      if (basenamePresent) repairSource = basenameCandidate;
+    }
+    if (!repairSource) throw new MissingReferencedAssetError(url);
+    const readable = await fsp
+      .stat(repairSource)
+      .then((stat) => stat.isFile())
+      .catch(() => false);
+    if (!readable) throw new MissingReferencedAssetError(url);
+    await fsp.mkdir(path.dirname(inPlace), { recursive: true });
+    try {
+      await fsp.copyFile(repairSource, inPlace, fsConstants.COPYFILE_EXCL);
+    } catch (error) {
+      // Only missing files are restored: an EEXIST here means the snapshot
+      // was restored concurrently, so keep those bytes instead of failing.
+      if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
+    }
+    preserved.push(relative);
+    options.onRepair?.({ url, source: repairSource });
+  }
+  return preserved;
+}
+
 export async function preserveReferencedPackAssets(
   prisma: AssetReferenceReader,
   uuid: string,
   currentDir: string,
   tmpDir: string,
-  options: {
-    repairMissing?: boolean;
-    repairSources?: ReadonlyMap<string, string>;
-    onRepair?: (details: { url: string; source: string }) => void;
-    retainInPlace?: boolean;
-  } = {},
+  options: PreserveOptions = {},
 ): Promise<string[]> {
   const [autotiles, objects] = await Promise.all([
     prisma.mapAutotile.findMany({ where: { packUuid: uuid }, select: { imageUrl: true } }),
     prisma.mapObject.findMany({ where: { assetPackUuid: uuid }, select: { dataUrl: true } }),
   ]);
   const urls = new Set([...autotiles.map((item) => item.imageUrl), ...objects.map((item) => item.dataUrl)]);
+  if (options.retainInPlace) return retainReferencedAssetsInPlace(urls, uuid, currentDir, tmpDir, options);
   const preserved: string[] = [];
-  // Generation uploads never replace the pack directory: referenced
-  // files stay where they are and are only validated here. Nothing is copied
-  // into the new generation, and no legacy or generation file is overwritten.
-  if (options.retainInPlace) {
-    for (const url of urls) {
-      const relative = referencedRelativePath(url, uuid);
-      if (!relative) continue;
-      const inPlace = path.resolve(currentDir, relative);
-      const present = await fsp
-        .stat(inPlace)
-        .then((stat) => stat.isFile())
-        .catch(() => false);
-      if (present) continue;
-      if (!options.repairMissing) throw new MissingReferencedAssetError(url);
-      // Same precedence as the legacy path: uploaded bytes at the same
-      // relative location win over the explicit source map. Both live in the
-      // new generation tmp dir, so restoring from either never overwrites an
-      // existing legacy or generation file.
-      const uploadedCandidate = path.resolve(tmpDir, relative);
-      const uploadedPresent = await fsp
-        .stat(uploadedCandidate)
-        .then((stat) => stat.isFile())
-        .catch(() => false);
-      let repairSource = uploadedPresent ? uploadedCandidate : options.repairSources?.get(relative);
-      // Generation uploads land flat in the new tmp dir under their hashed
-      // file name, while referenced snapshots keep the generations/<id>/...
-      // path. The reference path is validated above, so only fall back to the
-      // uploaded file with the same basename: existing regular files only, no
-      // new URL, no path outside the tmp dir.
-      if (!repairSource && relative.startsWith('generations/')) {
-        const basenameCandidate = path.resolve(tmpDir, path.posix.basename(relative));
-        const basenamePresent = await fsp
-          .stat(basenameCandidate)
-          .then((stat) => stat.isFile())
-          .catch(() => false);
-        if (basenamePresent) repairSource = basenameCandidate;
-      }
-      if (!repairSource) throw new MissingReferencedAssetError(url);
-      const readable = await fsp
-        .stat(repairSource)
-        .then((stat) => stat.isFile())
-        .catch(() => false);
-      if (!readable) throw new MissingReferencedAssetError(url);
-      await fsp.mkdir(path.dirname(inPlace), { recursive: true });
-      try {
-        await fsp.copyFile(repairSource, inPlace, fsConstants.COPYFILE_EXCL);
-      } catch (error) {
-        // Only missing files are restored: an EEXIST here means the snapshot
-        // was restored concurrently, so keep those bytes instead of failing.
-        if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
-      }
-      preserved.push(relative);
-      options.onRepair?.({ url, source: repairSource });
-    }
-    return preserved;
-  }
   for (const url of urls) {
     const relative = referencedRelativePath(url, uuid);
     if (!relative) continue;
