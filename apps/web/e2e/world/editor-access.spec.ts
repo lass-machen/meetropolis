@@ -39,7 +39,7 @@ import type { APIRequestContext, APIResponse, Page, TestInfo } from '@playwright
 import { expect, test } from '../fixtures';
 import { MeetropolisApi, createApiRequest } from '../support/api';
 import type { SeedData, TestUser } from '../support/api';
-import { getSeedTenant, passwordFor } from '../fixtures/helpers';
+import { completeSeedOnboarding, getSeedTenant, passwordFor } from '../fixtures/helpers';
 
 const SHOULD_RUN = process.env.E2E_RUN === 'true';
 
@@ -574,6 +574,11 @@ async function readAdminMap(
   if (!isRecord(body)) throw new Error('GET admin map did not return a JSON object.');
   return body;
 }
+
+// Seeded users start with the onboarding wizard over the room (smoke/auth.spec.ts).
+test.beforeEach(async ({ stack, seed }) => {
+  await completeSeedOnboarding(stack.apiUrl, seed);
+});
 
 test('member cannot change editor state or objects', async ({ loginAs, playwright, seed, stack }, testInfo) => {
   requireIsolatedStack(stack);

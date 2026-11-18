@@ -40,7 +40,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import { expect, test } from '../fixtures';
 import type { SeedData, TestUser } from '../support/api';
 import { MeetropolisApi } from '../support/api';
-import { getSeedTenant, passwordFor } from '../fixtures/helpers';
+import { completeSeedOnboarding, getSeedTenant, passwordFor } from '../fixtures/helpers';
 
 const SHOULD_RUN = process.env.E2E_RUN === 'true';
 
@@ -222,6 +222,11 @@ async function readMainSceneState(page: Page): Promise<{ active: boolean; hasMai
     };
   });
 }
+
+// Seeded users start with the onboarding wizard over the room (smoke/auth.spec.ts).
+test.beforeEach(async ({ stack, seed }) => {
+  await completeSeedOnboarding(stack.apiUrl, seed);
+});
 
 test('keeps the main camera usable across editor and map lifecycle', async ({ stack, seed, loginAs, request }) => {
   test.setTimeout(180_000);

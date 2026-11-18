@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 
-import { expect } from '@playwright/test';
+import { expect, request as apiRequest } from '@playwright/test';
 
 import type { FreshTenant, Role, SeedData, TenantSeed, TestUser } from '../support/api';
+import { MeetropolisApi } from '../support/api';
 import type { Page } from '@playwright/test';
 
 export const TESTSTACK_ENV_MESSAGE =
@@ -125,4 +126,28 @@ export function pickUsers(tenant: TenantSeed | FreshTenant, n: number, roles?: R
 export function passwordFor(user: TestUser): string {
   if (!user.password) throw new Error(`${user.role} ${user.email} has no password and must use the guest link.`);
   return user.password;
+}
+
+/**
+ * Completes the first-run onboarding of every seeded tenant user with a
+ * password through the product route (POST /auth/onboarding/complete).
+ * Until then the onboarding wizard (WorldShell, onboardingCompleted false)
+ * covers the room and takes clicks and keys meant for the world.
+ */
+export async function completeSeedOnboarding(apiUrl: string, seed: SeedData): Promise<void> {
+  const tenant = getSeedTenant(seed);
+  for (const user of Object.values(tenant.users)) {
+    if (!user?.password) continue;
+    const context = await apiRequest.newContext({
+      baseURL: apiUrl,
+      extraHTTPHeaders: { 'x-tenant': user.tenantSlug },
+    });
+    try {
+      await new MeetropolisApi(context, apiUrl, user.tenantSlug).login(user.email, user.password);
+      const response = await context.post(`${apiUrl}/auth/onboarding/complete`, { data: {} });
+      if (!response.ok()) throw new Error(`POST /auth/onboarding/complete failed: HTTP ${response.status()}.`);
+    } finally {
+      await context.dispose();
+    }
+  }
 }

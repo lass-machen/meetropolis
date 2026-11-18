@@ -45,7 +45,7 @@ import type { APIRequestContext, BrowserContext, Page, Response as PageResponse 
 import { expect, test } from '../fixtures';
 import type { SeedData, TestUser } from '../support/api';
 import { MeetropolisApi } from '../support/api';
-import { getSeedTenant, passwordFor, waitForParticipant } from '../fixtures/helpers';
+import { completeSeedOnboarding, getSeedTenant, passwordFor, waitForParticipant } from '../fixtures/helpers';
 
 const SHOULD_RUN = process.env.E2E_RUN === 'true';
 
@@ -306,6 +306,12 @@ async function expectZoneListEmpty(page: Page): Promise<void> {
  * takes over the new name. An assertion about pixel-exact overlay or
  * AV effect is deliberately not asserted.
  */
+
+// Seeded users start with the onboarding wizard over the room (smoke/auth.spec.ts).
+test.beforeEach(async ({ stack, seed }) => {
+  await completeSeedOnboarding(stack.apiUrl, seed);
+});
+
 test('Case 1: open zone list picks up the foreign zone state live', async ({ stack, seed, loginAs, request }) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack);

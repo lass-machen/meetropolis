@@ -55,7 +55,7 @@ import type { Client } from 'pg';
 import { expect, test } from '../fixtures';
 import type { SeedData, TestUser } from '../support/api';
 import { MeetropolisApi } from '../support/api';
-import { getSeedTenant, passwordFor } from '../fixtures/helpers';
+import { completeSeedOnboarding, getSeedTenant, passwordFor } from '../fixtures/helpers';
 
 const SHOULD_RUN = process.env.E2E_RUN === 'true';
 
@@ -390,6 +390,12 @@ async function holdKey(page: Page, key: 'ArrowRight' | 'ArrowLeft' | 'ArrowUp', 
  * visible to a fresh client and blocks keyboard movement, while the opposite
  * direction still moves.
  */
+
+// Seeded users start with the onboarding wizard over the room (smoke/auth.spec.ts).
+test.beforeEach(async ({ stack, seed }) => {
+  await completeSeedOnboarding(stack.apiUrl, seed);
+});
+
 test('painted wall persists and blocks movement', async ({ stack, seed, loginAs, request, db }, testInfo) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack);

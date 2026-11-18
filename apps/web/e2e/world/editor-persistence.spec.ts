@@ -62,7 +62,7 @@ import type { APIRequestContext, BrowserContext, Page } from '@playwright/test';
 import { expect, test } from '../fixtures';
 import type { SeedData, TestUser } from '../support/api';
 import { MeetropolisApi } from '../support/api';
-import { getSeedTenant, passwordFor, waitForParticipant } from '../fixtures/helpers';
+import { completeSeedOnboarding, getSeedTenant, passwordFor, waitForParticipant } from '../fixtures/helpers';
 
 const SHOULD_RUN = process.env.E2E_RUN === 'true';
 
@@ -392,6 +392,12 @@ async function deleteMapObject(
  * footer save button, as in zones-sync Case 2). A fresh client context then
  * loads both the zone and the background color.
  */
+
+// Seeded users start with the onboarding wizard over the room (smoke/auth.spec.ts).
+test.beforeEach(async ({ stack, seed }) => {
+  await completeSeedOnboarding(stack.apiUrl, seed);
+});
+
 test('persists editor state across a fresh client start', async ({ stack, seed, loginAs, request }) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack.apiUrl, stack.baseUrl);
