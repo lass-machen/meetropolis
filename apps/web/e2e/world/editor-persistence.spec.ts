@@ -202,7 +202,8 @@ async function restoreBaseline(
       zones: baseline.zones,
       replaceZones: true,
       ...(baseline.backgroundColor ? { backgroundColor: baseline.backgroundColor } : {}),
-      ...(baseline.spawn ? { spawn: baseline.spawn } : {}),
+      // null removes a spawn the case added; omitting it would keep that spawn.
+      spawn: baseline.spawn ?? null,
     });
     return [];
   } catch (error) {
