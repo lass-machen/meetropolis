@@ -69,6 +69,9 @@ function buildAttachAudioTrack(
       audio.style.display = 'none';
       try {
         audio.dataset.avRemote = participantId;
+        // Publishing participant's sid for tooling that maps a rendered track
+        // back to its sender; no visible effect.
+        audio.dataset.participantSid = participantId;
       } catch {}
       document.body.appendChild(audio);
       try {

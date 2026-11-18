@@ -116,6 +116,7 @@ describe('useGlobalAudioTracks', () => {
     expect(audio).toBeTruthy();
     expect(audio!.muted).toBe(true);
     expect(audio!.volume).toBe(0);
+    expect(audio!.dataset.participantSid).toBe('remote1');
 
     act(() => {
       root.unmount();
