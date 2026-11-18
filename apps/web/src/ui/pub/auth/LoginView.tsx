@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PubButton, PubInput } from '../components';
 import { AuthMailIcon } from './AuthFormPartials';
@@ -60,6 +60,7 @@ interface PasswordFieldProps {
 
 function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
   const { t } = useTranslation('public');
+  const inputId = useId();
   return (
     <div>
       <div
@@ -70,7 +71,7 @@ function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
           marginBottom: 6,
         }}
       >
-        <label className="pub-input-label" style={{ margin: 0 }}>
+        <label className="pub-input-label" htmlFor={inputId} style={{ margin: 0 }}>
           {t('auth.passwordLabel')}
         </label>
         <button
@@ -89,6 +90,7 @@ function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
       </div>
       <div className="pub-input-wrapper">
         <input
+          id={inputId}
           className="pub-input"
           type="password"
           name="password"

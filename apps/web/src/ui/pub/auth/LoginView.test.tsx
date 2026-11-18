@@ -17,6 +17,14 @@ function renderView() {
   return onSubmit;
 }
 
+describe('LoginView accessible fields', () => {
+  it('binds the password label to the password input', () => {
+    renderView();
+
+    expect(screen.getByLabelText('auth.passwordLabel')).toBe(screen.getByPlaceholderText('••••••••'));
+  });
+});
+
 describe('LoginView required fields', () => {
   it('marks email and password with aria-required instead of the native required attribute', () => {
     renderView();
