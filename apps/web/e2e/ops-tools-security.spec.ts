@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type BrowserContext, type Page } from '@playwright/test';
 
 // Operator-tools security: HTML event attributes, map-name marker execution,
 // Content-Security-Policy on /tools, and production 404s for atelier entries.
@@ -22,6 +22,7 @@ const DELETE_LIST = /^L.schen$/;
 const DELETE_DETAIL = /^Map l.schen$/;
 let adminToken = '';
 let tenantId = '';
+let adminSessionCookies: Parameters<BrowserContext['addCookies']>[0] = [];
 
 const EVENT_ATTR_TOOLS = [
   'super-admin.html',
@@ -83,6 +84,10 @@ test.beforeAll(async ({ playwright }) => {
     };
     expect(claims.tid, 'admin session must include a tenant claim').toBeTruthy();
     tenantId = claims.tid ?? '';
+    // The super admin tool only accepts the browser session, so the page reuses
+    // the session cookie of this login instead of typing a token.
+    adminSessionCookies = (await api.storageState()).cookies;
+    expect(adminSessionCookies.length, 'admin login must set a session cookie').toBeGreaterThan(0);
   } finally {
     await api.dispose();
   }
@@ -180,8 +185,8 @@ async function openSuperAdmin(page: Page): Promise<void> {
 }
 
 async function connectAndOpenMaps(page: Page): Promise<void> {
+  await page.context().addCookies(adminSessionCookies);
   await openSuperAdmin(page);
-  await page.getByPlaceholder('Auth Token (optional)').fill(adminToken);
   await page.getByRole('button', { name: 'Test' }).click();
   await expect(page.getByText('Verbunden mit Server')).toBeVisible();
   await page.getByText('Maps', { exact: true }).click();
