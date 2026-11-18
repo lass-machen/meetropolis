@@ -18,7 +18,13 @@ function setup() {
   ]);
   const actor = { sessionId: 'actor', send: vi.fn() };
   const peer = { sessionId: 'peer', send: vi.fn() };
-  const map = { widthTiles: 32, heightTiles: 32, tileWidthPx: 32, tileHeightPx: 32, defaultSpawn: null };
+  const map: {
+    widthTiles: number;
+    heightTiles: number;
+    tileWidthPx: number;
+    tileHeightPx: number;
+    defaultSpawn: { x: number; y: number } | null;
+  } = { widthTiles: 32, heightTiles: 32, tileWidthPx: 32, tileHeightPx: 32, defaultSpawn: null };
   const catalog = createZoneCatalog();
   catalog.zones.set('other', []);
   const room = {

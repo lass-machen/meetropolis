@@ -32,25 +32,25 @@ import type { PrismaClient } from '../generated/prisma/index.js';
 const TENANT = 'tenant-lm';
 const FOREIGN_TENANT = 'tenant-other';
 
-interface PackRow {
+type PackRow = {
   id: number;
   uuid: string;
   tenantId: string | null;
-}
+};
 
-interface CustomAvatarRow {
+type CustomAvatarRow = {
   id: number;
   uuid: string;
   tenantId: string | null;
   spriteUrl: string;
   previewUrl: string | null;
-}
+};
 
-interface MediaRow {
+type MediaRow = {
   id: string;
   storagePath: string;
   tenantId: string;
-}
+};
 
 interface Fixture {
   assetPacks: PackRow[];

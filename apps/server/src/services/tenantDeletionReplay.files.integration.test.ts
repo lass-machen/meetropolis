@@ -78,6 +78,7 @@ function countingTenantDeletion(): CountingDeletion {
         prisma,
         journalDir,
         retentionDays: '7',
+        maxCopyLifetimeDays: '14',
         allowDuringRestoreReplay: true,
       });
       const planResolver = resolver;

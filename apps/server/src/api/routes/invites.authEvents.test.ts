@@ -93,7 +93,7 @@ function makeApp(prisma: PrismaClient): express.Application {
               userId,
               sessionId: `sess-${userId}`,
               tokenHash: `hash-${userId}`,
-              verificationOnly: req.headers['x-verification-only'] === 'true',
+              ...(req.headers['x-verification-only'] === 'true' ? { verificationOnly: true as const } : {}),
             }
           : null,
     });

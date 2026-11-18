@@ -137,8 +137,8 @@ describe('auth signin/logout event recording (real database)', () => {
       .set('x-tenant', tenant.slug)
       .send({ email: user.email, password });
     expect(login.status).toBe(200);
-    const cookies = login.headers['set-cookie'];
-    expect(cookies).toBeDefined();
+    const cookies: unknown = login.headers['set-cookie'];
+    if (!Array.isArray(cookies)) throw new Error('The login did not set any cookie.');
 
     const logout = await request(app)
       .post('/auth/logout')
