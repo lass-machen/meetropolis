@@ -12,35 +12,11 @@ export function NotFoundPage() {
 
   return (
     <PublicLayout onLogin={() => navigate('login')} onSignup={() => navigate('register')} navigate={navigate}>
-      <div
-        style={{
-          minHeight: 'calc(100vh - 160px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 'var(--pub-section-padding)',
-        }}
-      >
-        <PubCard
-          variant="surface"
-          style={{
-            maxWidth: 480,
-            width: '100%',
-            textAlign: 'center',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 16,
-            padding: '48px 40px',
-          }}
-        >
-          <h2 className="pub-text-h4" style={{ margin: 0 }}>
-            {t('notFound.title')}
-          </h2>
-          <p className="pub-text-body" style={{ color: 'var(--pub-text-secondary)', margin: 0 }}>
-            {t('notFound.body')}
-          </p>
-          <PubButton as="a" href="#/" variant="primary" style={{ marginTop: 8 }}>
+      <div className="pub-not-found">
+        <PubCard variant="surface" className="pub-not-found__card">
+          <h2 className="pub-text-h4 pub-not-found__title">{t('notFound.title')}</h2>
+          <p className="pub-text-body pub-not-found__body">{t('notFound.body')}</p>
+          <PubButton as="a" href="#/" variant="primary" className="pub-not-found__action">
             {t('notFound.backHome')}
           </PubButton>
         </PubCard>

@@ -273,33 +273,14 @@ export function InvitesTab({ apiBase }: InvitesTabProps) {
         </Alert>
       )}
       {resentInvite && (
-        <Card
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            marginBottom: 16,
-            padding: '12px 16px',
-            background: 'rgba(0,0,0,0.3)',
-          }}
-        >
-          <code
-            style={{
-              flex: 1,
-              fontFamily: 'monospace',
-              fontSize: 14,
-              color: 'var(--accent, #3b82f6)',
-              wordBreak: 'break-all',
-            }}
-          >
-            {resentInvite.inviteUrl}
-          </code>
+        <Card className="sys-invite-link">
+          <code className="sys-invite-link__url">{resentInvite.inviteUrl}</code>
           <Button
             variant="primary"
             onClick={() => {
               void handleCopyResentLink();
             }}
-            style={{ fontSize: 12, padding: '6px 12px' }}
+            className="sys-invite-link__copy"
           >
             {t('tenant.copyLink')}
           </Button>

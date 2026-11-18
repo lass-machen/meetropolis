@@ -706,3 +706,36 @@
   color: var(--palette-legacy-hex-ffffff);
   -webkit-text-fill-color: var(--palette-legacy-hex-ffffff);
 }
+
+/* ---------- Not found page ---------- */
+.pub-not-found {
+  min-height: calc(100vh - 160px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--pub-section-padding);
+}
+
+.pub-not-found__card {
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 40px;
+}
+
+.pub-not-found__title,
+.pub-not-found__body {
+  margin: 0;
+}
+
+.pub-not-found__body {
+  color: var(--pub-text-secondary);
+}
+
+.pub-not-found__action {
+  margin-top: 8px;
+}

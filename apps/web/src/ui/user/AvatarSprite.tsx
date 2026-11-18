@@ -43,34 +43,14 @@ function AvatarPreviewImage({ previewUrl, alt }: { previewUrl: string; alt: stri
   const member = isMemberAssetRef(previewUrl);
   const asset = useMemberAsset(member ? previewUrl : null);
   if (!member) {
-    return (
-      <img
-        src={resolveUrl(previewUrl)}
-        alt={alt}
-        style={{
-          imageRendering: 'pixelated',
-          objectFit: 'contain',
-          flexShrink: 0,
-        }}
-      />
-    );
+    return <img src={resolveUrl(previewUrl)} alt={alt} className="sys-avatar-sprite__img" />;
   }
   // Loading or failed: keep the same empty box the missing-avatar branch
   // renders instead of a broken image icon.
   if (asset.status !== 'ready' || !asset.src) {
-    return <div style={{ flexShrink: 0 }} />;
+    return <div className="sys-avatar-sprite__empty" />;
   }
-  return (
-    <img
-      src={asset.src}
-      alt={alt}
-      style={{
-        imageRendering: 'pixelated',
-        objectFit: 'contain',
-        flexShrink: 0,
-      }}
-    />
-  );
+  return <img src={asset.src} alt={alt} className="sys-avatar-sprite__img" />;
 }
 
 // Same unrenderable-sprite fallback the settings preview draws: a neutral

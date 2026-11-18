@@ -84,7 +84,7 @@ function TokenRow({
       <div>
         <div style={{ fontWeight: 600 }}>{token.name || 'Token'}</div>
         {token.scope && (
-          <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+          <div className="sys-api-token__meta">
             {token.scope === 'write' ? t('admin.api.scopeWrite') : t('admin.api.scopeRead')}
           </div>
         )}
@@ -225,10 +225,10 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
             {t('admin.api.createToken')}
           </Button>
         </div>
-        <fieldset style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', margin: 0 }}>
-          <legend style={{ fontSize: 13, padding: '0 4px' }}>{t('admin.api.scope')}</legend>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 13 }}>
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <fieldset className="sys-api-token-scope">
+          <legend className="sys-api-token-scope__legend">{t('admin.api.scope')}</legend>
+          <div className="sys-api-token-scope__options">
+            <label className="sys-api-token-scope__option">
               <input
                 type="radio"
                 name="api-token-scope"
@@ -237,7 +237,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
               />
               {t('admin.api.scopeRead')}
             </label>
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <label className="sys-api-token-scope__option">
               <input
                 type="radio"
                 name="api-token-scope"
@@ -247,7 +247,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
               {t('admin.api.scopeWrite')}
             </label>
           </div>
-          <div style={{ fontSize: 13, color: 'var(--fg-subtle)', marginTop: 6 }}>{t('admin.api.scopeHint')}</div>
+          <div className="sys-api-token-scope__hint">{t('admin.api.scopeHint')}</div>
         </fieldset>
         {freshToken && (
           <div

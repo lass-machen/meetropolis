@@ -122,9 +122,9 @@ function PackItemButton({ item, selected }: { item: PackItem; selected: boolean 
       }}
     >
       {src ? (
-        <img src={src} alt={item.key} style={{ maxWidth: '100%', maxHeight: '100%', imageRendering: 'pixelated' }} />
+        <img src={src} alt={item.key} className="sys-terrain-tile__img" />
       ) : (
-        <div style={{ maxWidth: '100%', maxHeight: '100%' }} />
+        <div className="sys-terrain-tile__empty" />
       )}
     </button>
   );

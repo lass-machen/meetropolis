@@ -810,3 +810,85 @@
     transform: rotate(360deg);
   }
 }
+
+/* ---------- API token scope (admin) ---------- */
+.sys-api-token__meta {
+  font-size: 12px;
+  color: var(--fg-subtle);
+}
+
+.sys-api-token-scope {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0;
+}
+
+.sys-api-token-scope__legend {
+  font-size: 13px;
+  padding: 0 4px;
+}
+
+.sys-api-token-scope__options {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.sys-api-token-scope__option {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sys-api-token-scope__hint {
+  font-size: 13px;
+  color: var(--fg-subtle);
+  margin-top: 6px;
+}
+
+/* ---------- Resent invite link (tenant settings) ---------- */
+.sys-invite-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.sys-invite-link__url {
+  flex: 1;
+  font-family: monospace;
+  font-size: 14px;
+  color: var(--accent, var(--palette-legacy-hex-3b82f6));
+  word-break: break-all;
+}
+
+.sys-invite-link__copy {
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+/* ---------- Protected member images ---------- */
+.sys-avatar-sprite__img {
+  image-rendering: pixelated;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.sys-avatar-sprite__empty {
+  flex-shrink: 0;
+}
+
+.sys-terrain-tile__img {
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: pixelated;
+}
+
+.sys-terrain-tile__empty {
+  max-width: 100%;
+  max-height: 100%;
+}
