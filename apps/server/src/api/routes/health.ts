@@ -174,6 +174,43 @@ function respondWorldSessionRequired(
   res.status(403).json({ error: 'world_session_required' });
 }
 
+/**
+ * Validates the login session behind a LiveKit token request. Responds and
+ * returns null when the session is rejected or its identity is reserved.
+ */
+async function resolveLivekitTokenSession(
+  prisma: PrismaClient,
+  res: express.Response,
+  rawToken: string,
+  tenantId: string,
+  clientSuppliedIdentity: string,
+  corrId: string,
+): Promise<{ identity: string; sessionId: string } | null> {
+  const session = await validateTenantSessionFresh(prisma, rawToken, tenantId);
+  if (session.status !== 'allowed') {
+    const forbidden = session.status === 'forbidden';
+    const reason = forbidden ? session.reason : session.status;
+    logger.warn({ event: 'livekit.token.session_rejected', correlationId: corrId || undefined, reason });
+    res.status(forbidden ? 403 : 401).json({ error: forbidden ? 'forbidden' : 'unauthorized' });
+    return null;
+  }
+  const identity = session.userId;
+  if (isReservedAvIdentity(identity)) {
+    logger.warn({ event: 'livekit.token.reserved_identity', correlationId: corrId || undefined });
+    res.status(403).json({ error: 'forbidden' });
+    return null;
+  }
+  if (clientSuppliedIdentity !== identity) {
+    logger.warn({
+      event: 'livekit.token.identity_override',
+      correlationId: corrId || undefined,
+      requestedIdentity: clientSuppliedIdentity,
+      authenticatedIdentity: identity,
+    });
+  }
+  return { identity, sessionId: session.sessionId };
+}
+
 export async function handleLivekitToken(
   prisma: PrismaClient,
   req: express.Request,
@@ -203,28 +240,9 @@ export async function handleLivekitToken(
     return;
   }
   try {
-    const session = await validateTenantSessionFresh(prisma, rawToken, tenant.id);
-    if (session.status !== 'allowed') {
-      const forbidden = session.status === 'forbidden';
-      const reason = forbidden ? session.reason : session.status;
-      logger.warn({ event: 'livekit.token.session_rejected', correlationId: corrId || undefined, reason });
-      res.status(forbidden ? 403 : 401).json({ error: forbidden ? 'forbidden' : 'unauthorized' });
-      return;
-    }
-    const identity = session.userId;
-    if (isReservedAvIdentity(identity)) {
-      logger.warn({ event: 'livekit.token.reserved_identity', correlationId: corrId || undefined });
-      res.status(403).json({ error: 'forbidden' });
-      return;
-    }
-    if (clientSuppliedIdentity !== identity) {
-      logger.warn({
-        event: 'livekit.token.identity_override',
-        correlationId: corrId || undefined,
-        requestedIdentity: clientSuppliedIdentity,
-        authenticatedIdentity: identity,
-      });
-    }
+    const resolved = await resolveLivekitTokenSession(prisma, res, rawToken, tenant.id, clientSuppliedIdentity, corrId);
+    if (!resolved) return;
+    const { identity } = resolved;
     try {
       logger.info({ event: 'livekit.token.request', correlationId: corrId || undefined, roomName, identity });
     } catch {}
@@ -244,7 +262,7 @@ export async function handleLivekitToken(
     // materialized human world session of this verified login session.
     const worldProof = resolveAvWorldPresence({
       userId: identity,
-      authSessionId: session.sessionId,
+      authSessionId: resolved.sessionId,
       tenantId: tenant.id,
       tenantSlug: tenant.slug,
     });
@@ -254,7 +272,7 @@ export async function handleLivekitToken(
       roomName: `${tenant.slug}:${roomName}`,
       identity,
       accessExpiresAt: membership?.expiresAt ?? null,
-      metadata: avSessionMetadata(session.sessionId),
+      metadata: avSessionMetadata(resolved.sessionId),
       name,
       canPublish: effectiveCanPublish,
       canPublishData: true,
