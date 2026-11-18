@@ -372,7 +372,7 @@ async function findEmptyRect(
 async function holdKey(page: Page, key: 'ArrowRight' | 'ArrowLeft' | 'ArrowUp', ms: number): Promise<void> {
   await page.keyboard.down(key);
   await page.waitForTimeout(ms);
-  await page.keyboard.up();
+  await page.keyboard.up(key);
 }
 
 /**
