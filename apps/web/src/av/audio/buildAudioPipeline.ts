@@ -1,7 +1,7 @@
 import type { LocalAudioTrack } from 'livekit-client';
 import type { AvSettings } from '../../state/avSettings';
 import { AVLogger } from '../AVLogger';
-import { VOICE_ISOLATION_TIMEOUT, wrapTrackWithVoiceIsolation } from './voiceIsolation';
+import { VOICE_ISOLATION_TIMEOUT, createVoiceIsolationProcessor } from './voiceIsolation';
 import type { TrackLike } from '../../types/livekit';
 
 type BuildParams = {
@@ -96,26 +96,23 @@ function buildAudioConstraints(
   };
 }
 
-async function applyVoiceIsolationFallback(
+async function applyVoiceIsolation(
   first: TrackLike,
   deviceId: string | undefined,
   settings: AvSettings,
 ): Promise<TrackLike | LocalAudioTrack> {
+  const processor = createVoiceIsolationProcessor();
   try {
-    const mst = first?.mediaStreamTrack;
-    if (!mst) throw new Error('no mst');
-    const { processed, stopSource } = await wrapTrackWithVoiceIsolation(mst);
-    try {
-      await first?.replaceTrack?.(processed);
-    } catch {}
-    // replaceTrack() marks the publication as user-provided; LiveKit's
-    // stopOnMute (stopMicTrackOnMute) then no longer reaches the real
-    // microphone MediaStreamTrack, which now lives inside the AudioContext
-    // graph. Stash the teardown handle so unpublishMicrophone can close it
-    // explicitly on hard-close mute/unpublish.
-    first.__avStopSource = stopSource;
+    if (typeof first.setProcessor !== 'function') throw new Error('processor API unavailable');
+    // LocalAudioTrack.setProcessor() requires an AudioContext on the track;
+    // before publish none is set, so hand over the processor-owned one.
+    first.setAudioContext?.(processor.audioContext);
+    await first.setProcessor(processor);
     return first;
   } catch (error) {
+    try {
+      await processor.destroy();
+    } catch {}
     if ((error as Error)?.message === VOICE_ISOLATION_TIMEOUT) {
       // The worklet did not come up in time. Publish the raw capture (no
       // voice isolation) instead of stacking another getUserMedia on the
@@ -156,5 +153,5 @@ export async function buildAudioPipeline(params: BuildParams): Promise<TrackLike
 
   if (!wantsNoiseSuppression) return first;
 
-  return applyVoiceIsolationFallback(first, deviceId, settings);
+  return applyVoiceIsolation(first, deviceId, settings);
 }

@@ -1,3 +1,4 @@
+import type { AudioProcessorOptions, TrackProcessor } from 'livekit-client';
 import {
   Room,
   RemoteParticipant,
@@ -104,15 +105,14 @@ export type TrackLike = Track & {
    * option; mirrored here for live updates without renegotiation.
    */
   stopOnMute?: boolean;
-  /**
-   * Teardown handle for tracks whose underlying capture MediaStreamTrack is
-   * not directly reachable via `mediaStreamTrack` (e.g. the voice-isolation
-   * WebAudio pipeline, where the published track is a destination track and
-   * the real microphone MediaStreamTrack lives inside an AudioContext
-   * graph). When present, closes that source and releases the hardware
-   * device. Idempotent. See `audio/voiceIsolation.ts`.
-   */
-  __avStopSource?: () => void;
+  /** LocalAudioTrack processor API, used by audio/buildAudioPipeline.ts. */
+  setAudioContext?: (audioContext: AudioContext | undefined) => void;
+  setProcessor?: (
+    processor: Omit<TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>, 'processedTrack'> & {
+      readonly processedTrack: MediaStreamTrack | undefined;
+    },
+  ) => Promise<void>;
+  getProcessor?: () => unknown;
 };
 
 /**

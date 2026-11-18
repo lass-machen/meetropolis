@@ -251,9 +251,6 @@ export async function unpublishMicrophone({
           try {
             t.stop?.();
           } catch {}
-          try {
-            t.__avStopSource?.();
-          } catch {}
         }
       }
     } catch {}
@@ -274,12 +271,9 @@ export async function unpublishMicrophone({
     } catch {}
 
     await room.localParticipant.unpublishTrack(state.track);
+    // stop() ends the raw capture and destroys an attached voice isolation
+    // processor (LocalTrack.stop), so the hardware mic is released.
     (state.track as unknown as TrackLike).stop?.();
-    // Voice-isolation pipeline: the published track is a WebAudio destination
-    // track, not the real microphone capture. Close the underlying capture
-    // MediaStreamTrack explicitly so the hardware mic is actually released.
-    // No-op for tracks without the isolation handle.
-    (state.track as unknown as TrackLike).__avStopSource?.();
   } catch (error) {
     AVLogger.warn('track.mic.unpublish_error', { error: String(error) });
   }

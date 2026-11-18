@@ -1,7 +1,7 @@
 import type { Room, LocalAudioTrack, LocalVideoTrack } from 'livekit-client';
 import type { LocalTrackState } from './types';
 import { AVLogger } from '../AVLogger';
-import type { TrackLike } from '../../types/livekit';
+import { readCaptureTrack } from '../audio/captureTrack';
 
 /** Clear the preferred mic device if it is no longer enumerated. */
 export async function dropPreferredMicIfGone(state: LocalTrackState): Promise<void> {
@@ -30,7 +30,9 @@ export function watchTrackEnded(
   onEnded: () => void,
   cleanups: Map<string, () => void>,
 ): void {
-  const mst = (track as TrackLike).mediaStreamTrack;
+  // Watch the raw capture: with voice isolation the published track is a
+  // WebAudio destination that does not end when the device goes away.
+  const mst = readCaptureTrack(track);
   if (!mst) return;
 
   const handler = () => {
