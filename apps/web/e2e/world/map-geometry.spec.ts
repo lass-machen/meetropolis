@@ -50,6 +50,7 @@
  * Without E2E_RUN, the file is safely skipped.
  */
 import type { APIRequestContext, Page } from '@playwright/test';
+import type { Client } from 'pg';
 
 import { expect, test } from '../fixtures';
 import type { SeedData, TestUser } from '../support/api';
@@ -369,6 +370,15 @@ async function findEmptyRect(
   return rect;
 }
 
+/**
+ * Clears the user's saved position: a saved presence is sent as the join
+ * position, so the hero would start wherever an earlier case left it instead
+ * of at the map spawn.
+ */
+async function clearSavedPosition(db: Client, user: TestUser): Promise<void> {
+  await db.query('DELETE FROM "Presence" WHERE "userId" = $1', [user.userId]);
+}
+
 async function holdKey(page: Page, key: 'ArrowRight' | 'ArrowLeft' | 'ArrowUp', ms: number): Promise<void> {
   await page.keyboard.down(key);
   await page.waitForTimeout(ms);
@@ -380,7 +390,7 @@ async function holdKey(page: Page, key: 'ArrowRight' | 'ArrowLeft' | 'ArrowUp', 
  * visible to a fresh client and blocks keyboard movement, while the opposite
  * direction still moves.
  */
-test('painted wall persists and blocks movement', async ({ stack, seed, loginAs, request }, testInfo) => {
+test('painted wall persists and blocks movement', async ({ stack, seed, loginAs, request, db }, testInfo) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack);
   const { owner, admin, mapId, tenantSlug } = requireOwnerAndAdmin(seed);
@@ -388,6 +398,7 @@ test('painted wall persists and blocks movement', async ({ stack, seed, loginAs,
   await ownerApi.login(owner.email, passwordFor(owner));
   const dims = await getMapDims(request, stack.apiUrl, mapId);
 
+  await clearSavedPosition(db, owner);
   const clientA = await loginAs(owner);
   try {
     const first = await waitForScene(clientA.page);
@@ -467,7 +478,7 @@ test('painted wall persists and blocks movement', async ({ stack, seed, loginAs,
 });
 
 /** Case for matrix row 3 (floors): a painted floor tile survives a full reload. */
-test('floor paint persists across reload', async ({ stack, seed, loginAs, request }, testInfo) => {
+test('floor paint persists across reload', async ({ stack, seed, loginAs, request, db }, testInfo) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack);
   const { owner, mapId, tenantSlug } = requireOwnerAndAdmin(seed);
@@ -475,6 +486,7 @@ test('floor paint persists across reload', async ({ stack, seed, loginAs, reques
   await ownerApi.login(owner.email, passwordFor(owner));
   const dims = await getMapDims(request, stack.apiUrl, mapId);
 
+  await clearSavedPosition(db, owner);
   const client = await loginAs(owner);
   try {
     const first = await waitForScene(client.page);
@@ -528,7 +540,7 @@ test('floor paint persists across reload', async ({ stack, seed, loginAs, reques
  * Case for matrix row 8 (bounds): walking into the map edge keeps the hero
  * inside the map pixel bounds reported by state-v2.
  */
-test('out-of-bounds move is not applied', async ({ stack, seed, loginAs, request }) => {
+test('out-of-bounds move is not applied', async ({ stack, seed, loginAs, request, db }) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack);
   const { owner, mapId, tenantSlug } = requireOwnerAndAdmin(seed);
@@ -538,6 +550,7 @@ test('out-of-bounds move is not applied', async ({ stack, seed, loginAs, request
   const widthPx = dims.width * dims.tileWidth;
   const heightPx = dims.height * dims.tileHeight;
 
+  await clearSavedPosition(db, owner);
   const client = await loginAs(owner);
   try {
     const first = await waitForScene(client.page);
@@ -601,7 +614,7 @@ test('out-of-bounds move is not applied', async ({ stack, seed, loginAs, request
  * budget is asserted; the measured load time is reported as an annotation and
  * the hard expectation is only that loading and streaming work without errors.
  */
-test('large map loads and streams chunks', async ({ stack, seed, loginAs, request }, testInfo) => {
+test('large map loads and streams chunks', async ({ stack, seed, loginAs, request, db }, testInfo) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack);
   const { owner, mapId, tenantSlug } = requireOwnerAndAdmin(seed);
@@ -614,6 +627,7 @@ test('large map loads and streams chunks', async ({ stack, seed, loginAs, reques
   expect(resized.newWidth, 'The map must accept the large size.').toBe(target);
   try {
     const pageErrors: string[] = [];
+    await clearSavedPosition(db, owner);
     const client = await loginAs(owner);
     try {
       client.page.on('pageerror', (error) => {
