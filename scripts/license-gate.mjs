@@ -20,6 +20,7 @@ import { checkAssets } from './compliance/assets.mjs';
 import { checkMetadata } from './compliance/metadata.mjs';
 import { checkDocumentation } from './compliance/documentation.mjs';
 import { checkSourceBoundaries } from './compliance/source-boundaries.mjs';
+import { checkEnvExampleReviews } from './compliance/env-example-reviews.mjs';
 import { loadSourceParser } from './compliance/parser-runtime.mjs';
 
 const CHECKOUT_MISMATCH_CODE = 'COMPLIANCE_CHECKOUT_MISMATCH';
@@ -190,7 +191,7 @@ function main() {
   // missing installation can never report green on an empty snapshot.
   loadSourceParser();
 
-  const snapshot = readGitFileSnapshot({ cwd: checkout.root, commit: target, includeEnvExamples: false });
+  const snapshot = readGitFileSnapshot({ cwd: checkout.root, commit: target, includeEnvExamples: true });
   const files = snapshot.files;
 
   const collected = [];
@@ -209,6 +210,12 @@ function main() {
   const boundaries = checkSourceBoundaries({ files });
   validateCheckResult(boundaries);
   collected.push({ name: 'sourceBoundaries', ...boundaries });
+  // Example templates are reviewed line by line against the bound approvals;
+  // the object format follows the length of the checked commit id.
+  const objectFormat = target.length === 40 ? 'sha1' : 'sha256';
+  const envExamples = checkEnvExampleReviews({ files, objectFormat });
+  validateCheckResult(envExamples);
+  collected.push({ name: 'envExamples', ...envExamples });
 
   let dco;
   if (options.mode === 'all') {
