@@ -13,6 +13,7 @@ import { getJwtSecret } from './api/utils/authHelpers.js';
 import { inviteExpiry } from './api/utils/inviteLifecycle.js';
 import { hashInviteCode } from './api/utils/inviteCode.js';
 import { hashSessionToken } from './api/utils/sessionAuth.js';
+import { createMailFixture } from '../test/fixtures/mailFixture.js';
 
 /**
  * Tenant isolation through the real HTTP stack (tenantMiddleware, session
@@ -64,7 +65,12 @@ async function createUser(role: Role | null): Promise<{ id: string; token: strin
 
 const as = (token: string) => ({ Authorization: `Bearer ${token}` });
 
+// Invite registration needs actual mail delivery; set it up here like the other mail tests
+// instead of relying on the SMTP settings of the caller.
+const mail = createMailFixture();
+
 beforeAll(async () => {
+  await mail.connect();
   tenantId = (await prisma.tenant.create({ data: { slug: TENANT_SLUG, name: TENANT_SLUG } })).id;
   const member = await createUser('member');
   memberId = member.id;
@@ -100,6 +106,7 @@ afterAll(async () => {
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   await prisma.tenant.deleteMany({ where: { id: { in: cleanupTenantIds } } });
   await prisma.$disconnect();
+  await mail.close();
 });
 
 describe('tenant data requires a membership (real stack)', () => {

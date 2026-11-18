@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import request from 'supertest';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createHttpFixture } from '../../../test/fixtures/httpFixture.js';
 import { registerAuthRoutes } from './auth.js';
 import { registerMiscRoutes } from './misc.js';
@@ -19,8 +19,13 @@ app.use(errorHandler);
 const originalManual = process.env.MANUAL_ACCOUNT_CONFIRMATION;
 const originalBase = process.env.PUBLIC_BASE_URL;
 
+// The cases run "without a mail provider" no matter which mail settings the caller
+// exports: no SMTP sender and no Resend key, so no delivering module resolves.
+const mailProviderEnvKeys = ['SMTP_HOST', 'SMTP_FROM', 'RESEND_API_KEY', 'RESEND_FROM'] as const;
+
 beforeAll(() => {
   process.env.PUBLIC_BASE_URL = 'https://app.example.test';
+  for (const key of mailProviderEnvKeys) vi.stubEnv(key, undefined);
 });
 
 afterEach(() => {
@@ -33,6 +38,7 @@ afterAll(async () => {
   else process.env.MANUAL_ACCOUNT_CONFIRMATION = originalManual;
   if (originalBase === undefined) delete process.env.PUBLIC_BASE_URL;
   else process.env.PUBLIC_BASE_URL = originalBase;
+  vi.unstubAllEnvs();
   await fixture.close();
 });
 
