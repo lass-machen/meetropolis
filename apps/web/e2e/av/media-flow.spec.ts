@@ -390,12 +390,22 @@ async function runMediaFlowKind(
         const micToggle = micOff.or(micOn);
         await expect(micToggle, `${role}: microphone toggle never became visible`).toBeVisible({ timeout: 30_000 });
         await expect(micToggle, `${role}: microphone toggle is not unique`).toHaveCount(1);
-        if ((await micOff.count()) > 0) await micOff.click();
+        if ((await micOff.count()) > 0) {
+          // Wait for the publish outcome the product logs (AVLogger, on via
+          // __avDebugOn) instead of a fixed window: right after the click the
+          // toggle can briefly carry the mute title before the connecting hint
+          // appears, so the title alone does not prove a settled publish. The
+          // product bounds the publish itself (microphonePublishing timeout).
+          const outcome = page.waitForEvent('console', {
+            predicate: (msg) => /\[track\.mic\.(published|publish_failed)\]/.test(msg.text()),
+            timeout: 30_000,
+          });
+          await micOff.click();
+          const published = /\[track\.mic\.published\]/.test((await outcome).text());
+          expect(published, `${role}: microphone publish failed`).toBe(true);
+        }
         await expect(micOn, `${role}: microphone did not switch on`).toBeVisible({ timeout: 30_000 });
-        // While the publish is in flight the toggle carries the connecting
-        // hint instead of the mute title (AVBar micPending). Wait for the
-        // settled state; a failed publish falls back to the unmute title.
-        await expect(micOn, `${role}: microphone on toggle is not unique`).toHaveCount(1, { timeout: 30_000 });
+        await expect(micOn, `${role}: microphone on toggle is not unique`).toHaveCount(1);
       }
     } else {
       // Camera on via the real rendered button selected by its source
