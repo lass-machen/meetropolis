@@ -98,9 +98,15 @@ export interface DesktopModule {
    * as intended prior to a desktop-module update).
    */
   getDesktopAuthToken?: () => string | null;
-  /** Read the current native audio-ducking preference (macOS only; false elsewhere). */
+  /**
+   * Whether this desktop build can duck other apps' audio on the running OS.
+   * Callers hide the preference control when the method is missing, rejects,
+   * or resolves to false.
+   */
+  supportsAudioDucking?: () => Promise<boolean>;
+  /** Read the current native audio-ducking preference (false when unsupported). */
   getAudioDucking?: () => Promise<boolean>;
-  /** Set the native audio-ducking preference. No-op on non-macOS desktop builds. */
+  /** Set the native audio-ducking preference. Unsupported builds reject. */
   setAudioDucking?: (enabled: boolean) => Promise<void>;
 }
 
