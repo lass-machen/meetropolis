@@ -94,16 +94,16 @@ The build script itself is AGPL-3.0-only. `collision.png` is Tiamat's own genera
 
 ## Fonts
 
-| Family         | Path                                       | Accompanying license text           |
-| -------------- | ------------------------------------------ | ----------------------------------- |
-| Press Start 2P | `apps/web/public/fonts/PressStart2P.woff2` | SIL OFL 1.1 (see accompanying text) |
+| Family         | Path                                             | Accompanying license text           |
+| -------------- | ------------------------------------------------ | ----------------------------------- |
+| Press Start 2P | `apps/web/public/fonts/PressStart2P-Regular.ttf` | SIL OFL 1.1 (see accompanying text) |
 
-The OSS source tree contains the local file
-`apps/web/public/fonts/PressStart2P.woff2` and the accompanying license text
-`apps/web/public/fonts/PressStart2P-OFL.txt`. The text identifies SIL
-OFL 1.1 and names the Press Start 2P Project Authors. The exact
-upstream revision of the included subset file is not pinned; the
-license text is no provenance record.
+The OSS source tree contains the unmodified upstream file
+`apps/web/public/fonts/PressStart2P-Regular.ttf` (version 3.000) from the
+public google/fonts repository, `ofl/pressstart2p/PressStart2P-Regular.ttf`
+at revision `dbd72d6ef9ebea750d33c02c7189633e972d6a40`, and the
+accompanying license text `apps/web/public/fonts/PressStart2P-OFL.txt`. The
+text identifies SIL OFL 1.1 and names the Press Start 2P Project Authors.
 
 Any additional font bundled later (for example to guarantee a consistent
 look across browsers) must be SIL OFL or a similarly permissive license

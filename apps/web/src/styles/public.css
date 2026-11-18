@@ -10,24 +10,11 @@
    "MEETROPOLIS" wordmark, never for body copy. */
 @font-face {
   font-family: 'Press Start 2P';
-  /* ?v=2 busts the immutable cache of the earlier (wrong-glyph) woff2 that was
-     served under this same path, so returning visitors get the correct font. */
-  src: url('/fonts/PressStart2P.woff2?v=2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-  unicode-range: U+0020-007E;
-}
-
-/* Full TTF covers German umlauts, eszett, and common typographic punctuation
-   that the subsetted woff2 omits; browsers pick per unicode-range. */
-@font-face {
-  font-family: 'Press Start 2P';
+  /* The unmodified upstream TTF is served as is; it covers umlauts and eszett. */
   src: url('/fonts/PressStart2P-Regular.ttf') format('truetype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+00C4, U+00D6, U+00DC, U+00E4, U+00F6, U+00FC, U+00DF, U+201C, U+201E, U+2013;
 }
 
 /* --- Design Tokens --- */

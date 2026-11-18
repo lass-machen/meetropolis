@@ -20,13 +20,13 @@ Two steps: build the self-contained HTML, then screenshot it at 1200×630.
 # 1) build the HTML (needs Pillow: pip install pillow)
 python3 tools/og-banner/generate.py \
   --assets apps/web/public/assets \
-  --font apps/web/public/fonts/PressStart2P.woff2 \
+  --font apps/web/public/fonts/PressStart2P-Regular.ttf \
   --copy tools/og-banner/copy.en.json \
   --out /tmp/og.html \
   --generation atelier-v1
 
 # 2) render to PNG at exactly 1200x630 with any headless browser.
-#    Rendering is browser-driven because Press Start 2P (woff2) and the
+#    Rendering is browser-driven because Press Start 2P (TTF) and the
 #    pixelated compositing need a real layout engine. Example with Playwright:
 npx playwright screenshot --viewport-size=1200,630 \
   "file:///tmp/og.html" docs/assets/banner.png

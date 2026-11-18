@@ -1,9 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const publicCss = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'public.css'), 'utf8');
+const here = dirname(fileURLToPath(import.meta.url));
+const publicCss = readFileSync(join(here, 'public.css'), 'utf8');
+const fontsDir = join(here, '..', '..', 'public', 'fonts');
 
 function pressStartFaces(): string[] {
   const faces: string[] = [];
@@ -17,19 +19,19 @@ function pressStartFaces(): string[] {
   return faces;
 }
 
-describe('Press Start 2P unicode-range sources', () => {
-  it('limits the woff2 face to basic Latin and serves umlauts from the full ttf', () => {
+describe('Press Start 2P source', () => {
+  it('serves the wordmark only from the unmodified full ttf', () => {
     const faces = pressStartFaces();
-    const woff2 = faces.find((b) => /PressStart2P\.woff2/.test(b));
-    const ttf = faces.find((b) => /PressStart2P-Regular\.ttf/.test(b));
 
-    expect(woff2, 'expected a Press Start 2P @font-face for the woff2').toBeDefined();
-    expect(ttf, 'expected a Press Start 2P @font-face for PressStart2P-Regular.ttf').toBeDefined();
+    expect(faces).toHaveLength(1);
+    expect(faces[0]).toMatch(/src\s*:\s*url\('\/fonts\/PressStart2P-Regular\.ttf'\)\s*format\('truetype'\)\s*;/);
+    // The full font covers umlauts and eszett itself, so no range split.
+    expect(faces[0]).not.toMatch(/unicode-range/);
+  });
 
-    expect(woff2!).toMatch(/unicode-range\s*:\s*U\+0020-007E\s*;/);
-
-    expect(ttf!).toMatch(/unicode-range\s*:/);
-    expect(ttf!).toMatch(/U\+00E4/);
-    expect(ttf!).toMatch(/U\+00DF/);
+  it('ships no subset copy of the font', () => {
+    expect(publicCss).not.toMatch(/PressStart2P\.woff2/);
+    expect(existsSync(join(fontsDir, 'PressStart2P.woff2'))).toBe(false);
+    expect(existsSync(join(fontsDir, 'PressStart2P-Regular.ttf'))).toBe(true);
   });
 });

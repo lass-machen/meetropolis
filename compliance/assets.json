@@ -2720,21 +2720,6 @@
       "note": "Unchanged full upstream TTF, version 3.000"
     },
     {
-      "path": "apps/web/public/fonts/PressStart2P.woff2",
-      "sha256": "7c1b4ae8d867c0d73cc4373cff62b6d880d900965b8e0f54bfe70b886a45cd0c",
-      "type": ".woff2",
-      "license": "OFL-1.1",
-      "copyright": "The Press Start 2P Project Authors (cody@zone38.net)",
-      "origin": {
-        "kind": "upstream",
-        "source": "Font 'Press Start 2P' from the public google/fonts archive (ASCII subset, 101 glyphs)",
-        "revision": null,
-        "evidence": "Font metadata matches upstream, 95 ASCII characters covered, license text is included"
-      },
-      "verification": "documented",
-      "note": "CREDITS entry for the bundled font is missing; the exact TTF revision of the subset is not pinned"
-    },
-    {
       "path": "apps/web/public/icon-192.png",
       "sha256": "d8ac95ccd71d42277a803de6a5c460d9a8313f41dad9e261647c60a5acf0026e",
       "type": ".png",
