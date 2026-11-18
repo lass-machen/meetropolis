@@ -130,6 +130,17 @@ describe('origin access', { timeout: 180_000 }, () => {
     }
   });
 
+  it('allows the sdk headers the browser telemetry sends with every relay post', async () => {
+    const result = await probe('OPTIONS', publicUrl(production, READY_PATH), {
+      origin: WEB_ORIGIN,
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type,x-signalyr-sdk-name,x-signalyr-sdk-version',
+    });
+    const allowed = header(result, 'access-control-allow-headers').toLowerCase();
+    expect(allowed).toContain('x-signalyr-sdk-name');
+    expect(allowed).toContain('x-signalyr-sdk-version');
+  });
+
   it('refuses a desktop origin the allowlist does not name', async () => {
     const result = await probe('GET', publicUrl(development, READY_PATH), { origin: 'tauri://localhost' });
     expect(result.status).toBe(403);
