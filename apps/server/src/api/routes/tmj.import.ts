@@ -14,6 +14,7 @@ import type { MapDb } from '../utils/mapChunkMutations.js';
 import type { MulterFile, RequestWithMulterFields } from '../../types/multer.js';
 import { acquireMapAdvisoryLock, acquirePackLocksForAssetUrls } from '../utils/advisoryLocks.js';
 import { assertObjectFootprints, sendFootprintError } from '../utils/mapObjectWriteLimits.js';
+import { normalizeTilesetImageUrl } from '../utils/tilesetImageUrl.js';
 import {
   TmjSchema,
   buildGidToSlotMapping,
@@ -58,9 +59,37 @@ export function importedTilesetsDir(): string {
   return path.resolve(__dirname, '../../../../public/assets/tilesets');
 }
 
+function findUploadedTilesetImage(images: MulterFile[], tilesetImage: string): MulterFile | undefined {
+  const baseName = path.basename(tilesetImage);
+  return images.find((candidate) => candidate.originalname === baseName);
+}
+
+/**
+ * Tilesets without an uploaded image keep the path from the TMJ file, which every
+ * client of the tenant fetches later. Those paths follow the rule of the editor's
+ * tileset registration: plain asset paths only, absolute URLs reduced to their path.
+ * Returns the tilesets with normalized paths, or the name of the first rejected one.
+ */
+function normalizeTilesetImages(
+  tilesets: Tmj['tilesets'],
+  images: MulterFile[],
+): { tilesets: Tmj['tilesets'] } | { rejected: string } {
+  const normalized: Tmj['tilesets'] = [];
+  for (const tileset of tilesets) {
+    if (findUploadedTilesetImage(images, tileset.image)) {
+      normalized.push(tileset);
+      continue;
+    }
+    const image = normalizeTilesetImageUrl(tileset.image);
+    if (!image) return { rejected: tileset.name };
+    normalized.push({ ...tileset, image });
+  }
+  return { tilesets: normalized };
+}
+
 function saveTilesetImage(images: MulterFile[], tilesetImage: string): string | null {
   const baseName = path.basename(tilesetImage);
-  const file = images.find((candidate) => candidate.originalname === baseName);
+  const file = findUploadedTilesetImage(images, tilesetImage);
   if (!file) return null;
   const tilesetsDir = importedTilesetsDir();
   if (!fs.existsSync(tilesetsDir)) fs.mkdirSync(tilesetsDir, { recursive: true });
@@ -212,9 +241,15 @@ function parseImport(req: express.Request, res: express.Response): ParsedImport 
     res.status(400).json({ error: 'duplicate_mapped_layer' });
     return null;
   }
+  const images = request.files?.images ?? [];
+  const tilesetImages = normalizeTilesetImages(parsed.data.tilesets, images);
+  if ('rejected' in tilesetImages) {
+    res.status(400).json({ error: 'invalid_tileset_image', tileset: tilesetImages.rejected });
+    return null;
+  }
   return {
-    tmj: parsed.data,
-    images: request.files?.images ?? [],
+    tmj: { ...parsed.data, tilesets: tilesetImages.tilesets },
+    images,
     mode: (req.query.mode as string) === 'merge' ? 'merge' : 'replace',
   };
 }
