@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { WORLD_WALK_SPEED_PX_PER_SECOND } from '@meetropolis/shared';
 import type { Direction } from '../../bridge';
 import { logger } from '../../../lib/logger';
 import { avatarRegistry } from '../../avatarRegistry';
@@ -128,7 +129,7 @@ export class PlayerManager {
     cursors: Phaser.Types.Input.Keyboard.CursorKeys,
     onMove?: (data: { x: number; y: number; direction: Direction }) => void,
   ) {
-    const speed = 80;
+    const speed = WORLD_WALK_SPEED_PX_PER_SECOND;
     const body = this.hero.body;
     body.setVelocity(0);
 

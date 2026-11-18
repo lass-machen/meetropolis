@@ -196,6 +196,7 @@ function buildLocalMoveHandler(
   const { localPosRef, zoneRef, buildParticipantList, applyVolumesToUi, colyseusRef, moveTimeoutRef } = params;
   let lastZone: string | null = null;
   return (p: { x: number; y: number; direction: string }) => {
+    if (useMapStore.getState().isChangingMap) return;
     localPosRef.current.x = p.x;
     localPosRef.current.y = p.y;
     (gameBridge as unknown as { lastDirection?: string }).lastDirection = p.direction;

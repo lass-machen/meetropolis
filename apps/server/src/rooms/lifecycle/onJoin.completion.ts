@@ -4,6 +4,7 @@ import { colyseusPlayers } from '../../metrics.js';
 import { createPrismaClient } from '../../db.js';
 import type { WorldRoom, RoomOptions, Player as PlayerCtor } from '../WorldRoom.js';
 import { admitPlayer } from './worldAccess.js';
+import { resetMoveBaseline } from '../handlers/moveBaseline.js';
 import { broadcastToMap } from '../utils/broadcastHelpers.js';
 import { sanitizePosition, sanitizePositionForMap, getMapCenter, type MapMeta } from '../utils/mapBoundsHelpers.js';
 import { bubbleStateForClient } from '../handlers/socialScope.js';
@@ -413,6 +414,7 @@ export async function completePendingJoin(
   player.dnd = options?.dnd === true;
 
   if (!(await admitPlayer(room, client, player))) return;
+  resetMoveBaseline(player);
   // Record the player's verified tenant and wire the per-client StateView
   // filters so this player is only ever synced to same-tenant clients (NPCs to
   // all). MUST run synchronously here — before onJoin resolves — so the initial

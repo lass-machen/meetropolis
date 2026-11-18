@@ -1,3 +1,4 @@
+import type { MoveCorrectionMessage } from '@meetropolis/shared';
 import type { UseWorldRoomArgs } from '../types';
 import { useMapStore } from '../../state/mapStore';
 import { emitSameMapIdentities } from '../../lib/avEvents';
@@ -93,6 +94,15 @@ function placeHeroAtServerPosition(
   current.x = localPlayer.x;
   current.y = localPlayer.y;
   gameBridge.setHeroPosition({ x: localPlayer.x, y: localPlayer.y });
+}
+
+function applyMoveCorrection(args: UseWorldRoomArgs, correction: MoveCorrectionMessage): void {
+  const { currentMapId, isChangingMap } = useMapStore.getState();
+  if (isChangingMap || (currentMapId && currentMapId !== correction.mapId)) return;
+  const { x, y } = correction;
+  args.localPosRef.current.x = x;
+  args.localPosRef.current.y = y;
+  args.gameBridge.setHeroPosition({ x, y });
 }
 
 function applyLocalAvatar(
@@ -388,6 +398,11 @@ export function setupPlayerHandlers(
   room.onMessage('full_state', (data: FullStateMessage) => handleFullState(ctx, options, data));
   room.onMessage('player_joined', (data: PlayerJoinedMessage) => handlePlayerJoined(ctx, data));
   room.onMessage('player_moved', (data: PlayerMovedMessage) => handlePlayerMoved(ctx, data));
+  room.onMessage('move_correction', (data: MoveCorrectionMessage) => applyMoveCorrection(args, data));
+  room.onMessage('map_changed', ({ x, y }: { x: number; y: number }) => {
+    args.localPosRef.current.x = x;
+    args.localPosRef.current.y = y;
+  });
   room.onMessage('player_left', (data: PlayerLeftMessage) => handlePlayerLeft(ctx, data));
   room.onMessage('player_dnd', (data: PlayerDndMessage) => handlePlayerDnd(ctx, data));
   room.onMessage('player_avatar', (data: PlayerAvatarMessage) => handlePlayerAvatar(ctx, data));

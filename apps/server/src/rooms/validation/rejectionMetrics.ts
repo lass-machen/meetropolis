@@ -2,7 +2,7 @@ import client from 'prom-client';
 import { registry, reuseOrCreateMetric } from '../../metrics.js';
 
 export type RejectedPayloadType = 'move' | 'dnd_status' | 'editor_state';
-export type RejectedPayloadReason = 'schema' | 'bounds';
+export type RejectedPayloadReason = 'schema' | 'bounds' | 'distance';
 
 const worldPayloadRejectedTotal = reuseOrCreateMetric(
   'meetropolis_world_payload_rejected_total',

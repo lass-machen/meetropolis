@@ -1,4 +1,5 @@
 import type { Client } from '@colyseus/core';
+import { WORLD_WALK_SPEED_PX_PER_SECOND, type MoveCorrectionMessage } from '@meetropolis/shared';
 import { logger } from '../../logger.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { isMovementBlocked } from './zoneLockHandler.js';
@@ -7,6 +8,8 @@ import { trackMove } from '../audioZones/runtime.js';
 import { getBoundsPxForMap } from '../utils/mapBoundsHelpers.js';
 import { countRejectedPayload } from '../validation/rejectionMetrics.js';
 import { moveSchema } from '../validation/worldPayloadSchemas.js';
+import { isWorldAuth } from '../lifecycle/onAuth.js';
+import { getMoveBaseline } from './moveBaseline.js';
 
 export interface MoveData {
   x: number;
@@ -15,6 +18,9 @@ export interface MoveData {
 }
 
 const MOVE_INTERVAL_MS = 80;
+const MOVE_SPEED_TOLERANCE = 1.1;
+// 24 px covers about 270 ms of walking arrivals compressed by network jitter.
+const MOVE_POSITION_TOLERANCE_PX = 24;
 
 // Full pixel size of the cached map. getBoundsPxForMap insets by half a tile,
 // so the closed window is [0, width] x [0, height], not that inset rectangle.
@@ -68,7 +74,6 @@ function publishMove(
 // any timestamp, throttle, or player-state write. An accepted move still
 // updates `lastSeen` before the throttle, so it acts as an implicit heartbeat.
 export function createMoveHandler(room: WorldRoom) {
-  const lastMove: Map<string, number> = new Map();
   return (client: Client, data: unknown): void => {
     const parsed = moveSchema.safeParse(data);
     if (!parsed.success) {
@@ -85,16 +90,29 @@ export function createMoveHandler(room: WorldRoom) {
       countRejectedPayload('move', 'bounds');
       return;
     }
-    const now = Date.now();
-    room.lastSeen.set(client.sessionId, now);
-    const prev = lastMove.get(client.sessionId) || 0;
-    if (now - prev < MOVE_INTERVAL_MS) return;
-    lastMove.set(client.sessionId, now);
+    room.lastSeen.set(client.sessionId, Date.now());
+    const now = performance.now();
+    const baseline = getMoveBaseline(player, now);
+    if (now - baseline.checkedAt < MOVE_INTERVAL_MS) return;
+    baseline.checkedAt = now;
+
+    const elapsedSeconds = (now - baseline.acceptedAt) / 1000;
+    const maxDistance =
+      WORLD_WALK_SPEED_PX_PER_SECOND * MOVE_SPEED_TOLERANCE * elapsedSeconds + MOVE_POSITION_TOLERANCE_PX;
+    // Authenticated NPCs have their own commanded movement speed.
+    const auth: unknown = client.auth;
+    if (!(isWorldAuth(auth) && auth.isNpc) && Math.hypot(x - player.x, y - player.y) > maxDistance) {
+      countRejectedPayload('move', 'distance');
+      const correction: MoveCorrectionMessage = { x: player.x, y: player.y, mapId: player.mapId };
+      client.send('move_correction', correction);
+      return;
+    }
     const moveCheck = isMovementBlocked(room.zoneLockState, client.sessionId, player.mapId, { x, y });
     if (moveCheck.blocked) {
       client.send('zone_move_blocked', { zoneName: moveCheck.zoneName });
       return;
     }
+    baseline.acceptedAt = now;
     publishMove(room, client, player, parsed.data);
   };
 }

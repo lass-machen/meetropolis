@@ -247,18 +247,29 @@ async function leaveRoom(room: Room | undefined): Promise<void> {
   await Promise.race([room.leave().catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 3_000))]);
 }
 
-/** Repeat a valid move until the cache from room creation is visible in the pose. */
+/** Walk to the exact target in steps short enough for the move check. */
 async function land(x: number, y: number, direction: Direction): Promise<boolean> {
   const room = actor;
   if (!room) return false;
-  const deadline = Date.now() + 5_000;
+  const step = 8;
+  const deadline = Date.now() + 12_000;
   while (Date.now() < deadline) {
-    room.send('move', { x, y, direction });
+    const pose = poseOf(room);
+    if (!pose) {
+      await elapsed(MOVE_GAP_MS);
+      continue;
+    }
+    const distance = Math.hypot(x - pose.x, y - pose.y);
+    const final = distance <= step;
+    const nextX = final ? x : pose.x + ((x - pose.x) / distance) * step;
+    const nextY = final ? y : pose.y + ((y - pose.y) / distance) * step;
+    room.send('move', { x: nextX, y: nextY, direction });
     const arrived = await waitUntil(() => {
-      const pose = poseOf(room);
-      return pose !== null && pose.x === x && pose.y === y && pose.direction === direction;
+      const current = poseOf(room);
+      if (!current || current.direction !== direction) return false;
+      return final ? current.x === x && current.y === y : Math.hypot(current.x - nextX, current.y - nextY) < 0.1;
     }, 200);
-    if (arrived) return true;
+    if (final && arrived) return true;
     await elapsed(MOVE_GAP_MS);
   }
   return false;
