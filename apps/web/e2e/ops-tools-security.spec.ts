@@ -24,18 +24,9 @@ let adminToken = '';
 let tenantId = '';
 let adminSessionCookies: Parameters<BrowserContext['addCookies']>[0] = [];
 
-const EVENT_ATTR_TOOLS = [
-  'super-admin.html',
-  'map-editor.html',
-  'avatar-pack-manager.html',
-  'npc-admin.html',
-] as const;
+const EVENT_ATTR_TOOLS = ['super-admin.html', 'map-editor.html', 'avatar-pack-manager.html', 'npc-admin.html'] as const;
 
-const ROOT_TOOLS = [
-  ...EVENT_ATTR_TOOLS,
-  'sprite-asset-cutter.html',
-  'ui-prototype.html',
-] as const;
+const ROOT_TOOLS = [...EVENT_ATTR_TOOLS, 'sprite-asset-cutter.html', 'ui-prototype.html'] as const;
 
 const ATELIER_PATHS = [
   '/tools/asset-lab/index.html',
@@ -69,7 +60,7 @@ test.beforeAll(async ({ playwright }) => {
     throw new Error('Missing required environment variables: E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD');
   }
 
-  const api = await playwright.request.newContext({ baseURL: process.env.WEB_BASE_URL });
+  const api = await playwright.request.newContext({ baseURL: process.env.WEB_BASE_URL ?? '' });
   try {
     const response = await api.post('/auth/login', {
       headers: { Origin: 'tauri://localhost' },
