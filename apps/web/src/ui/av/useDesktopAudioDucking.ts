@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { getDesktopModule } from '../../lib/desktopLoader';
-import { setAudioDuckingPreference } from '../../av/audio/audioSessionDucking';
 
 export interface DesktopAudioDucking {
   /** null while unknown / unavailable — callers hide the control then. */
@@ -35,11 +34,6 @@ export function useDesktopAudioDucking(active: boolean): DesktopAudioDucking {
           setRef.current = mod.setAudioDucking;
           setAvailable(true);
           setValue(cur);
-          // Keep the web audio session (WKWebView's AUVoiceIO ducking, the
-          // voice-activity one) in sync with the native preference. This is the
-          // only lever over that layer; without it the setting only moves the
-          // native DuckOthers duck and the audible ducking never changes.
-          setAudioDuckingPreference(cur);
         }
       } catch {
         /* ignore: leave value null so the control stays hidden */
@@ -52,11 +46,6 @@ export function useDesktopAudioDucking(active: boolean): DesktopAudioDucking {
 
   const set = React.useCallback((enabled: boolean) => {
     setValue(enabled);
-    // Drive both layers: the web audio session (AUVoiceIO, voice-activity
-    // ducking) and the native DuckOthers duck. WebKit may only fully apply a
-    // session-type change at the next capture session, so a live toggle can
-    // need an app restart to take full effect — startup application covers that.
-    setAudioDuckingPreference(enabled);
     void setRef.current?.(enabled).catch(() => setValue(!enabled));
   }, []);
 

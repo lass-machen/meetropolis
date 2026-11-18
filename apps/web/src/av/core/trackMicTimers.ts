@@ -2,7 +2,6 @@ import type { Room } from 'livekit-client';
 import type { LocalTrackState } from './types';
 import { AVLogger } from '../AVLogger';
 import { readTimeoutMs } from '../../lib/runtimeConfig';
-import { setAudioCaptureNeeded } from '../audio/audioSessionDucking';
 import { unpublishMicrophone } from './microphonePublishing';
 import { MIC_HARDWARE_RELEASE_DEFAULT_MS } from './trackManagerConstants';
 
@@ -66,12 +65,6 @@ export function scheduleMicHardwareRelease(args: ScheduleMicHardwareReleaseArgs)
           state,
           checkAllTracksUnpublished: args.checkAllTracksUnpublished,
         });
-        // The device is gone by intent, so the audio session may drop back to
-        // the ducking-free 'playback' category — which is exactly what the
-        // "fully close mic on mute" setting is for: recording indicator off and
-        // nothing ducking system audio. publishMicrophone re-declares the need
-        // before it reopens the device.
-        setAudioCaptureNeeded(false);
       })
       .catch(() => {});
   }, delayMs);

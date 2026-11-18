@@ -11,18 +11,7 @@ vi.hoisted(() => {
   });
 });
 
-// The hook must drive the web audio-session preference (AUVoiceIO / voice-
-// activity ducking) on every toggle — not just the native DuckOthers command.
-// Regression guard: this wiring was previously dead, so the setting had no
-// audible effect.
-const setAudioDuckingPreference = vi.fn();
-vi.mock('../../av/audio/audioSessionDucking', () => ({
-  setAudioDuckingPreference: (enabled: boolean) => setAudioDuckingPreference(enabled),
-}));
-
-// No desktop module by default → native path stays a no-op; the web
-// preference wiring under test is independent of it. Capability tests swap in
-// a module below.
+// No desktop module by default; capability tests swap in a module below.
 let desktopModule: Record<string, unknown> | null = null;
 vi.mock('../../lib/desktopLoader', () => ({
   getDesktopModule: () => Promise.resolve(desktopModule),
@@ -34,16 +23,6 @@ describe('useDesktopAudioDucking', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     desktopModule = null;
-  });
-
-  it('applies the web audio-session preference when the toggle changes', () => {
-    const { result } = renderHook(() => useDesktopAudioDucking(true));
-
-    act(() => result.current.set(false));
-    expect(setAudioDuckingPreference).toHaveBeenCalledWith(false);
-
-    act(() => result.current.set(true));
-    expect(setAudioDuckingPreference).toHaveBeenCalledWith(true);
   });
 
   it('optimistically reflects the toggled value', () => {

@@ -2,7 +2,6 @@ import type { LocalAudioTrack, LocalTrack, Room } from 'livekit-client';
 import { AVLogger } from '../AVLogger';
 import { useAvSettingsStore } from '../../state/avSettings';
 import { readTimeoutMs } from '../../lib/runtimeConfig';
-import { setAudioCaptureNeeded } from '../audio/audioSessionDucking';
 import { withPublishTimeout } from './publishTimeout';
 import type { LocalTrackState } from './types';
 import {
@@ -153,14 +152,6 @@ export async function publishMicrophone({
   onTrackPublished,
   onTrackEndedByBrowser,
 }: PublishMicrophoneParams): Promise<void> {
-  // Declare the capture intent BEFORE touching the device. With ducking
-  // suppression active the audio session sits in 'playback', where WebKit
-  // rejects every getUserMedia with "AudioSession category is not compatible
-  // with audio capture" — see resolveAudioSessionType. Announcing the intent
-  // first moves the session to a capture-capable category; on engines without
-  // the Audio Session API (Chromium, so Windows/WebView2) this is a no-op.
-  setAudioCaptureNeeded(true);
-
   const existing = findLiveMicrophonePublication(room);
   if (existing) {
     state.track = existing;

@@ -23,7 +23,6 @@ import { SubscriptionManager } from './core/SubscriptionManager';
 import { DoNotDisturb } from './features/DoNotDisturb';
 import { Screenshare } from './features/Screenshare';
 import { AVLogger } from './AVLogger';
-import { setAudioDuckingDndActive } from './audio/audioSessionDucking';
 import { ConnectionManager } from './manager/connectionManager';
 import { DeviceManager } from './manager/deviceManager';
 import { PublishingManager } from './manager/publishingManager';
@@ -196,13 +195,6 @@ export class AVManager implements Disposable {
         }
       },
     });
-
-    // DND suppresses incoming conversation audio, so there is nothing left
-    // to duck for. The mic stays soft-muted (capture open), which would keep
-    // the voice-processing session and thus system-wide ducking alive;
-    // switching the audio session type releases an already-active duck on
-    // DND entry and restores the user preference on DND exit.
-    this.dnd.subscribe((enabled) => setAudioDuckingDndActive(enabled));
 
     // Initialize screenshare
     this.screenshare = new Screenshare({
@@ -463,11 +455,6 @@ export class AVManager implements Disposable {
       clearTimeout(this._republishTimer);
       this._republishTimer = undefined;
     }
-
-    // The DND listeners are cleared below without firing; release the
-    // ducking suppression explicitly so the audio session does not stay
-    // stuck in 'playback' after the manager is gone.
-    setAudioDuckingDndActive(false);
 
     // Nothing may join a room while the leave below is awaited.
     this.connectionManager.close();
