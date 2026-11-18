@@ -19,6 +19,28 @@ export type UseApiTokenActionsParams = {
 };
 
 /**
+ * One create or delete at a time. The ref closes the gap between a click and
+ * the re-render that disables the button, so a double click cannot fire twice
+ * (two creates would overwrite the first secret before it was ever shown).
+ */
+function useExclusiveRunner() {
+  const busyRef = React.useRef(false);
+  const [busy, setBusy] = React.useState(false);
+  const runExclusive = async (action: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  };
+  return { busy, runExclusive };
+}
+
+/**
  * State and actions behind the API tokens overlay: the single load on open,
  * create, delete with an inline confirmation, and the cleanup on close.
  */
@@ -83,22 +105,7 @@ export function useApiTokenActions(params: UseApiTokenActionsParams) {
     }
   };
 
-  // One create or delete at a time. The ref closes the gap between a click and
-  // the re-render that disables the button, so a double click cannot fire twice
-  // (two creates would overwrite the first secret before it was ever shown).
-  const busyRef = React.useRef(false);
-  const [busy, setBusy] = React.useState(false);
-  const runExclusive = async (action: () => Promise<void>) => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setBusy(true);
-    try {
-      await action();
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
-  };
+  const { busy, runExclusive } = useExclusiveRunner();
 
   const createToken = () =>
     runExclusive(async () => {
