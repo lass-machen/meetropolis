@@ -284,6 +284,32 @@ describe('setupPlayerHandlers', () => {
     });
   });
 
+  it('applies a movement correction to the hero and his current position', () => {
+    const room = makeMockRoom();
+    const args = makeArgs();
+    args.gameBridge.setHeroPosition = vi.fn();
+    setupPlayerHandlers(room, args, vi.fn(), vi.fn());
+
+    room.trigger('move_correction', { mapId: 'map-1', x: 20, y: 30 });
+
+    expect(args.gameBridge.setHeroPosition).toHaveBeenCalledWith({ x: 20, y: 30 });
+    expect(args.localPosRef.current).toEqual({ id: 'session-local', x: 20, y: 30 });
+  });
+
+  it('keeps the confirmed spawn when an old-map correction arrives', () => {
+    const room = makeMockRoom();
+    const args = makeArgs();
+    args.gameBridge.setHeroPosition = vi.fn();
+    setupPlayerHandlers(room, args, vi.fn(), vi.fn());
+
+    room.trigger('map_changed', { mapId: 'map-2', x: 400, y: 300 });
+    useMapStore.getState().setCurrentMap('map-2', 'lobby');
+    room.trigger('move_correction', { mapId: 'map-1', x: 20, y: 30 });
+
+    expect(args.gameBridge.setHeroPosition).not.toHaveBeenCalled();
+    expect(args.localPosRef.current).toEqual({ id: 'session-local', x: 400, y: 300 });
+  });
+
   it('stores and applies the authoritative local avatar from full_state', () => {
     const room = makeMockRoom();
     const args = makeArgs();
