@@ -1299,11 +1299,8 @@ function toProtectedAssetPath(ref) {
 async function loadProtectedImage(ref) {
   const url = toProtectedAssetPath(ref);
   if (!url) return null;
-  const token = document.getElementById('authToken').value.trim();
+  // Platform routes only accept the session cookie, never a pasted token.
   const headers = { 'X-Asset-Protocol': '1' };
-  if (token) {
-    headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-  }
   try {
     const res = await fetch(url, {
       credentials: 'include',
