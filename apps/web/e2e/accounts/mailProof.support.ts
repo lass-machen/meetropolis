@@ -13,8 +13,19 @@ const id = () => `c${crypto.randomBytes(12).toString('hex')}`;
 /** Use real account records in the existing test database. */
 export function mailProofFixture(db: Client, seed: SeedData, stack: TestStackEnv) {
   const url = new URL(stack.databaseUrl);
-  if (url.hostname !== '127.0.0.1' || url.port !== '35440')
-    throw new Error('This test requires the assigned database on 127.0.0.1:35440.');
+  // The test stack publishes each slot's database on 127.0.0.1 and passes the port as MT_PORT_DB;
+  // all slot ports lie in 42000-42399, so no other local database can match.
+  const assignedPort = process.env.MT_PORT_DB ?? '';
+  const port = Number(url.port);
+  if (
+    url.hostname !== '127.0.0.1' ||
+    assignedPort === '' ||
+    url.port !== assignedPort ||
+    !Number.isInteger(port) ||
+    port < 42000 ||
+    port > 42399
+  )
+    throw new Error('This test requires the test stack database assigned to its slot (MT_PORT_DB on 127.0.0.1).');
   const tenant = getSeedTenant(seed);
   const seedOwner = tenant.users.owner;
   if (!seedOwner) throw new Error('Seed contains no owner');
