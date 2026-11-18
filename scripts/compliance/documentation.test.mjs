@@ -99,6 +99,104 @@ const MASKED_KEYWORDS = [
 const jsonBytes = (value) => Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
 const textBytes = (text) => Buffer.from(text, 'utf8');
 
+// Reviewed masked-content exceptions of the committed policy. Every change
+// to the policy allowlist needs a visible change of this list.
+const COMMITTED_MASKED_ALLOWLIST = [
+  {
+    path: 'LICENSING.md',
+    kind: 'code-span',
+    contextSha256: 'fc3f4d878c1f0806f764a2bf9171179242d2fad2bc6b3c868f8d30e6373fc570',
+    occurrence: 1,
+  },
+  {
+    path: 'LICENSING.md',
+    kind: 'code-span',
+    contextSha256: 'b7dbb22cea8290bac6b6adc229f1b0a4ad0b903cadb2f1f8bc97be94f162961b',
+    occurrence: 1,
+  },
+  {
+    path: 'LICENSING.md',
+    kind: 'code-span',
+    contextSha256: 'e51a9a55581c895b3ed5298cf16accbd24c216ae52793d5ee0b3d0ee5aa0ba8f',
+    occurrence: 1,
+  },
+  {
+    path: 'LICENSING.md',
+    kind: 'code-span',
+    contextSha256: '8e4a4111ff0e07962d6d8fe9f4a4b078a779f13e4d9ae2f70f9199d3652bd066',
+    occurrence: 1,
+  },
+  {
+    path: 'LICENSING.md',
+    kind: 'code-span',
+    contextSha256: '84e56e96a799c03a4362775825bcc804ecef73e98c9a21d6075de292bd94e8ff',
+    occurrence: 1,
+  },
+  {
+    path: 'LICENSING.md',
+    kind: 'code-span',
+    contextSha256: '7ed5995c7af65391503b31dfa5b0c0c0c719f0f519c91a05d075363f16699f21',
+    occurrence: 1,
+  },
+  {
+    path: 'LICENSING.md',
+    kind: 'code-span',
+    contextSha256: 'b80b5667136993d13878ddc46f6960f492a90fe5c647f3a713d42075bab01ee6',
+    occurrence: 1,
+  },
+  {
+    path: 'LICENSING.md',
+    kind: 'code-span',
+    contextSha256: 'da64e478ed0515651fc3709870b3e824bc1057316d64303f9d2c8d970b6ccf0a',
+    occurrence: 1,
+  },
+  {
+    path: 'LICENSING.md',
+    kind: 'code-span',
+    contextSha256: '33f932748922fb33b33896b820b95777f0f36cf99d309b416c157e82a03ec8af',
+    occurrence: 1,
+  },
+  {
+    path: 'LICENSING.md',
+    kind: 'code-span',
+    contextSha256: 'b7c02632af3827c390fe842ac003839c08003832c677353bda357d52fc62f8b5',
+    occurrence: 1,
+  },
+  {
+    path: 'LICENSING.md',
+    kind: 'code-span',
+    contextSha256: '616973c27e13c898b5d910218ae75c26b36b71fd66cb6c87f468272d61ea2968',
+    occurrence: 1,
+  },
+  {
+    path: 'README.md',
+    kind: 'code-span',
+    contextSha256: '10f884e1847445facecf2895d69f72d8ad9ef90ecc51036e77d30b0472d9bd44',
+    occurrence: 1,
+  },
+  {
+    path: 'tools/asset-lab/README.md',
+    kind: 'code-span',
+    contextSha256: 'b61ff051ca274a66fe7323717380d1d3bc00e9ed66bf536c10d02512e70b02d2',
+    occurrence: 1,
+  },
+  {
+    path: 'tools/asset-lab/README.md',
+    kind: 'code-span',
+    contextSha256: 'c2d24150eef0f7200e88e2e17e1b4d7a67a5471e9cc3dfde8c2cbee12d4eb559',
+    occurrence: 1,
+  },
+];
+
+// Drops the free-text reason so that the pinned fields compare exactly.
+const pinnedAllowlistFields = (allowlist) =>
+  allowlist.map(({ path: entryPath, kind, contextSha256, occurrence }) => ({
+    path: entryPath,
+    kind,
+    contextSha256,
+    occurrence,
+  }));
+
 // Explicit exceptions for the fixed baseline lines that carry evaluated
 // SPDX claims inside code spans: each entry pins the exact raw line of the
 // fixed baseline text, so inserting lines above stays valid while changing
@@ -291,11 +389,18 @@ describe('checkDocumentation', () => {
     const policy = JSON.parse(policyBytes.toString('utf8'));
     assert.equal(policy.schemaVersion, 1);
     const { maskedContent, ...rest } = policy.documentation;
-    assert.deepEqual(maskedContent, {
+    const { allowlist, ...maskedRules } = maskedContent;
+    assert.deepEqual(maskedRules, {
       licenseIds: [...MASKED_LICENSE_IDS],
       keywords: [...MASKED_KEYWORDS],
-      allowlist: [],
     });
+    assert.equal(allowlist.length, COMMITTED_MASKED_ALLOWLIST.length);
+    for (const entry of allowlist) {
+      assert.deepEqual(Object.keys(entry).sort(), ['contextSha256', 'kind', 'occurrence', 'path', 'reason']);
+      assert.equal(typeof entry.reason, 'string');
+      assert.ok(entry.reason.trim().length > 0, 'every allowlist entry needs a reason');
+    }
+    assert.deepEqual(pinnedAllowlistFields(allowlist), COMMITTED_MASKED_ALLOWLIST);
     assert.deepEqual(rest, {
       componentTable: {
         path: 'LICENSING.md',
@@ -322,6 +427,24 @@ describe('checkDocumentation', () => {
       },
       assetLab: { path: 'tools/asset-lab/README.md', license: 'MIT', licenseTarget: 'LICENSE' },
     });
+  });
+
+  it('rejects an additional allowlist entry next to the committed list', () => {
+    const policy = JSON.parse(policyBytes.toString('utf8'));
+    const allowlist = [
+      ...policy.documentation.maskedContent.allowlist,
+      {
+        path: 'README.md',
+        kind: 'code-span',
+        contextSha256: sha256('An unreviewed MIT line.'),
+        occurrence: 1,
+        reason: 'Unreviewed extra entry.',
+      },
+    ];
+    assert.throws(
+      () => assert.deepEqual(pinnedAllowlistFields(allowlist), COMMITTED_MASKED_ALLOWLIST),
+      assert.AssertionError,
+    );
   });
 
   it('accepts a valid minimal snapshot with sorted records', () => {
