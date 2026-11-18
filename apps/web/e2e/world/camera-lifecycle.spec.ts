@@ -176,6 +176,26 @@ async function withBaseline(
   if (restoreErrors.length > 0) throw new Error(`Cleanup failed: ${restoreErrors.join('; ')}`);
 }
 
+/**
+ * Waits for the canvas Phaser owns. The page holds further canvases, so a
+ * plain canvas locator is ambiguous in strict mode.
+ */
+async function expectGameCanvasVisible(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const game = (window as unknown as { __PHASER_GAME__?: { canvas?: HTMLCanvasElement } }).__PHASER_GAME__;
+          const canvas = game?.canvas;
+          if (!canvas || !canvas.isConnected) return false;
+          const box = canvas.getBoundingClientRect();
+          return box.width > 0 && box.height > 0 && getComputedStyle(canvas).visibility !== 'hidden';
+        }),
+      { timeout: UI_TIMEOUT_MS, message: 'The game canvas never became visible.' },
+    )
+    .toBe(true);
+}
+
 /** Opens the editor via the real menu. */
 async function openEditor(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(Menü|Menu)$/ }).click();
@@ -222,7 +242,7 @@ test('keeps the main camera usable across editor and map lifecycle', async ({ st
       if (message.type() === 'error') signals.push(`console: ${message.text()}`);
     });
 
-    await expect(page.locator('canvas')).toBeVisible({ timeout: UI_TIMEOUT_MS });
+    await expectGameCanvasVisible(page);
 
     await openEditor(page);
     const stored = await getEditorState(request, stack.apiUrl, mapId);
@@ -249,7 +269,7 @@ test('keeps the main camera usable across editor and map lifecycle', async ({ st
 
     await openEditor(page);
     await page.reload();
-    await expect(page.locator('canvas')).toBeVisible({ timeout: UI_TIMEOUT_MS });
+    await expectGameCanvasVisible(page);
     await expect.poll(() => readMainSceneState(page), { timeout: UI_TIMEOUT_MS }).not.toBeNull();
 
     const switcher = page.locator('select[title="Map wechseln"]');
