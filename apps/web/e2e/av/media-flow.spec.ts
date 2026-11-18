@@ -354,6 +354,10 @@ async function runMediaFlowKind(
     // Observer before app navigation so the native constructor is wrapped first.
     await ownerPage.addInitScript(installMediaFlowObserver);
     await memberPage.addInitScript(installMediaFlowObserver);
+    // AV debug logs (track.mic.*, connect phases) land in the trace for diagnosis.
+    for (const page of [ownerPage, memberPage]) {
+      await page.addInitScript(() => Reflect.set(window, '__avDebugOn', true));
+    }
 
     await ownerPage.goto(appRouteUrl(fixtures.stack.baseUrl, 'app'));
     await memberPage.goto(appRouteUrl(fixtures.stack.baseUrl, 'app'));
@@ -464,7 +468,8 @@ async function runMediaFlowKind(
     // Expected peer mapping: exactly one other sid of the tested kind per
     // page; both pages see different sids. The PA prefix check is a
     // LiveKit-specific plausibility only; identity comes from the real
-    // receiver/stream/sid linkage, never from the prefix.
+    // receiver track to rendered element (data-participant-sid) linkage,
+    // never from the prefix.
     const sidOf = async (page: Page, role: string): Promise<string> => {
       await expect
         .poll(

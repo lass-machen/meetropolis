@@ -11,9 +11,11 @@ import type { Page, TestInfo } from '@playwright/test';
  * Proof comes only from native per-sender/per-receiver getStats() rows
  * tied to the actual track handle, keyed by peerRef + direction +
  * trackId + stats id/ssrc. Kind-wide sums are diagnostics, never proof.
- * Stream id parsing mirrors livekit-client 2.22.3
- * (src/room/utils.ts unpackStreamId splits on '|', src/room/Room.ts
- * onTrack reads participantSid from parts[0]).
+ * The remote participant of an inbound track comes from the product DOM
+ * contract: rendered remote media elements carry data-participant-sid, and
+ * their native srcObject holds the very receiver track. Stream ids carry no
+ * participant sid in livekit-client single peer connection mode (default
+ * since 2.x), so they are never parsed.
  *
  * No raw SDP, ICE URLs, IPs, keys, JWTs or cookies are ever recorded.
  */
@@ -74,18 +76,14 @@ export function installMediaFlowObserver(): void {
   const TRACK_STATES = ['live', 'ended'];
   const PAIR_STATES = ['frozen', 'waiting', 'in-progress', 'failed', 'succeeded', 'cancelled'];
 
-  type TrackEvent = { t: number; kind: string; trackId: string; participantSid: string; streamId: string };
   type ObservedPeer = {
     ref: string;
     pc: RTCPeerConnection;
-    trackEvents: TrackEvent[];
     iceCandidateErrors: string[];
   };
 
   const peers: ObservedPeer[] = [];
   let peerCounter = 0;
-  const startedAt = performance.now();
-  const now = (): number => Math.max(0, Math.round(performance.now() - startedAt));
 
   const asEnum = (allowed: string[], value: unknown): string =>
     typeof value === 'string' && allowed.indexOf(value) >= 0 ? value : 'unknown';
@@ -95,28 +93,23 @@ export function installMediaFlowObserver(): void {
   const asRecord = (value: unknown): Record<string, unknown> | null =>
     typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 
-  // Mirrors livekit-client 2.22.3 unpackStreamId: '<participantSid>|<rest>'.
-  const participantSidFromStreamId = (streamId: string): string => {
-    const separator = streamId.indexOf('|');
-    return separator < 0 ? streamId : streamId.slice(0, separator);
+  // Sid of the rendered remote element whose native srcObject holds this
+  // receiver track. Unknown or ambiguous (several distinct sids) is null.
+  const remoteSidForTrack = (trackId: string): string | null => {
+    const sids = new Set<string>();
+    document.querySelectorAll<HTMLMediaElement>('[data-participant-sid]').forEach((element) => {
+      const sid = element.dataset['participantSid'];
+      const src = element.srcObject;
+      if (!sid || typeof MediaStream !== 'function' || !(src instanceof MediaStream)) return;
+      if (src.getTracks().some((candidate) => candidate.id === trackId)) sids.add(sid);
+    });
+    return sids.size === 1 ? ([...sids][0] ?? null) : null;
   };
 
   const instrument = (pc: RTCPeerConnection): void => {
-    const peer: ObservedPeer = { ref: `pc-${peerCounter}`, pc, trackEvents: [], iceCandidateErrors: [] };
+    const peer: ObservedPeer = { ref: `pc-${peerCounter}`, pc, iceCandidateErrors: [] };
     peerCounter += 1;
     peers.push(peer);
-    pc.addEventListener('track', (event: RTCTrackEvent) => {
-      const track = event.track;
-      const stream = event.streams.length > 0 ? event.streams[0] : undefined;
-      if (!track || !stream) return;
-      peer.trackEvents.push({
-        t: now(),
-        kind: asEnum(MEDIA_KINDS, track.kind),
-        trackId: track.id,
-        participantSid: participantSidFromStreamId(stream.id),
-        streamId: stream.id,
-      });
-    });
     pc.addEventListener('icecandidateerror', (event: RTCPeerConnectionIceErrorEvent) => {
       const code = asFiniteNumber(event.errorCode);
       // Neutral telemetry only: the numeric code, no endpoint data, no
@@ -214,7 +207,6 @@ export function installMediaFlowObserver(): void {
     }
     for (const receiver of pc.getReceivers()) {
       const track = receiver.track;
-      const event = track ? peer.trackEvents.find((candidate) => candidate.trackId === track.id) : undefined;
       const base = {
         peer: peer.ref,
         direction: 'inbound' as const,
@@ -222,7 +214,7 @@ export function installMediaFlowObserver(): void {
         trackId: track ? track.id : null,
         readyState: track ? asEnum(TRACK_STATES, track.readyState) : 'unknown',
         mid: midForReceiver(pc, receiver),
-        remoteSid: event ? event.participantSid : null,
+        remoteSid: track ? remoteSidForTrack(track.id) : null,
       };
       if (typeof receiver.getStats !== 'function') {
         bindings.push({
