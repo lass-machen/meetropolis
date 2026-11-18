@@ -232,11 +232,13 @@ async function apiFetch(path, opts = {}) {
 
 Use a personal token here only for tenant content: changing data needs the `write` level, while `read` tokens only reach safe methods (GET, HEAD and OPTIONS).
 
+Tools that call platform routes (`super-admin.html`, `avatar-pack-manager.html`) have no token input. Their `apiFetch()` has no token branch, always sends `credentials: 'include'` and the tool shows a short hint that the operator has to sign in to Meetropolis in the same browser first.
+
 Important: When uploading files via `FormData`, do NOT set the `Content-Type` header manually. The browser sets it automatically with the correct multipart boundary.
 
 ### Connection Testing and Status Display
 
-Provide a connection panel with API URL input, optional auth token, and a test button:
+Provide a connection panel with API URL input, optional auth token (tenant content tools only), and a test button:
 
 ```html
 <div class="field">
@@ -557,8 +559,8 @@ const handleAvatarChange = async (newAvatarId: string) => {
 ### Standalone HTML Tool
 
 - [ ] **Create tool file** at `tools/<your-tool>.html`
-- [ ] **Implement `apiFetch()` helper** with Bearer token + cookie credential handling
-- [ ] **Add connection panel** with API URL input, auth token input, and test button
+- [ ] **Implement `apiFetch()` helper** with Bearer token + cookie credential handling (platform tools: cookie only, no token)
+- [ ] **Add connection panel** with API URL input, auth token input (tenant content tools only), and test button
 - [ ] **Add connection status indicator** (colored dot + label)
 - [ ] **Implement file upload** via FormData (no Content-Type header for multipart)
 - [ ] **Implement CRUD operations**: list existing items, create/update, delete with confirmation
