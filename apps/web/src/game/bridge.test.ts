@@ -215,3 +215,54 @@ describe('gameBridge movement lock', () => {
     expect(api.setMovementLocked).toHaveBeenCalledWith(false);
   });
 });
+
+describe('gameBridge.setHeroPosition', () => {
+  function makeSceneApi(): SceneApi {
+    return {
+      syncRemotePlayers: vi.fn(),
+      setDesiredPosition: vi.fn(),
+      setZoneOverlay: vi.fn(),
+      setSelectionRect: vi.fn(),
+      applyTilePaint: vi.fn(),
+      registerTileset: vi.fn(),
+      setCollisionVisible: vi.fn(),
+      reloadEditorLayers: vi.fn(),
+      setBubbleMembers: vi.fn(),
+      setHeroPosition: vi.fn(),
+    };
+  }
+
+  beforeEach(() => {
+    gameBridge.setSceneApi(null);
+  });
+
+  it('places the hero directly when the scene is running', () => {
+    const api = makeSceneApi();
+    gameBridge.setSceneApi(api);
+
+    gameBridge.setHeroPosition({ x: 40, y: 40 });
+
+    expect(api.setHeroPosition).toHaveBeenCalledWith({ x: 40, y: 40 });
+  });
+
+  it('holds the position until the scene registers', () => {
+    gameBridge.setHeroPosition({ x: 40, y: 40 });
+    const api = makeSceneApi();
+
+    gameBridge.setSceneApi(api);
+
+    expect(api.setHeroPosition).toHaveBeenCalledOnce();
+    expect(api.setHeroPosition).toHaveBeenCalledWith({ x: 40, y: 40 });
+  });
+
+  it('applies a held position only once, so a later scene restart keeps its own start', () => {
+    gameBridge.setHeroPosition({ x: 40, y: 40 });
+    gameBridge.setSceneApi(makeSceneApi());
+    gameBridge.setSceneApi(null);
+    const restarted = makeSceneApi();
+
+    gameBridge.setSceneApi(restarted);
+
+    expect(restarted.setHeroPosition).not.toHaveBeenCalled();
+  });
+});
