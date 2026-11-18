@@ -10,7 +10,11 @@ export async function isInternalOwner(prisma: TenantAccessPrisma, userId: string
     where: { tenantId_userId: { tenantId: internal.id, userId } },
     select: { role: true, expiresAt: true, inviteVerificationRequired: true },
   });
-  return member?.role === 'owner' && !member.inviteVerificationRequired && (!member.expiresAt || member.expiresAt > new Date());
+  return (
+    member?.role === 'owner' &&
+    !member.inviteVerificationRequired &&
+    (!member.expiresAt || member.expiresAt > new Date())
+  );
 }
 
 /**

@@ -400,7 +400,10 @@ describe('ApiTokensOverlay token scope', () => {
 
   it('sends the read scope when creating without changing the selection', async () => {
     const fetchMock = stubApi({
-      list: [{ ok: true, body: [] }, { ok: true, body: [] }],
+      list: [
+        { ok: true, body: [] },
+        { ok: true, body: [] },
+      ],
       post: { ok: true, body: { token: 'SECRET123', id: 't2' } },
     });
     render(<Harness />);
@@ -413,7 +416,10 @@ describe('ApiTokensOverlay token scope', () => {
 
   it('sends the write scope after selecting it', async () => {
     const fetchMock = stubApi({
-      list: [{ ok: true, body: [] }, { ok: true, body: [] }],
+      list: [
+        { ok: true, body: [] },
+        { ok: true, body: [] },
+      ],
       post: { ok: true, body: { token: 'SECRET123', id: 't2' } },
     });
     render(<Harness />);

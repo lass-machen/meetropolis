@@ -211,7 +211,8 @@ function renderGuest(args: AuthRenderArgs) {
 
 export function renderAuthView(args: AuthRenderArgs) {
   switch (args.view) {
-    case 'pending': return <VerificationPendingView apiBase={args.apiBase} />;
+    case 'pending':
+      return <VerificationPendingView apiBase={args.apiBase} />;
     case 'login':
       return renderLogin(args);
     case 'register':

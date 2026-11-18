@@ -103,12 +103,7 @@ test.describe('Avatar-Entwurf @avatar', () => {
     }
   });
 
-  test('a change removes the previously saved status', async ({
-    freshTenant,
-    loginAs,
-    stack,
-    request,
-  }, testInfo) => {
+  test('a change removes the previously saved status', async ({ freshTenant, loginAs, stack, request }, testInfo) => {
     const { page } = await loginAs(freshTenant.users.owner);
     await requireAvatarEditorEnabled({ request, apiUrl: stack.apiUrl, tenantSlug: freshTenant.slug });
     await openEditor(page);
@@ -143,12 +138,7 @@ test.describe('Avatar-Entwurf @avatar', () => {
     await expect(status).toHaveText('');
   });
 
-  test('editing during saving gets no saved status', async ({
-    freshTenant,
-    loginAs,
-    stack,
-    request,
-  }) => {
+  test('editing during saving gets no saved status', async ({ freshTenant, loginAs, stack, request }) => {
     const { page } = await loginAs(freshTenant.users.owner);
     await requireAvatarEditorEnabled({ request, apiUrl: stack.apiUrl, tenantSlug: freshTenant.slug });
     await openEditor(page);

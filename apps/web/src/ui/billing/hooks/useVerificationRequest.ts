@@ -31,10 +31,11 @@ export function useVerificationRequest(apiBase: string, inspectStatus = false) {
         }
         const delivery = readVerificationDelivery(body);
         if (!controller.signal.aborted && version === actionVersion.current && delivery)
-          setState(
-            delivery === 'sent' ? 'sent' : delivery === 'login_required' ? 'loginRequired' : 'failed',
-          );
-      }).catch(() => { if (!controller.signal.aborted && version === actionVersion.current) setState('failed'); });
+          setState(delivery === 'sent' ? 'sent' : delivery === 'login_required' ? 'loginRequired' : 'failed');
+      })
+      .catch(() => {
+        if (!controller.signal.aborted && version === actionVersion.current) setState('failed');
+      });
     return () => controller.abort();
   }, [apiBase, inspectStatus]);
   useEffect(() => {
@@ -47,8 +48,9 @@ export function useVerificationRequest(apiBase: string, inspectStatus = false) {
     actionVersion.current++;
     setErrorMessage(null);
     setState('sending');
-    try { setState(readMailSent(await post('/auth/verify/request', {})) ? 'sent' : 'failed'); }
-    catch (error: unknown) {
+    try {
+      setState(readMailSent(await post('/auth/verify/request', {})) ? 'sent' : 'failed');
+    } catch (error: unknown) {
       if (error instanceof AccountActionError && error.code === 'EMAIL_VERIFICATION_BINDING_REQUIRED')
         setErrorMessage(error.message);
       if (error instanceof AccountActionError && error.status === 429) {

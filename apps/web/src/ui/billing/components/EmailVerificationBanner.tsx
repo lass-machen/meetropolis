@@ -8,7 +8,6 @@ interface Props {
   apiBase: string;
 }
 
-
 /**
  * Soft reminder for an unverified address.
  *
@@ -24,7 +23,6 @@ export function EmailVerificationBanner({ emailVerified, apiBase }: Props) {
   const { state, retryAfter, resend } = useVerificationRequest(apiBase);
 
   if (emailVerified !== false) return null;
-
 
   return (
     // No position/z-index here on purpose: this banner renders in normal document

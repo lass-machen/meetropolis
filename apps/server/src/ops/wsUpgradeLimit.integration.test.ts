@@ -181,12 +181,7 @@ async function startServer(options: ServerOptions): Promise<number> {
   return port;
 }
 
-function startChild(options: {
-  port: number;
-  trustProxy: string;
-  max?: string;
-  windowMs?: string;
-}): ChildProcess {
+function startChild(options: { port: number; trustProxy: string; max?: string; windowMs?: string }): ChildProcess {
   const child = spawn(process.execPath, [resolveTsx(), 'src/index.ts'], {
     cwd: SERVER_DIR,
     env: childEnv(options),

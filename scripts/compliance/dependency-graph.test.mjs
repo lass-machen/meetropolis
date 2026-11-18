@@ -290,23 +290,36 @@ describe('collectProductionDependencies', () => {
     const goodRoots = [rootOf('')];
     const goodPackages = { '': {} };
     const goodLock = { name: 'x', lockfileVersion: 3, packages: goodPackages };
-    assert.equal(invalidCode(() => run({}, goodRoots)), 'LOCKFILE_INVALID');
     assert.equal(
-      invalidCode(() => collectProductionDependencies({
-        lockfile: LOCKFILE,
-        lock: { name: 'x', lockfileVersion: 2, packages: goodPackages },
-        roots: goodRoots,
-      })),
+      invalidCode(() => run({}, goodRoots)),
+      'LOCKFILE_INVALID',
+    );
+    assert.equal(
+      invalidCode(() =>
+        collectProductionDependencies({
+          lockfile: LOCKFILE,
+          lock: { name: 'x', lockfileVersion: 2, packages: goodPackages },
+          roots: goodRoots,
+        }),
+      ),
       'LOCKFILE_INVALID',
     );
     assert.equal(
       invalidCode(() => collectProductionDependencies({ lockfile: LOCKFILE, lock: goodLock, roots: [] })),
       'LOCKFILE_INVALID',
     );
-    assert.equal(invalidCode(() => run(goodPackages, [rootOf('nope')])), 'LOCKFILE_INVALID');
-    assert.equal(invalidCode(() => run(goodPackages, [rootOf('../evil')])), 'LOCKFILE_INVALID');
     assert.equal(
-      invalidCode(() => collectProductionDependencies({ lockfile: '/abs/package-lock.json', lock: goodLock, roots: goodRoots })),
+      invalidCode(() => run(goodPackages, [rootOf('nope')])),
+      'LOCKFILE_INVALID',
+    );
+    assert.equal(
+      invalidCode(() => run(goodPackages, [rootOf('../evil')])),
+      'LOCKFILE_INVALID',
+    );
+    assert.equal(
+      invalidCode(() =>
+        collectProductionDependencies({ lockfile: '/abs/package-lock.json', lock: goodLock, roots: goodRoots }),
+      ),
       'LOCKFILE_INVALID',
     );
     assert.equal(
@@ -379,7 +392,10 @@ describe('collectProductionDependencies', () => {
     };
     assert.equal(bad({ '': { dependencies: { a: 42 } }, 'node_modules/a': { version: '1.0.0' } }), 'LOCKFILE_INVALID');
     assert.equal(bad({ '': { dependencies: ['a'] }, 'node_modules/a': { version: '1.0.0' } }), 'LOCKFILE_INVALID');
-    assert.equal(bad({ '': { optionalDependencies: { a: null } }, 'node_modules/a': { version: '1.0.0' } }), 'LOCKFILE_INVALID');
+    assert.equal(
+      bad({ '': { optionalDependencies: { a: null } }, 'node_modules/a': { version: '1.0.0' } }),
+      'LOCKFILE_INVALID',
+    );
     assert.equal(bad({ '': { dependencies: { '../evil': '^1.0.0' } } }), 'LOCKFILE_INVALID');
     assert.equal(bad({ '': { dependencies: { 'foo/bar': '^1.0.0' } } }), 'LOCKFILE_INVALID');
     for (const bundled of ['pb', { names: ['pb'] }, null]) {
@@ -441,9 +457,7 @@ describe('collectProductionDependencies', () => {
       },
       [rootOf('')],
     );
-    assert.deepEqual(issues, [
-      { severity: 'info', code: 'OPTIONAL_DEPENDENCY_ABSENT', root: '', from: '', name: 'p' },
-    ]);
+    assert.deepEqual(issues, [{ severity: 'info', code: 'OPTIONAL_DEPENDENCY_ABSENT', root: '', from: '', name: 'p' }]);
     assert.deepEqual(byLockPath(records)['node_modules/d'].edgeKinds, ['bundled', 'dependency']);
     assert.deepEqual(byLockPath(records)['node_modules/o'].edgeKinds, ['optional']);
   });
@@ -528,4 +542,3 @@ describe('collectProductionDependencies', () => {
     assert.deepEqual(byLockPath(records)['node_modules/leaf'].edgeKinds, ['dependency', 'peer']);
   });
 });
-

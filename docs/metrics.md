@@ -4,10 +4,10 @@ The public HTTP port (default 2567) answers `GET` and `HEAD` `/metrics`
 with 404, with or without cookies or tools credentials. Scrapes go to a
 separate listener.
 
-| Variable       | Default                         | Role                                         |
-| -------------- | ------------------------------- | -------------------------------------------- |
-| `METRICS_PORT` | unset (listener off)            | TCP port of the scrape listener              |
-| `METRICS_HOST` | loopback                        | Bind address; compose sets the container NIC |
+| Variable       | Default              | Role                                         |
+| -------------- | -------------------- | -------------------------------------------- |
+| `METRICS_PORT` | unset (listener off) | TCP port of the scrape listener              |
+| `METRICS_HOST` | loopback             | Bind address; compose sets the container NIC |
 
 The bundled `compose.yaml` sets `METRICS_PORT` and `METRICS_HOST` on the
 server service and does **not** add a `ports` mapping for the scrape

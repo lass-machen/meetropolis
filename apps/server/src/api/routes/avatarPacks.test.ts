@@ -557,7 +557,7 @@ describe('AvatarPack read routes: super-admin and API-token scope', () => {
     // tenant the owner lands on the public catalog, like any ordinary caller.
     const app = makeApp(makePrisma({ apiTokenUserId: 'owner-root' }));
     const res = await request(app).get('/avatar-packs').set('Authorization', 'Bearer plain-api-token-no-dots');
-        expect(res.status).toBe(200);
+    expect(res.status).toBe(200);
     expect(idsOf(res.body)).toEqual([1]);
   });
 

@@ -135,9 +135,10 @@ export async function expectInitialBodyTab(page: Page): Promise<void> {
   const editor = page.locator('.av-ed').locator('xpath=..');
   const tabs = editor.locator('.sys-tabs__tab');
   await expect(tabs, 'the editor has exactly three category tabs').toHaveCount(3);
-  await expect(editor.locator('.sys-tabs__tab.sys-tabs__tab--active'), 'exactly one category tab is active').toHaveCount(
-    1,
-  );
+  await expect(
+    editor.locator('.sys-tabs__tab.sys-tabs__tab--active'),
+    'exactly one category tab is active',
+  ).toHaveCount(1);
   await expect(tabs.first(), 'the first category tab is active').toHaveClass(/sys-tabs__tab--active/);
 
   const slots = editor.locator('.av-ed__slots');

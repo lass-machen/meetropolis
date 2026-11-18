@@ -76,9 +76,7 @@ describe('evaluateLicenseExpression', () => {
   });
 
   it('parses WITH but never allows it', () => {
-    const res = evaluateLicenseExpression('GPL-2.0-only WITH Classpath-exception-2.0', [
-      'GPL-2.0-only',
-    ]);
+    const res = evaluateLicenseExpression('GPL-2.0-only WITH Classpath-exception-2.0', ['GPL-2.0-only']);
     assert.equal(res.ok, false);
     assert.equal(res.code, 'LICENSE_NOT_ALLOWED');
   });
@@ -132,9 +130,7 @@ describe('evaluateLicenseExpression', () => {
   });
 
   it('parses DocumentRef:LicenseRef but keeps it red without policy allowance', () => {
-    const res = evaluateLicenseExpression('DocumentRef-spdx-tool-1.2:LicenseRef-Missing-1.2', [
-      'MIT',
-    ]);
+    const res = evaluateLicenseExpression('DocumentRef-spdx-tool-1.2:LicenseRef-Missing-1.2', ['MIT']);
     assert.equal(res.ok, false);
     assert.equal(res.code, 'LICENSE_NOT_ALLOWED');
   });

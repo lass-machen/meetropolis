@@ -43,16 +43,11 @@ try {
     .set('Authorization', `Bearer ${admin.session}`)
     .send({});
   const body: unknown = response.body;
-  const secret =
-    !!body &&
-    typeof body === 'object' &&
-    ('token' in body || 'resetUrl' in body);
+  const secret = !!body && typeof body === 'object' && ('token' in body || 'resetUrl' in body);
   const unused = await fixture.prisma.passwordReset.count({
     where: { userId: target.id, usedAt: null },
   });
-  process.stdout.write(
-    `ADMIN_RESET_DELIVERY_RESULT:${JSON.stringify({ status: response.status, secret, unused })}\n`,
-  );
+  process.stdout.write(`ADMIN_RESET_DELIVERY_RESULT:${JSON.stringify({ status: response.status, secret, unused })}\n`);
   // Allow the configured provider retries for the real local SMTP failure.
   await new Promise((resolve) => setTimeout(resolve, 4000));
 } finally {

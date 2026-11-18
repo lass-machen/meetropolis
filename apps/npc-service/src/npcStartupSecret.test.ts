@@ -70,14 +70,18 @@ describe('npc service startup secret', () => {
   for (const mode of ['development', 'production']) {
     describe(`in ${mode} mode`, () => {
       for (const entry of cases) {
-        it(entry.name, async () => {
-          const probe = await probeStartup(entry.secret, mode);
-          expect(probe.code).not.toBe(0);
-          expect(probe.output).toContain(secretKey);
-          if (entry.secret) {
-            expect(probe.output).not.toContain(entry.secret);
-          }
-        }, 30000);
+        it(
+          entry.name,
+          async () => {
+            const probe = await probeStartup(entry.secret, mode);
+            expect(probe.code).not.toBe(0);
+            expect(probe.output).toContain(secretKey);
+            if (entry.secret) {
+              expect(probe.output).not.toContain(entry.secret);
+            }
+          },
+          30000,
+        );
       }
     });
   }

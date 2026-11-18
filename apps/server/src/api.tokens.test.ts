@@ -271,10 +271,7 @@ describe('api token scope', () => {
     const app = await createApp();
     const jwtToken = signSession('user-1');
 
-    await request(app)
-      .post('/api-tokens')
-      .set('Authorization', `Bearer ${jwtToken}`)
-      .send({ name: 'First' });
+    await request(app).post('/api-tokens').set('Authorization', `Bearer ${jwtToken}`).send({ name: 'First' });
     await request(app)
       .post('/api-tokens')
       .set('Authorization', `Bearer ${jwtToken}`)

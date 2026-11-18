@@ -7,7 +7,10 @@ import { inviteEmailMatches, consumeInvite } from './inviteLifecycle.js';
 
 export type EmailProofPurpose = 'verify' | 'invite' | 'email_change';
 export type EmailProofOutcome =
-  | { status: 'user_not_found' | 'already_verified' | 'no_public_base_url' | 'delivery_unavailable' | 'binding_required' }
+  | {
+      status:
+        'user_not_found' | 'already_verified' | 'no_public_base_url' | 'delivery_unavailable' | 'binding_required';
+    }
   | { status: 'throttled'; retryAfter: number }
   | { status: 'issued'; sent: true }
   | { status: 'admin_pending' };
@@ -45,18 +48,36 @@ async function prepareEmailProof(
     if (!invite || !inviteEmailMatches(invite.email, user.email)) return { status: 'binding_required' as const };
   }
   const recent = await tx.emailVerification.findFirst({
-    where: { userId, purpose, inviteId: inviteId ?? null, email, usedAt: null, expiresAt: { gt: new Date() },
-      createdAt: { gt: new Date(Date.now() - COOLDOWN_MS) } },
+    where: {
+      userId,
+      purpose,
+      inviteId: inviteId ?? null,
+      email,
+      usedAt: null,
+      expiresAt: { gt: new Date() },
+      createdAt: { gt: new Date(Date.now() - COOLDOWN_MS) },
+    },
     orderBy: { createdAt: 'desc' },
   });
-  if (recent) return { status: 'throttled' as const,
-    retryAfter: Math.max(1, Math.ceil((recent.createdAt.getTime() + COOLDOWN_MS - Date.now()) / 1000)) };
+  if (recent)
+    return {
+      status: 'throttled' as const,
+      retryAfter: Math.max(1, Math.ceil((recent.createdAt.getTime() + COOLDOWN_MS - Date.now()) / 1000)),
+    };
   if (purpose === 'email_change') {
     await tx.emailVerification.updateMany({ where: { userId, purpose, usedAt: null }, data: { usedAt: new Date() } });
   }
-  const intent = await tx.emailVerification.create({ data: {
-    token, userId, purpose, inviteId, email, sourceEmail: user.email, expiresAt: new Date(Date.now() + TTL_MS),
-  } });
+  const intent = await tx.emailVerification.create({
+    data: {
+      token,
+      userId,
+      purpose,
+      inviteId,
+      email,
+      sourceEmail: user.email,
+      expiresAt: new Date(Date.now() + TTL_MS),
+    },
+  });
   return { status: 'prepared' as const, intent, user };
 }
 
@@ -81,24 +102,31 @@ export async function issueEmailProof(params: {
   const { intent, user } = prepared;
   let sent = false;
   try {
-    sent = await mail.sendVerify({ to: intent.email, name: user.name ?? '',
+    sent = await mail.sendVerify({
+      to: intent.email,
+      name: user.name ?? '',
       verifyUrl: buildPublicWebLink(base, `verify?token=${rawToken}`),
-      locale: user.locale === 'en' ? 'en' : 'de' });
+      locale: user.locale === 'en' ? 'en' : 'de',
+    });
     if (sent && purpose === 'email_change') {
-      const text = 'A change of your email address was requested. Your current address remains active until confirmation. If this was not you, change your password.';
-      sent = await mail.sendRaw({ to: user.email, subject: 'Email change requested',
-        text, html: `<p>${text}</p>` });
+      const text =
+        'A change of your email address was requested. Your current address remains active until confirmation. If this was not you, change your password.';
+      sent = await mail.sendRaw({ to: user.email, subject: 'Email change requested', text, html: `<p>${text}</p>` });
     }
   } catch {
     // Provider errors may contain recipient or message data; do not log them.
     sent = false;
   }
   if (!sent) {
-    await prisma.emailVerification.updateMany({ where: { id: intent.id, readyAt: null }, data: { expiresAt: new Date() } });
+    await prisma.emailVerification.updateMany({
+      where: { id: intent.id, readyAt: null },
+      data: { expiresAt: new Date() },
+    });
     return { status: 'delivery_unavailable' };
   }
   const ready = await prisma.emailVerification.updateMany({
-    where: { id: intent.id, usedAt: null, user: { email: user.email } }, data: { readyAt: new Date() },
+    where: { id: intent.id, usedAt: null, user: { email: user.email } },
+    data: { readyAt: new Date() },
   });
   return ready.count === 1 ? { status: 'issued', sent: true } : { status: 'binding_required' };
 }
@@ -106,23 +134,28 @@ export async function issueEmailProof(params: {
 export class EmailProofInvalid extends Error {}
 
 /** Shared completion for mail and administrator confirmation. */
-export async function finishEmailProof(
-  tx: Prisma.TransactionClient,
-  proofId: string,
-  mode: 'mail' | 'admin',
-) {
+export async function finishEmailProof(tx: Prisma.TransactionClient, proofId: string, mode: 'mail' | 'admin') {
   const initial = await tx.emailVerification.findUnique({ where: { id: proofId } });
   if (!initial) throw new EmailProofInvalid();
   await lockEmailAccount(tx, initial.userId);
   const proof = await tx.emailVerification.findUnique({ where: { id: proofId } });
   const user = await tx.user.findUnique({ where: { id: initial.userId } });
   const now = new Date();
-  if (!proof || !user || proof.usedAt || proof.expiresAt <= now ||
-    proof.sourceEmail !== user.email || (proof.purpose !== 'email_change' && !inviteEmailMatches(proof.email, user.email))) {
+  if (
+    !proof ||
+    !user ||
+    proof.usedAt ||
+    proof.expiresAt <= now ||
+    proof.sourceEmail !== user.email ||
+    (proof.purpose !== 'email_change' && !inviteEmailMatches(proof.email, user.email))
+  ) {
     throw new EmailProofInvalid();
   }
   if (mode === 'mail') {
-    if (!proof.readyAt || (proof.purpose !== 'verify' && proof.purpose !== 'invite' && proof.purpose !== 'email_change')) {
+    if (
+      !proof.readyAt ||
+      (proof.purpose !== 'verify' && proof.purpose !== 'invite' && proof.purpose !== 'email_change')
+    ) {
       throw new EmailProofInvalid();
     }
   } else if (proof.readyAt || proof.purpose !== 'invite_admin') {
@@ -141,25 +174,40 @@ export async function finishEmailProof(
       await tx.membership.update({ where: { tenantId_userId: key }, data: { inviteVerificationRequired: false } });
     } else {
       if (!(await consumeInvite(tx, invite.code, user.id, now))) throw new EmailProofInvalid();
-      await tx.membership.upsert({ where: { tenantId_userId: key },
+      await tx.membership.upsert({
+        where: { tenantId_userId: key },
         create: { ...key, role: invite.role },
-        update: member?.inviteVerificationRequired ? { role: invite.role, inviteVerificationRequired: false } : {} });
+        update: member?.inviteVerificationRequired ? { role: invite.role, inviteVerificationRequired: false } : {},
+      });
     }
     tenantSlug = invite.tenant.slug;
   } else if (proof.purpose !== 'verify' && proof.purpose !== 'email_change') {
     throw new EmailProofInvalid();
   }
   if (proof.purpose === 'email_change') {
-    const occupied = await tx.user.findFirst({ where: { id: { not: user.id }, email: { equals: proof.email, mode: 'insensitive' } }, select: { id: true } });
+    const occupied = await tx.user.findFirst({
+      where: { id: { not: user.id }, email: { equals: proof.email, mode: 'insensitive' } },
+      select: { id: true },
+    });
     if (occupied) throw new EmailProofInvalid();
   }
   const consumed = await tx.emailVerification.updateMany({
-    where: { id: proof.id, usedAt: null, ...(mode === 'mail' ? { readyAt: { not: null } } : { readyAt: null }), expiresAt: { gt: now } }, data: { usedAt: now },
+    where: {
+      id: proof.id,
+      usedAt: null,
+      ...(mode === 'mail' ? { readyAt: { not: null } } : { readyAt: null }),
+      expiresAt: { gt: now },
+    },
+    data: { usedAt: now },
   });
   if (consumed.count !== 1) throw new EmailProofInvalid();
-  await tx.user.update({ where: { id: user.id }, data: {
-    ...(proof.purpose === 'email_change' ? { email: proof.email } : {}), emailVerifiedAt: now,
-  } });
+  await tx.user.update({
+    where: { id: user.id },
+    data: {
+      ...(proof.purpose === 'email_change' ? { email: proof.email } : {}),
+      emailVerifiedAt: now,
+    },
+  });
   await tx.emailVerification.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: now } });
   return { purpose: proof.purpose, tenantSlug, nextAction: 'login' as const };
 }

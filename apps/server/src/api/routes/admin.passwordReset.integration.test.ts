@@ -112,31 +112,12 @@ it('revokes the new token when delivery fails', async () => {
       maxBuffer: 256_000,
     },
   );
-  const line = result.stdout
-    .split('\n')
-    .find((value) => value.startsWith('ADMIN_RESET_DELIVERY_RESULT:'));
+  const line = result.stdout.split('\n').find((value) => value.startsWith('ADMIN_RESET_DELIVERY_RESULT:'));
   if (!line) {
     throw new Error('The admin reset probe returned no result evidence.');
   }
-  const parsed: unknown = JSON.parse(
-    line.slice('ADMIN_RESET_DELIVERY_RESULT:'.length),
-  );
-  expect(
-    !!parsed &&
-      typeof parsed === 'object' &&
-      'status' in parsed &&
-      parsed.status === 503,
-  ).toBe(true);
-  expect(
-    !!parsed &&
-      typeof parsed === 'object' &&
-      'secret' in parsed &&
-      parsed.secret === false,
-  ).toBe(true);
-  expect(
-    !!parsed &&
-      typeof parsed === 'object' &&
-      'unused' in parsed &&
-      parsed.unused === 0,
-  ).toBe(true);
+  const parsed: unknown = JSON.parse(line.slice('ADMIN_RESET_DELIVERY_RESULT:'.length));
+  expect(!!parsed && typeof parsed === 'object' && 'status' in parsed && parsed.status === 503).toBe(true);
+  expect(!!parsed && typeof parsed === 'object' && 'secret' in parsed && parsed.secret === false).toBe(true);
+  expect(!!parsed && typeof parsed === 'object' && 'unused' in parsed && parsed.unused === 0).toBe(true);
 }, 50_000);

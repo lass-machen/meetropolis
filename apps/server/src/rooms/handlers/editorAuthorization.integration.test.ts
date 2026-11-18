@@ -48,7 +48,14 @@ let studioId = '';
 
 /** A zone payload shaped like the web client sends after moving through the world. */
 const ZONE_POLYS = [
-  { name: 'hall', points: [{ x: 10, y: 10 }, { x: 60, y: 10 }, { x: 60, y: 60 }] },
+  {
+    name: 'hall',
+    points: [
+      { x: 10, y: 10 },
+      { x: 60, y: 10 },
+      { x: 60, y: 60 },
+    ],
+  },
 ];
 
 /**
@@ -202,9 +209,7 @@ describe('editor updates sent by a member', () => {
     expect(receiverJoin.error, 'admin receiver must join the world').toBeUndefined();
     if (!senderJoin.room || !receiverJoin.room) throw new Error('member case created no rooms');
     expect(await waitForOwnMap(senderJoin.room, officeId, 10_000), 'sender starts on the office map').toBe(true);
-    expect(await waitForOwnMap(receiverJoin.room, officeId, 10_000), 'receiver starts on the office map').toBe(
-      true,
-    );
+    expect(await waitForOwnMap(receiverJoin.room, officeId, 10_000), 'receiver starts on the office map').toBe(true);
     const { received } = collectEditorUpdates(receiverJoin.room);
     senderJoin.room.send('editor_update', { type: 'reload_all' });
     await sleep(1_500);
@@ -249,9 +254,7 @@ describe('editor updates sent after a demotion', () => {
     expect(receiverJoin.error, 'admin receiver must join the world').toBeUndefined();
     if (!senderJoin.room || !receiverJoin.room) throw new Error('demotion case created no rooms');
     expect(await waitForOwnMap(senderJoin.room, officeId, 10_000), 'sender starts on the office map').toBe(true);
-    expect(await waitForOwnMap(receiverJoin.room, officeId, 10_000), 'receiver starts on the office map').toBe(
-      true,
-    );
+    expect(await waitForOwnMap(receiverJoin.room, officeId, 10_000), 'receiver starts on the office map').toBe(true);
     const { received } = collectEditorUpdates(receiverJoin.room);
     await demoteToMember(sender.userId);
     senderJoin.room.send('editor_update', { type: 'reload_all' });
@@ -272,9 +275,7 @@ describe('editor updates sent by an owner', () => {
     expect(receiverJoin.error, 'admin receiver must join the world').toBeUndefined();
     if (!senderJoin.room || !receiverJoin.room) throw new Error('owner control created no rooms');
     expect(await waitForOwnMap(senderJoin.room, officeId, 10_000), 'sender starts on the office map').toBe(true);
-    expect(await waitForOwnMap(receiverJoin.room, officeId, 10_000), 'receiver starts on the office map').toBe(
-      true,
-    );
+    expect(await waitForOwnMap(receiverJoin.room, officeId, 10_000), 'receiver starts on the office map').toBe(true);
     const { received } = collectEditorUpdates(receiverJoin.room);
     senderJoin.room.send('editor_update', { type: 'reload_all' });
     expect(await waitForCount(received, 1, 10_000), 'peer receives the owner update').toBe(true);
@@ -294,9 +295,7 @@ describe('editor updates sent by an admin', () => {
     expect(receiverJoin.error, 'owner receiver must join the world').toBeUndefined();
     if (!senderJoin.room || !receiverJoin.room) throw new Error('admin control created no rooms');
     expect(await waitForOwnMap(senderJoin.room, officeId, 10_000), 'sender starts on the office map').toBe(true);
-    expect(await waitForOwnMap(receiverJoin.room, officeId, 10_000), 'receiver starts on the office map').toBe(
-      true,
-    );
+    expect(await waitForOwnMap(receiverJoin.room, officeId, 10_000), 'receiver starts on the office map').toBe(true);
     const { received } = collectEditorUpdates(receiverJoin.room);
     senderJoin.room.send('editor_update', { type: 'zone', polys: ZONE_POLYS });
     expect(await waitForCount(received, 1, 10_000), 'peer receives the admin update').toBe(true);

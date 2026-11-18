@@ -7,8 +7,10 @@ export function createVerificationSessionScope(): express.RequestHandler {
   routes.post(['/auth/login', '/auth/logout', '/auth/verify/request', '/auth/verify', '/invites/accept'], allow);
   routes.get(['/auth/me', '/auth/verify/status'], allow);
   routes.use((_req, res) => {
-    res.status(403).json({ code: 'EMAIL_VERIFICATION_REQUIRED',
-      error: 'Confirm your email address and sign in before using this resource.' });
+    res.status(403).json({
+      code: 'EMAIL_VERIFICATION_REQUIRED',
+      error: 'Confirm your email address and sign in before using this resource.',
+    });
   });
   return routes;
 }

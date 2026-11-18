@@ -88,7 +88,11 @@ export function findInvalidCredentialKeys(env: Record<string, string | undefined
     invalid.push('POSTGRES_PASSWORD');
   }
   const toolsPassword = env.TOOLS_PASSWORD;
-  if (toolsPassword !== undefined && toolsPassword !== '' && !isUsableSecret(toolsPassword, [TEMPLATE_TOOLS_PASSWORD])) {
+  if (
+    toolsPassword !== undefined &&
+    toolsPassword !== '' &&
+    !isUsableSecret(toolsPassword, [TEMPLATE_TOOLS_PASSWORD])
+  ) {
     invalid.push('TOOLS_PASSWORD');
   }
   return invalid;

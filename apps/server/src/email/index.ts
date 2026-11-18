@@ -91,7 +91,6 @@ class OssEmailModule implements EmailModule {
  * - Otherwise an `EmailModule` with an SMTP or Console provider.
  */
 export function createOssEmailModule(): EmailModule | null {
-
   const brand = readBrandContext();
   const defaultLocale = readEnvDefaultLocale();
   const smtpOptions = loadSmtpOptionsFromEnv();
@@ -121,7 +120,8 @@ export function createOssEmailModule(): EmailModule | null {
   const logFallback = process.env.NODE_ENV === 'production' ? logger.error.bind(logger) : logger.warn.bind(logger);
   logFallback({
     event: 'email.fallback_console',
-    message: 'No mail provider configured (SMTP_HOST/SMTP_FROM unset and no EE-tenancy module) — mails are not delivered',
+    message:
+      'No mail provider configured (SMTP_HOST/SMTP_FROM unset and no EE-tenancy module) — mails are not delivered',
     brand: brand.brandName,
     defaultLocale,
   });

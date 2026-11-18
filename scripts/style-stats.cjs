@@ -371,8 +371,7 @@ async function runStyleStats({ root = ROOT, baselinePath = BASELINE_PATH, files,
 function formatSummary(result) {
   const stand = result.baselineUpdatedAt ? ` (as of ${result.baselineUpdatedAt})` : '';
   const lines = [
-    `style-stats: ${result.checkedFiles} CSS files checked, ` +
-      `${result.hexTotal} hex values outside the token file.`,
+    `style-stats: ${result.checkedFiles} CSS files checked, ` + `${result.hexTotal} hex values outside the token file.`,
     `Baseline:   ${result.baselineTotal} hex values in ${result.baselineFiles} files${stand}.`,
   ];
 

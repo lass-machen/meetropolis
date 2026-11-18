@@ -89,32 +89,38 @@ function useEmailVerify(token: string | undefined, apiBase: string) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
         })
-          .then(async (response) => ({ ok: response.ok, body: await response.json().catch(() => null) as unknown }))
-          .finally(() => { if (inFlight.current?.token === token) window.history.replaceState(null, '', '#/verify'); }),
+          .then(async (response) => ({ ok: response.ok, body: (await response.json().catch(() => null)) as unknown }))
+          .finally(() => {
+            if (inFlight.current?.token === token) window.history.replaceState(null, '', '#/verify');
+          }),
       };
     const active = inFlight.current;
     if (!active) return;
-    void active.promise.then(({ ok, body }) => {
-      if (cancelled) return;
-      const result = readProofResult(body);
-      if (ok && result) {
-        setPurpose(result.purpose);
-        setStatus('success');
-        if (result.purpose === 'invite') clearPendingInvite();
-      } else {
-        setStatus('error');
-        const error = readAccountError(body);
-        setMessage(
-          error.code === 'EMAIL_PROOF_INVALID' ? t('verify.invalidLink') : error.message ?? t('verify.errorTitle'),
-        );
-      }
-    }).catch(() => {
-      if (!cancelled) {
-        setStatus('error');
-        setMessage(t('verify.errorTitle'));
-      }
-    });
-    return () => { cancelled = true; };
+    void active.promise
+      .then(({ ok, body }) => {
+        if (cancelled) return;
+        const result = readProofResult(body);
+        if (ok && result) {
+          setPurpose(result.purpose);
+          setStatus('success');
+          if (result.purpose === 'invite') clearPendingInvite();
+        } else {
+          setStatus('error');
+          const error = readAccountError(body);
+          setMessage(
+            error.code === 'EMAIL_PROOF_INVALID' ? t('verify.invalidLink') : (error.message ?? t('verify.errorTitle')),
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStatus('error');
+          setMessage(t('verify.errorTitle'));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [token, apiBase, t]);
   return { status, message, purpose };
 }
@@ -148,7 +154,9 @@ function SuccessState({
       <p className="pub-text-body" style={{ color: 'var(--pub-text-secondary)', margin: 0 }}>
         {t(`verify.${purpose}.text`)}
       </p>
-      <PubButton variant="primary" onClick={onContinue}>{t('verify.continue')}</PubButton>
+      <PubButton variant="primary" onClick={onContinue}>
+        {t('verify.continue')}
+      </PubButton>
     </>
   );
 }
@@ -199,7 +207,9 @@ export function EmailVerifyPage({ token, apiBase, onSuccess, onBack }: EmailVeri
         window.location.hash = '#/app';
         return;
       }
-    } catch { /* Require sign-in unless usable access has been proven. */ }
+    } catch {
+      /* Require sign-in unless usable access has been proven. */
+    }
     onSuccess();
   };
 
@@ -218,7 +228,14 @@ export function EmailVerifyPage({ token, apiBase, onSuccess, onBack }: EmailVeri
       <div style={VERIFY_WRAPPER_STYLE}>
         <PubCard variant="surface" style={VERIFY_CARD_STYLE}>
           {status === 'verifying' && <VerifyingState />}
-          {status === 'success' && <SuccessState purpose={purpose} onContinue={() => { void continueAfterProof(); }} />}
+          {status === 'success' && (
+            <SuccessState
+              purpose={purpose}
+              onContinue={() => {
+                void continueAfterProof();
+              }}
+            />
+          )}
           {status === 'error' && <ErrorState message={message} onBack={onBack} />}
         </PubCard>
       </div>

@@ -107,21 +107,19 @@ describe('personal API token scope enforcement', () => {
   });
 
   describe('write-scoped token on blocked paths', () => {
-    it.each(
-      [
-        ['GET', '/admin/health'],
-        ['POST', '/admin/maps/import'],
-        ['GET', '/debug/rooms'],
-        ['GET', '/api-tokens'],
-        ['POST', '/api-tokens'],
-        ['DELETE', '/api-tokens/tok1'],
-        ['POST', '/auth/change'],
-        ['DELETE', '/auth/sessions'],
-        ['PATCH', '/me'],
-        ['DELETE', '/users/me'],
-        ['GET', '/users/me/export'],
-      ] as Array<[string, string]>,
-    )('refuses %s on %s without touching lastUsedAt', async (method, path) => {
+    it.each([
+      ['GET', '/admin/health'],
+      ['POST', '/admin/maps/import'],
+      ['GET', '/debug/rooms'],
+      ['GET', '/api-tokens'],
+      ['POST', '/api-tokens'],
+      ['DELETE', '/api-tokens/tok1'],
+      ['POST', '/auth/change'],
+      ['DELETE', '/auth/sessions'],
+      ['PATCH', '/me'],
+      ['DELETE', '/users/me'],
+      ['GET', '/users/me/export'],
+    ] as Array<[string, string]>)('refuses %s on %s without touching lastUsedAt', async (method, path) => {
       const prisma = makePrisma('write');
 
       const result = await requireApiToken(makeReq({ method, path }), prisma);

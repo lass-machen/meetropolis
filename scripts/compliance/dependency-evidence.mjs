@@ -23,9 +23,7 @@ function bindingMatches(entry, record) {
 // the raw value is returned together with an issue.
 export function resolveDependencyLicense(record, entries, files) {
   const rawLicense = record.rawLicense ?? null;
-  const entry = entries.find(
-    (e) => e.lockfile === record.lockfile && e.lockPath === record.lockPath,
-  );
+  const entry = entries.find((e) => e.lockfile === record.lockfile && e.lockPath === record.lockPath);
   if (entry === undefined) {
     return { license: rawLicense, evidenceId: null, issues: [] };
   }

@@ -82,10 +82,7 @@ export async function issuePasswordResetToken(
  * Drop a single unused reset token by its raw value.
  * Used after a failed delivery so a token the admin never saw cannot stay live.
  */
-export async function revokePasswordResetToken(
-  prisma: PrismaClient,
-  token: string,
-): Promise<void> {
+export async function revokePasswordResetToken(prisma: PrismaClient, token: string): Promise<void> {
   await prisma.passwordReset.deleteMany({
     where: { token: hashResetToken(token), usedAt: null },
   });

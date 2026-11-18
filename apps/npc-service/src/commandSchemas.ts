@@ -83,12 +83,7 @@ const movePayload = z.object({
 const mediaPayload = z.object({
   mediaFileId: z.string().min(1).max(MAX_IDENTIFIER_LENGTH),
   loop: strictBoolean.optional(),
-  storagePath: z
-    .string()
-    .min(1)
-    .max(MAX_STORAGE_PATH_LENGTH)
-    .refine(isConfinedMediaPath)
-    .optional(),
+  storagePath: z.string().min(1).max(MAX_STORAGE_PATH_LENGTH).refine(isConfinedMediaPath).optional(),
   mimeType: z.string().min(1).max(MAX_MIME_TYPE_LENGTH).regex(MIME_TYPE_PATTERN).optional(),
 });
 

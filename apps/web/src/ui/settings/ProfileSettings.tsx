@@ -57,39 +57,41 @@ function useProfileLoader(apiBase: string, t: (k: string) => string) {
   const [error, setError] = React.useState<string | null>(null);
 
   const fetchProfile = React.useCallback(async () => {
-      try {
-        const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
-        if (res.ok) {
-          const data = (await res.json()) as MeResponse;
-          const userPayload: MeUserPayload | undefined = data.user ?? (data.id ? (data as MeUserPayload) : undefined);
-          if (userPayload) {
-            setProfile({
-              id: userPayload.id,
-              email: userPayload.email,
-              name: userPayload.name ?? null,
-              imageUrl: userPayload.imageUrl ?? null,
-              emailVerifiedAt: userPayload.emailVerifiedAt ?? null,
-              createdAt: userPayload.createdAt ?? '',
-            });
-          }
-          setName(data.user?.name || data.name || '');
-          const serverAvatarId = data.user?.avatarId || data.avatarId;
-          if (serverAvatarId) {
-            setAvatarId(serverAvatarId);
-            localStorage.setItem('avatarId', serverAvatarId);
-          }
-        } else {
-          setError(t('profile.loadFailed'));
+    try {
+      const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
+      if (res.ok) {
+        const data = (await res.json()) as MeResponse;
+        const userPayload: MeUserPayload | undefined = data.user ?? (data.id ? (data as MeUserPayload) : undefined);
+        if (userPayload) {
+          setProfile({
+            id: userPayload.id,
+            email: userPayload.email,
+            name: userPayload.name ?? null,
+            imageUrl: userPayload.imageUrl ?? null,
+            emailVerifiedAt: userPayload.emailVerifiedAt ?? null,
+            createdAt: userPayload.createdAt ?? '',
+          });
         }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : t('common.networkError'));
-      } finally {
-        setLoading(false);
+        setName(data.user?.name || data.name || '');
+        const serverAvatarId = data.user?.avatarId || data.avatarId;
+        if (serverAvatarId) {
+          setAvatarId(serverAvatarId);
+          localStorage.setItem('avatarId', serverAvatarId);
+        }
+      } else {
+        setError(t('profile.loadFailed'));
       }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('common.networkError'));
+    } finally {
+      setLoading(false);
+    }
   }, [apiBase, t]);
   React.useEffect(() => {
     void fetchProfile();
-    const refresh = () => { void fetchProfile(); };
+    const refresh = () => {
+      void fetchProfile();
+    };
     window.addEventListener('focus', refresh);
     return () => window.removeEventListener('focus', refresh);
   }, [fetchProfile]);

@@ -365,28 +365,28 @@ reports only the offending key name, never a value. `TOOLS_PASSWORD`
 stays optional: unset or empty keeps the tools route disabled and the
 start valid.
 
-| Variable             | Production rule                             |
-| -------------------- | ------------------------------------------- |
-| `LIVEKIT_API_KEY`    | Present, non-blank, not the template value  |
-| `LIVEKIT_API_SECRET` | Present, non-blank, not the template value  |
-| `DATABASE_URL`       | Valid Postgres URL, password neither blank  |
-|                      | nor the template value                      |
-| `POSTGRES_PASSWORD`  | When set, non-blank and not the template    |
-|                      | value                                       |
-| `TOOLS_PASSWORD`     | When set, non-blank and not the template    |
-|                      | value                                       |
+| Variable             | Production rule                            |
+| -------------------- | ------------------------------------------ |
+| `LIVEKIT_API_KEY`    | Present, non-blank, not the template value |
+| `LIVEKIT_API_SECRET` | Present, non-blank, not the template value |
+| `DATABASE_URL`       | Valid Postgres URL, password neither blank |
+|                      | nor the template value                     |
+| `POSTGRES_PASSWORD`  | When set, non-blank and not the template   |
+|                      | value                                      |
+| `TOOLS_PASSWORD`     | When set, non-blank and not the template   |
+|                      | value                                      |
 
 The seed program additionally enforces `SEED_ADMIN_EMAIL` and
 `SEED_ADMIN_PASSWORD` before it opens a database connection. It uses
 the same production mode detection as the start path and does not
 require LiveKit or tools credentials.
 
-| Variable              | Production rule                            |
-| --------------------- | ------------------------------------------ |
-| `SEED_ADMIN_EMAIL`    | Present and non-blank; an explicit         |
-|                       | historical default address is allowed      |
-| `SEED_ADMIN_PASSWORD` | Present, non-blank, and not the template   |
-|                       | value                                      |
+| Variable              | Production rule                          |
+| --------------------- | ---------------------------------------- |
+| `SEED_ADMIN_EMAIL`    | Present and non-blank; an explicit       |
+|                       | historical default address is allowed    |
+| `SEED_ADMIN_PASSWORD` | Present, non-blank, and not the template |
+|                       | value                                    |
 
 Development keeps the previous fallbacks. A violation exits with
 status 1 and prints only the offending key name.

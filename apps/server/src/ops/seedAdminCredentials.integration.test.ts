@@ -426,10 +426,7 @@ function expectRejected(result: SeedResult, key: string): void {
   expect(result.stdout).toBe('');
 }
 
-async function expectRejectedWithoutWrites(
-  overrides: Record<string, string | undefined>,
-  key: string,
-): Promise<void> {
+async function expectRejectedWithoutWrites(overrides: Record<string, string | undefined>, key: string): Promise<void> {
   const before = await snapshotUsers();
   const result = runSeed(overrides);
   expectRejected(result, key);
@@ -516,11 +513,9 @@ async function membershipRoles(userId: string): Promise<string[]> {
 }
 
 async function issueLiveSession(userId: string): Promise<string> {
-  const token = jwt.sign(
-    { sub: userId, tid: 'seed-admin-test-tenant', jti: crypto.randomUUID() },
-    getJwtSecret(),
-    { expiresIn: '30d' },
-  );
+  const token = jwt.sign({ sub: userId, tid: 'seed-admin-test-tenant', jti: crypto.randomUUID() }, getJwtSecret(), {
+    expiresIn: '30d',
+  });
   await prisma.session.create({
     data: {
       userId,
@@ -539,13 +534,19 @@ async function sessionIsValid(token: string): Promise<boolean> {
 
 async function issueApiToken(userId: string): Promise<string> {
   const raw = crypto.randomBytes(32).toString('hex');
-  const hash = crypto.createHash('sha256').update(getApiTokenPepper() + raw).digest('hex');
+  const hash = crypto
+    .createHash('sha256')
+    .update(getApiTokenPepper() + raw)
+    .digest('hex');
   await prisma.apiToken.create({ data: { userId, name: 'seed-admin-test', hash } });
   return raw;
 }
 
 async function apiTokenIsValid(raw: string): Promise<boolean> {
-  const hash = crypto.createHash('sha256').update(getApiTokenPepper() + raw).digest('hex');
+  const hash = crypto
+    .createHash('sha256')
+    .update(getApiTokenPepper() + raw)
+    .digest('hex');
   const found = await prisma.apiToken.findUnique({ where: { hash } });
   return found !== null;
 }

@@ -18,11 +18,13 @@ interface MapWhere {
 const fakePrisma = {
   session: {
     findMany: vi.fn((args: { where?: { id?: { in?: string[] }; userId?: string } }) =>
-      Promise.resolve([{
-        id: args.where?.id?.in?.[0] ?? 'db-session',
-        userId: args.where?.userId ?? 'user-1',
-        expiresAt: new Date(Date.now() + 60_000),
-      }]),
+      Promise.resolve([
+        {
+          id: args.where?.id?.in?.[0] ?? 'db-session',
+          userId: args.where?.userId ?? 'user-1',
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]),
     ),
   },
   tenant: { findUnique: vi.fn(() => Promise.resolve({ defaultMapName: 'office' })) },

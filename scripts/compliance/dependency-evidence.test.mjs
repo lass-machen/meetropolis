@@ -73,7 +73,10 @@ describe('resolveDependencyLicense', () => {
     const files = loadFiles(entries);
     const entry = entries[0];
     const res = resolveDependencyLicense(
-      { ...recordOf(entry), integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==' },
+      {
+        ...recordOf(entry),
+        integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+      },
       entries,
       files,
     );
@@ -87,21 +90,13 @@ describe('resolveDependencyLicense', () => {
     const files = loadFiles(entries);
     // Entry with a missing raw field must not accept a later GPL field.
     const nullRaw = entries.find((e) => e.rawLicense === null);
-    const gpl = resolveDependencyLicense(
-      { ...recordOf(nullRaw), rawLicense: 'GPL-3.0-only' },
-      entries,
-      files,
-    );
+    const gpl = resolveDependencyLicense({ ...recordOf(nullRaw), rawLicense: 'GPL-3.0-only' }, entries, files);
     assert.equal(gpl.license, 'GPL-3.0-only');
     assert.equal(gpl.evidenceId, null);
     assert.equal(gpl.issues[0].code, 'DEPENDENCY_EVIDENCE_MISMATCH');
     // Entry with an exact raw value must not accept null either.
     const exactRaw = entries.find((e) => e.rawLicense !== null);
-    const nulled = resolveDependencyLicense(
-      { ...recordOf(exactRaw), rawLicense: null },
-      entries,
-      files,
-    );
+    const nulled = resolveDependencyLicense({ ...recordOf(exactRaw), rawLicense: null }, entries, files);
     assert.equal(nulled.license, null);
     assert.equal(nulled.issues[0].code, 'DEPENDENCY_EVIDENCE_MISMATCH');
   });

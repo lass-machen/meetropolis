@@ -42,10 +42,7 @@ async function authorizeTenantAdminReset(
     return false;
   }
   const membership = await requireMembership(req, actorUserId, prisma);
-  if (
-    !membership ||
-    (membership.role !== 'owner' && membership.role !== 'admin')
-  ) {
+  if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
     res.status(403).json({ error: 'forbidden' });
     return false;
   }
@@ -133,10 +130,7 @@ async function handleAdminCreateResetToken(
   }
 
   const isSuperAdmin = await requireSuperAdmin(req, prisma);
-  if (
-    !isSuperAdmin &&
-    !(await authorizeTenantAdminReset(prisma, req, res, auth.userId, targetUserId))
-  ) {
+  if (!isSuperAdmin && !(await authorizeTenantAdminReset(prisma, req, res, auth.userId, targetUserId))) {
     return;
   }
 
@@ -149,7 +143,10 @@ async function handleAdminCreateResetToken(
 
   const mail = !isSuperAdmin ? await deliveringEmailModule() : null;
   if (!isSuperAdmin && !mail) {
-    res.status(503).json({ code: 'EMAIL_DELIVERY_UNAVAILABLE', error: 'Password reset delivery is unavailable. Please contact a platform administrator.' });
+    res.status(503).json({
+      code: 'EMAIL_DELIVERY_UNAVAILABLE',
+      error: 'Password reset delivery is unavailable. Please contact a platform administrator.',
+    });
     return;
   }
   const { token, expiresAt } = await issuePasswordResetToken(prisma, targetUserId);

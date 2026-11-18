@@ -14,7 +14,9 @@ export function createPasswordChangeRateLimiters(): RequestHandler[] {
   };
   const ip = createRateLimiter({ name: 'password_change_ip', windowMs: 15 * 60_000, limit: 20 });
   const user = createRateLimiter({
-    name: 'password_change', windowMs: 15 * 60_000, limit: 5,
+    name: 'password_change',
+    windowMs: 15 * 60_000,
+    limit: 5,
     keyGenerator: (req) => {
       const auth = requireAuth(req);
       return auth ? `user:${auth.userId}` : ipKeyGenerator(req.ip ?? '');
