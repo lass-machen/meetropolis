@@ -564,7 +564,9 @@ test('uses the saved spawn as entry position', async ({ stack, seed, loginAs, re
   const { owner, admin, mapId, tenantSlug } = requireSeedAccounts(seed);
   const ownerApi = new MeetropolisApi(request, stack.apiUrl, tenantSlug);
   await ownerApi.login(owner.email, passwordFor(owner));
-  const spawn = { x: 96, y: 64 };
+  // A walkable tile of the seed map (apps/web/public/maps/office.json); the
+  // former 96/64 lies on a collision tile.
+  const spawn = { x: 40, y: 40 };
 
   await withBaseline(request, stack.apiUrl, mapId, async () => {
     await putEditorState(request, stack.apiUrl, mapId, { spawn });
