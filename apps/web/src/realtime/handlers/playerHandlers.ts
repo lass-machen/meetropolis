@@ -79,6 +79,22 @@ function syncLocalMapFromServer(localPlayer: { mapId?: string; mapName?: string 
   }
 }
 
+// A client that joined without a position (no saved presence, no move yet)
+// takes over the position the server chose for it. Once localPosRef holds a
+// position, a later full_state (e.g. after a reconnect) leaves the hero alone.
+function placeHeroAtServerPosition(
+  localPlayer: { x?: number; y?: number } | undefined,
+  localPosRef: UseWorldRoomArgs['localPosRef'],
+  gameBridge: UseWorldRoomArgs['gameBridge'],
+): void {
+  if (!localPlayer || typeof localPlayer.x !== 'number' || typeof localPlayer.y !== 'number') return;
+  const current = localPosRef.current;
+  if (typeof current.x === 'number' && typeof current.y === 'number') return;
+  current.x = localPlayer.x;
+  current.y = localPlayer.y;
+  gameBridge.setHeroPosition({ x: localPlayer.x, y: localPlayer.y });
+}
+
 function applyLocalAvatar(
   avatarId: string,
   gameBridge: UseWorldRoomArgs['gameBridge'],
@@ -126,6 +142,7 @@ function handleFullState(
 
   const localPlayer = data.players.find((p: PlayerStateData) => p.id === localPosRef.current.id);
   syncLocalMapFromServer(localPlayer);
+  placeHeroAtServerPosition(localPlayer, localPosRef, gameBridge);
   if (!ctx.localAvatar.confirmed && localPlayer?.avatarId) {
     applyLocalAvatar(localPlayer.avatarId, gameBridge, ctx.localAvatar);
   }

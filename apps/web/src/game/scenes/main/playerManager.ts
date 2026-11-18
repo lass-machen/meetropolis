@@ -87,6 +87,15 @@ export class PlayerManager {
     return this.hero;
   }
 
+  // Places the hero at a server-chosen position without reporting it back as a
+  // local move.
+  setHeroPosition(pos: { x: number; y: number }) {
+    this.hero.body.reset(pos.x, pos.y);
+    this.lastReportedX = this.hero.x;
+    this.lastReportedY = this.hero.y;
+    this.updateDepth();
+  }
+
   setDesiredPosition(pos: { x: number; y: number } | null) {
     const prev = this.desiredPos;
     const same = (prev === null && pos === null) || (prev && pos && prev.x === pos.x && prev.y === pos.y);

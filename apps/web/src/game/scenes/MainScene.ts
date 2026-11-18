@@ -486,6 +486,9 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
   setDesiredPosition(pos: { x: number; y: number } | null) {
     this.playerManager.setDesiredPosition(pos);
   }
+  setHeroPosition(pos: { x: number; y: number }) {
+    this.playerManager.setHeroPosition(pos);
+  }
   setMovementLocked(locked: boolean) {
     this.playerManager.setMovementLocked(locked);
   }

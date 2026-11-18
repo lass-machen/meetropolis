@@ -35,6 +35,7 @@ interface InternalBridge extends GameBridge {
 export type SceneApi = {
   syncRemotePlayers: (players: Record<string, RemotePlayerData>) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
+  setHeroPosition?: (pos: { x: number; y: number }) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
   setZonesVisible?: (visible: boolean) => void;
   setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
@@ -114,6 +115,9 @@ let cachedDoNotDisturb = false;
 const movementLockReasons = new Set<MovementLockReason>();
 let remotePlayersCache: Record<string, RemotePlayerData> = {};
 let lastDesiredPosition: { x: number; y: number } | null = null;
+// Server position for the hero that arrived before the scene ran. Applied once,
+// so a later scene restart (changeMap) keeps its own start position.
+let pendingHeroPosition: { x: number; y: number } | null = null;
 
 /**
  * Adds or removes one lock reason and pushes the resulting state to the scene.
@@ -168,6 +172,16 @@ export const gameBridge: InternalBridge = {
         try {
           sceneApi.setMovementLocked(movementLockReasons.size > 0);
         } catch {}
+      }
+
+      if (pendingHeroPosition && typeof sceneApi.setHeroPosition === 'function') {
+        const pos = pendingHeroPosition;
+        pendingHeroPosition = null;
+        try {
+          sceneApi.setHeroPosition(pos);
+        } catch (e) {
+          logger.error('Failed to place the hero', e);
+        }
       }
 
       // Restore remote players
@@ -254,6 +268,14 @@ export const gameBridge: InternalBridge = {
       remotePlayersCache[id] = { ...remotePlayersCache[id], dnd };
       sceneApi?.syncRemotePlayers(remotePlayersCache);
     }
+  },
+  setHeroPosition: (pos) => {
+    if (sceneApi && typeof sceneApi.setHeroPosition === 'function') {
+      pendingHeroPosition = null;
+      sceneApi.setHeroPosition(pos);
+      return;
+    }
+    pendingHeroPosition = { x: pos.x, y: pos.y };
   },
   setDesiredPosition: (pos) => {
     const prev = lastDesiredPosition;
