@@ -361,6 +361,16 @@ async function runMediaFlowKind(
     await waitForParticipant(ownerPage, member.user);
     await waitForParticipant(memberPage, owner.user);
 
+    // Fresh invited users see the onboarding wizard (WorldShell, onboardingCompleted
+    // false) over the room on first sign-in; it intercepts clicks on the AV bar.
+    // Complete it with "Get started" (onboarding.cta), as smoke/av-state.spec.ts does.
+    for (const participant of [owner, member]) {
+      const welcome = participant.page.getByRole('heading', { name: `Welcome, ${participant.user.displayName}!` });
+      await expect(welcome).toBeVisible();
+      await participant.page.getByRole('button', { name: 'Get started', exact: true }).click();
+      await welcome.waitFor({ state: 'detached' });
+    }
+
     // Fail fast on instrumentation gaps, never an empty synthetic snapshot.
     await readMediaFlowSnapshot(ownerPage);
     await readMediaFlowSnapshot(memberPage);
