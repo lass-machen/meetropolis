@@ -392,7 +392,10 @@ async function runMediaFlowKind(
         await expect(micToggle, `${role}: microphone toggle is not unique`).toHaveCount(1);
         if ((await micOff.count()) > 0) await micOff.click();
         await expect(micOn, `${role}: microphone did not switch on`).toBeVisible({ timeout: 30_000 });
-        await expect(micOn, `${role}: microphone on toggle is not unique`).toHaveCount(1);
+        // While the publish is in flight the toggle carries the connecting
+        // hint instead of the mute title (AVBar micPending). Wait for the
+        // settled state; a failed publish falls back to the unmute title.
+        await expect(micOn, `${role}: microphone on toggle is not unique`).toHaveCount(1, { timeout: 30_000 });
       }
     } else {
       // Camera on via the real rendered button selected by its source
