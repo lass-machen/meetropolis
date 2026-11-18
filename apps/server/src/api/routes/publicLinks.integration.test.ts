@@ -22,7 +22,29 @@ vi.mock('../../logger.js', () => ({
   },
 }));
 
-vi.mock('../../emailLoader.js', () => ({ sendIfAvailable: vi.fn(() => Promise.resolve(false)) }));
+// Mail-dependent routes resolve their provider through getEmailModule; the default
+// is no provider, test A installs a delivering module to see the links it sends.
+const mailDelivery = vi.hoisted(() => ({ module: null as null | Record<string, unknown> }));
+vi.mock('../../emailLoader.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../emailLoader.js')>()),
+  sendIfAvailable: vi.fn(() => Promise.resolve(false)),
+  getEmailModule: vi.fn(() => Promise.resolve(mailDelivery.module)),
+}));
+
+function installDeliveringMailModule() {
+  const sendRaw = vi.fn((_params: { to: string; text: string }) => Promise.resolve(true));
+  const sent = () => Promise.resolve(true);
+  mailDelivery.module = {
+    version: 1,
+    providerName: 'oss-smtp',
+    sendInvite: sent,
+    sendGuestInvite: sent,
+    sendWelcome: sent,
+    sendVerify: sent,
+    sendRaw,
+  };
+  return sendRaw;
+}
 
 vi.mock('../../tenancyLoader.js', () => ({
   getTenancyModule: () => Promise.resolve({ isMultiTenantEnabled: () => true }),
@@ -183,6 +205,7 @@ beforeEach(() => {
     string | undefined
   >;
   capturedLogs.events.length = 0;
+  mailDelivery.module = null;
 });
 
 afterEach(async () => {
@@ -240,6 +263,7 @@ describe('public web links (real database)', () => {
       PUBLIC_BASE_URL_ALLOW_LOOPBACK: undefined,
     });
     const fixture = await createFixture();
+    const sendRaw = installDeliveringMailModule();
     const guestEmail = `guest-${crypto.randomUUID()}@example.test`;
     guestEmails.push(guestEmail);
 
@@ -278,8 +302,12 @@ describe('public web links (real database)', () => {
     expect.soft(invite.status).toBe(200);
     expect.soft(invite.body.inviteUrl).toBe(`https://public.example/#/?invite=${invite.body.code}`);
     expect.soft(listedInvite?.url).toBeUndefined();
+    // A tenant admin reset only mails the link, so the link is checked in the mails that left.
+    const resetMails = sendRaw.mock.calls.map(([params]) => params).filter(({ to }) => to === fixture.targetEmail);
     expect.soft(reset.status).toBe(200);
-    expect.soft(reset.body.resetUrl.startsWith('https://public.example/#/reset?token=')).toBe(true);
+    expect.soft(reset.body).toEqual({ ok: true, sent: true });
+    expect.soft(resetMails).toHaveLength(2);
+    expect.soft(resetMails.every(({ text }) => text.includes('https://public.example/#/reset?token='))).toBe(true);
     expect.soft(forgot.status).toBe(200);
     expect.soft(resetTokenCount).toBeGreaterThan(0);
   });
