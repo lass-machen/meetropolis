@@ -50,7 +50,66 @@ async function assertTargetUnchanged(target: Locator, box: Box): Promise<void> {
   expect(roundedBox(await target.boundingBox())).toEqual(roundedBox(box));
 }
 
-async function compareSurfaceWithReferenceStyle(page: Page, testInfo: TestInfo, target: Locator): Promise<void> {
+async function readSnapshotStyle(testInfo: TestInfo): Promise<string> {
+  return readFile(path.resolve(testInfo.config.rootDir, 'snapshot.css'), 'utf8');
+}
+
+/**
+ * Count the elements every rule of the injected stylesheet matches, and how
+ * many of them are still shown. The selectors come from the stylesheet itself,
+ * so the check follows snapshot.css without a second list.
+ */
+async function dynamicSurfaceCounts(style: ElementHandle<Node>): Promise<{ matched: number; shown: number }> {
+  return style.evaluate((element) => {
+    const sheet = (element as HTMLStyleElement).sheet;
+    let matched = 0;
+    let shown = 0;
+    for (const rule of Array.from(sheet?.cssRules ?? [])) {
+      if (!(rule instanceof CSSStyleRule)) continue;
+      for (const node of Array.from(document.querySelectorAll(rule.selectorText))) {
+        matched += 1;
+        if (getComputedStyle(node).visibility !== 'hidden') shown += 1;
+      }
+    }
+    return { matched, shown };
+  });
+}
+
+/**
+ * The snapshot stylesheet may only hide the dynamic surfaces. With it applied
+ * to the live page, every kept surface (HUD, editor window, dialog) must stay
+ * visible, and every element the stylesheet addresses must be hidden,
+ * starting with the world canvas.
+ */
+async function assertSnapshotStyleScope(
+  page: Page,
+  testInfo: TestInfo,
+  canvas: ElementHandle<SVGElement | HTMLElement>,
+  kept: Locator[],
+): Promise<void> {
+  const style = await page.addStyleTag({ content: await readSnapshotStyle(testInfo) });
+  try {
+    for (const surface of kept) {
+      await expect(surface).toBeVisible();
+    }
+    expect(await handleVisibility(canvas)).toBe('hidden');
+    const counts = await dynamicSurfaceCounts(style);
+    expect(counts.matched).toBeGreaterThan(0);
+    expect(counts.shown).toBe(0);
+  } finally {
+    await style.evaluate((element) => {
+      element.parentNode?.removeChild(element);
+    });
+    await style.dispose();
+  }
+}
+
+async function compareSurfaceWithReferenceStyle(
+  page: Page,
+  testInfo: TestInfo,
+  target: Locator,
+  kept: Locator[],
+): Promise<void> {
   await prepareSurface(page);
 
   const visibleCanvas = page.locator('canvas:visible').first();
@@ -70,7 +129,7 @@ async function compareSurfaceWithReferenceStyle(page: Page, testInfo: TestInfo, 
       caret: 'hide',
       fullPage: false,
       clip,
-      style: await readFile(path.resolve(testInfo.config.rootDir, 'snapshot.css'), 'utf8'),
+      style: await readSnapshotStyle(testInfo),
     });
 
     expect(await handleVisibility(canvas)).toBe('visible');
@@ -93,6 +152,9 @@ async function compareSurfaceWithReferenceStyle(page: Page, testInfo: TestInfo, 
       await testInfo.attach('masking-actual.png', { body: actual, contentType: 'image/png' });
     }
     expect(identical).toBe(true);
+
+    await assertSnapshotStyleScope(page, testInfo, canvas, [target, ...kept]);
+    expect(await handleVisibility(canvas)).toBe('visible');
   } finally {
     await canvas.dispose();
   }
@@ -104,7 +166,9 @@ for (const theme of THEMES) {
 
     test('world menu button stays visible under the mask', async ({ page, stack, visualActor }, testInfo) => {
       await openWorld(page, stack, visualActor, theme);
-      await compareSurfaceWithReferenceStyle(page, testInfo, page.locator(MENU_BUTTON));
+      await compareSurfaceWithReferenceStyle(page, testInfo, page.locator(MENU_BUTTON), [
+        page.getByRole('complementary').getByRole('button', { name: visualActor.user.displayName }),
+      ]);
     });
 
     test('map editor stays visible under the mask', async ({ page, stack, visualActor }, testInfo) => {
@@ -114,6 +178,7 @@ for (const theme of THEMES) {
         page,
         testInfo,
         page.locator(EDITOR_WINDOW).filter({ has: page.locator(COLOR_INPUT) }),
+        [page.locator(COLOR_INPUT)],
       );
     });
 
@@ -121,7 +186,9 @@ for (const theme of THEMES) {
       await openWorld(page, stack, visualActor, theme);
       await openTenantSettings(page);
       await selectTenantSettingsTab(page, MEMBERS_TAB_INDEX);
-      await compareSurfaceWithReferenceStyle(page, testInfo, page.locator('.sys-modal'));
+      await compareSurfaceWithReferenceStyle(page, testInfo, page.locator('.sys-modal'), [
+        page.locator('.sys-modal .sys-tabs__tab--active'),
+      ]);
     });
   });
 }
