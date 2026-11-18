@@ -64,7 +64,7 @@ body::after{
 }
 .conn-bar input:focus{border-color:var(--accent)}
 .conn-bar #apiUrl{width:200px}
-.conn-bar #authToken{width:160px}
+.conn-bar .conn-hint{font-size:11px;color:var(--fg-dim);white-space:nowrap}
 .conn-bar .test-btn{
   display:flex;align-items:center;gap:5px;
   padding:5px 12px;border:1px solid var(--border);
@@ -404,7 +404,7 @@ td select{min-width:80px}
   .sidebar-footer{display:none}
   .content{padding:16px}
   .conn-bar #apiUrl{width:140px}
-  .conn-bar #authToken{width:100px}
+  .conn-bar .conn-hint{display:none}
 }
 @media(max-width:600px){
   .app-header{padding:0 12px;gap:6px;flex-wrap:wrap;height:auto;padding:8px 12px}
@@ -570,7 +570,7 @@ td select{min-width:80px}
   <span class="tag">Meetropolis</span>
   <div class="conn-bar">
     <input type="text" id="apiUrl" value="" placeholder="API URL">
-    <input type="text" id="authToken" placeholder="Auth Token (optional)">
+    <span class="conn-hint" id="sessionHint">Anmeldung nötig: zuerst im selben Browser bei Meetropolis anmelden</span>
     <button class="test-btn" data-action="test-connection">
       <div class="conn-dot" id="connDot"></div>
       Test
@@ -1121,14 +1121,13 @@ const ORIGIN_BLOCKED = 'The API origin is not in the allowed configuration.';
 
 (function init() {
   const savedUrl = localStorage.getItem('sa_apiUrl');
-  const savedToken = localStorage.getItem('sa_authToken');
   document.getElementById('apiUrl').value = savedUrl || window.location.origin;
-  if (savedToken) document.getElementById('authToken').value = savedToken;
+  // Earlier versions kept a token here; platform routes only accept the session.
+  localStorage.removeItem('sa_authToken');
 })();
 
 function persistConnection() {
   localStorage.setItem('sa_apiUrl', document.getElementById('apiUrl').value);
-  localStorage.setItem('sa_authToken', document.getElementById('authToken').value);
 }
 
 function requestErrorMessage(e, prefix) {
@@ -1253,18 +1252,14 @@ function wrapTable(className, headLabels, buildBody) {
 
 async function apiFetch(path, opts = {}) {
   const base = document.getElementById('apiUrl').value.replace(/\/+$/, '');
-  const token = document.getElementById('authToken').value.trim();
   const headers = { ...(opts.headers || {}) };
-  if (token) {
-    headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-  }
   if (opts.body && typeof opts.body === 'string') {
     headers['Content-Type'] = 'application/json';
   }
   const res = await fetch(`${base}${path}`, {
     ...opts,
     headers,
-    ...(token ? {} : { credentials: 'include' }),
+    credentials: 'include',
   });
   return res;
 }

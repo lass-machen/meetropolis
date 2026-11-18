@@ -363,10 +363,7 @@ body::after{
         <label>API Base URL</label>
         <input type="text" id="apiUrl" value="" placeholder="API URL">
       </div>
-      <div class="field">
-        <label>Auth Token (optional)</label>
-        <input type="text" id="authToken" placeholder="Bearer token or leave empty for cookies">
-      </div>
+      <p class="hint-muted" id="sessionHint">Sign-in required: sign in to Meetropolis in this browser first. Uploads and deletions use that session.</p>
       <div class="btn-row">
         <button class="btn btn-accent btn-block" data-action="test-connection">Test Connection</button>
       </div>
@@ -556,11 +553,9 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Connection ──
 async function apiFetch(path, opts = {}) {
   const base = (document.getElementById('apiUrl').value || window.location.origin).replace(/\/+$/, '');
-  const token = document.getElementById('authToken').value.trim();
   const headers = { ...(opts.headers || {}) };
-  if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
   if (opts.body && typeof opts.body === 'string') headers['Content-Type'] = 'application/json';
-  const res = await fetch(`${base}${path}`, { ...opts, headers, ...(token ? {} : { credentials: 'include' }) });
+  const res = await fetch(`${base}${path}`, { ...opts, headers, credentials: 'include' });
   return res;
 }
 
