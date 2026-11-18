@@ -38,6 +38,8 @@ third-party contexts.
 The optional private submodules under `packages/brand`, `packages/desktop`,
 and `packages/tenancy-enterprise` are not part of this OSS distribution and
 carry their own commercial licenses; see those repositories for details.
+Source code and assets from the closed-source modules (brand, desktop,
+enterprise and mobile) are never checked into this repository.
 
 Third-party dependencies are listed and attributed in [`NOTICE`](NOTICE).
 
