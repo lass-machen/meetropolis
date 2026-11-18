@@ -1287,12 +1287,12 @@
       "copyright": "Pablo De Lucca (+ Tiamat UG: collisionBaseHeight)",
       "origin": {
         "kind": "upstream",
-        "source": "Public upstream manifest (pixel-agents) with a local collision addition",
-        "revision": null,
-        "evidence": "Key comparison: the only delta is the local addition collisionBaseHeight"
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Key comparison with webview-ui/public/assets/furniture/CACTUS/manifest.json at the pinned revision: the only delta is the local addition collisionBaseHeight"
       },
       "verification": "verified",
-      "note": "Machine-verified 1-key delta: the original revision reference (upstream short hash plus local addition) cannot be mapped to a single commit."
+      "note": "Upstream manifest plus one local key"
     },
     {
       "path": "apps/web/public/assets/furniture/CLOCK/CLOCK.png",
@@ -1632,12 +1632,12 @@
       "copyright": "Pablo De Lucca (+ Tiamat UG: collisionBaseHeight)",
       "origin": {
         "kind": "upstream",
-        "source": "Public upstream manifest (pixel-agents) with a local collision addition",
-        "revision": null,
-        "evidence": "Key comparison: the only delta is the local addition collisionBaseHeight"
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Key comparison with webview-ui/public/assets/furniture/LARGE_PLANT/manifest.json at the pinned revision: the only delta is the local addition collisionBaseHeight"
       },
       "verification": "verified",
-      "note": "Machine-verified 1-key delta: the original revision reference (upstream short hash plus local addition) cannot be mapped to a single commit."
+      "note": "Upstream manifest plus one local key"
     },
     {
       "path": "apps/web/public/assets/furniture/PC/PC_BACK.png",
@@ -1767,12 +1767,12 @@
       "copyright": "Pablo De Lucca (+ Tiamat UG: collisionBaseHeight)",
       "origin": {
         "kind": "upstream",
-        "source": "Public upstream manifest (pixel-agents) with a local collision addition",
-        "revision": null,
-        "evidence": "Key comparison: the only delta is the local addition collisionBaseHeight"
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Key comparison with webview-ui/public/assets/furniture/PLANT/manifest.json at the pinned revision: the only delta is the local addition collisionBaseHeight"
       },
       "verification": "verified",
-      "note": "Machine-verified 1-key delta: the original revision reference (upstream short hash plus local addition) cannot be mapped to a single commit."
+      "note": "Upstream manifest plus one local key"
     },
     {
       "path": "apps/web/public/assets/furniture/PLANT_2/PLANT_2.png",
@@ -1797,12 +1797,12 @@
       "copyright": "Pablo De Lucca (+ Tiamat UG: collisionBaseHeight)",
       "origin": {
         "kind": "upstream",
-        "source": "Public upstream manifest (pixel-agents) with a local collision addition",
-        "revision": null,
-        "evidence": "Key comparison: the only delta is the local addition collisionBaseHeight"
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Key comparison with webview-ui/public/assets/furniture/PLANT_2/manifest.json at the pinned revision: the only delta is the local addition collisionBaseHeight"
       },
       "verification": "verified",
-      "note": "Machine-verified 1-key delta: the original revision reference (upstream short hash plus local addition) cannot be mapped to a single commit."
+      "note": "Upstream manifest plus one local key"
     },
     {
       "path": "apps/web/public/assets/furniture/POT/POT.png",
