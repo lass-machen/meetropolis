@@ -97,7 +97,9 @@ function buildFixtureInner(root) {
   ]);
   const base = git(repo, ['rev-parse', 'HEAD']);
   fs.writeFileSync(path.join(repo, BLOB_NAME), Buffer.from([0x00, 0x01, 0x02, 0x00, 0xff]));
-  git(repo, ['add', BLOB_NAME]);
+  // Changing the reviewed template after its approvals must turn the gate red.
+  fs.appendFileSync(path.join(repo, '.env.example'), 'SEED_ADMIN_PASSWORD=fixture-only\n');
+  git(repo, ['add', BLOB_NAME, '.env.example']);
   git(repo, [
     'commit',
     '-q',
@@ -252,6 +254,8 @@ describe('license gate CLI', () => {
     assert.ok(!report.issues.some((issue) => issue.code === 'ENV_EXAMPLE_PENDING'));
     const envIssues = report.issues.filter((issue) => issue.check === 'envExamples');
     assert.ok(envIssues.some((issue) => issue.severity === 'error' && issue.path === '.env.example'));
+    assert.ok(envIssues.some((issue) => issue.code === 'ENV_EXAMPLE_REVIEW_STALE'));
+    assert.ok(envIssues.some((issue) => issue.code === 'ENV_EXAMPLE_CREDENTIAL_REVIEW_REQUIRED'));
     for (const issue of envIssues) {
       assert.ok(Number.isInteger(issue.line) && issue.line >= 1);
     }

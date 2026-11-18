@@ -5,6 +5,7 @@
 // file system to read the versioned empty register as a green fixture.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -165,10 +166,24 @@ describe('parseEnvExampleReviewData: valid registers', () => {
     ]);
   });
 
-  it('parses the versioned empty register file', () => {
+  it('parses the versioned register file bound to the current template', () => {
     const bytes = fs.readFileSync(path.join(REPO_ROOT, REGISTER_PATH));
     const data = parseEnvExampleReviewData({ bytes, objectFormat: 'sha1' });
-    assert.deepEqual(data, { schemaVersion: 1, objectFormat: 'sha1', approvals: [] });
+    assert.equal(data.schemaVersion, 1);
+    assert.equal(data.objectFormat, 'sha1');
+    // 40 project lead approvals, numbered without gaps in line order.
+    assert.equal(data.approvals.length, 40);
+    const template = fs.readFileSync(path.join(REPO_ROOT, '.env.example'));
+    const blobOid = createHash('sha1')
+      .update(Buffer.from(`blob ${template.length}\0`, 'utf8'))
+      .update(template)
+      .digest('hex');
+    data.approvals.forEach((entry, index) => {
+      assert.equal(entry.path, '.env.example');
+      assert.equal(entry.blobOid, blobOid);
+      assert.equal(entry.approvedBy, 'project-lead');
+      assert.equal(entry.decisionRef, `ENV-DECISION-${String(index + 1).padStart(3, '0')}`);
+    });
   });
 });
 
