@@ -172,7 +172,16 @@ test.describe('invitations end to end', () => {
           await expect(page.getByRole('heading', { name: 'Willkommen zurück' })).toBeVisible();
           await page.getByLabel('E-Mail-Adresse').fill(account.email);
           await page.getByLabel('Passwort').fill(account.password);
+          // Accepting sets #/app and then reloads the page; reading the session before
+          // that reload finishes would run in a destroyed execution context.
+          const accepted = page.waitForResponse(
+            (response) =>
+              response.request().method() === 'POST' && new URL(response.url()).pathname.endsWith('/invites/accept'),
+          );
+          const reloaded = page.waitForEvent('load');
           await page.getByRole('button', { name: 'Anmelden' }).click();
+          expect((await accepted).ok()).toBe(true);
+          await reloaded;
           await page.waitForURL(APP_URL);
           const me = await readBrowserMe(page, stack.apiUrl);
           expect(me.tenantSlug).toBe(tenant.slug);
