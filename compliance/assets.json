@@ -36,7 +36,7 @@
     },
     {
       "path": "apps/server/prisma/seed-data/default-avatars/atelier-v1.json",
-      "sha256": "b677bed9e6354027fe230c7daa6982e1c74f7e75fb3f309231a00fe0a3c19c30",
+      "sha256": "f243565ffeecf4eb0479a27b4badc86f3a6b479c01924844ca63eded810ee807",
       "type": ".json",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -156,7 +156,7 @@
     },
     {
       "path": "apps/web/public/assets/atelier/v1/SHA256SUMS",
-      "sha256": "863ce336dcc2c28d3e1cfdce3d38df9d0aeb3f6de8cd685fa3ab1a5100c3b658",
+      "sha256": "367660317654604b50530fb994a699c6bee899903daebf0372bf750c6e805aef",
       "type": "json",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -171,7 +171,7 @@
     },
     {
       "path": "apps/web/public/assets/atelier/v1/catalog.json",
-      "sha256": "41df7c1e3068b7dce32cfffca86dc4ff5e34973ec64f2c09a1b49881d73ae225",
+      "sha256": "22ec43f6a1a635765b8c0197b766388ef8ebdaf24660f436f6eaae32337a4e70",
       "type": ".json",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2676,7 +2676,7 @@
     },
     {
       "path": "packages/shared/sprite/catalog.json",
-      "sha256": "7131a9a4b097fc910f53e7a432dbc6be8c112d51d1329e60ebe2cc1807e82d2a",
+      "sha256": "ca7866a97fcbd76124bf8f9ea8a62ba7326e35c7d7b667bbd6cace89c687d3f7",
       "type": ".json",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2706,7 +2706,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_base_accessory.png",
-      "sha256": "d473dc5c03022b01dcfffb13e8f6532e4c3a70028e282cde07a356ae00007115",
+      "sha256": "8815151207b0dad62651c18db5e27b8c86d71eeeb7f2afedf737822b245fdfee",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2721,7 +2721,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_base_bald.png",
-      "sha256": "57941ba8e53a566b444e2c85eff95381e6aa51c072627c40bcf4a7cff5476a6b",
+      "sha256": "a560a5b812dab2941da945d5f3dd2cba5b5fc5c201ea7912f60306f5857d8482",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2736,7 +2736,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_base_hair.png",
-      "sha256": "73b70a37f2b19286cfe93e5be626286bed38ac05779027e50466ae850f8625cf",
+      "sha256": "341da6f30bb498ac95fae14128a6db115239315b22a03c07f06540bc847bdd90",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2751,7 +2751,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_base_hat_misc.png",
-      "sha256": "8e2157386b317916d4135cb424c8f7f6732407eebf083cfc4127e494b446b4ad",
+      "sha256": "53c477e7b7ecf2a6659976927cd4fded3403f1ef9c97a521d4e34b1290d7611e",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2766,7 +2766,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_beard_grey_prof.png",
-      "sha256": "f7d3daa12e227422c68a1c6e064e0d0350077effdf909e277460d4c6460ace6f",
+      "sha256": "24c1e3c6f030ea4c3a10242bc2ac7fb38e17bd0b222ca20e23707d9cebf012c8",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2781,7 +2781,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_beard_schnauzer.png",
-      "sha256": "9ad290a0fddb3eb45d14ff8f48520163aee9755b5162e51144082a8421e1b038",
+      "sha256": "61149595aefeeed27edb452f0ba9fb5d716a24a430f82aed4f78cbbc6f5aa87c",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2796,7 +2796,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_beard_vollbart.png",
-      "sha256": "8d316aeced9521a36c45be12a3854e3212e23eeff33c5fdf6d982449025cd65e",
+      "sha256": "6001040c78f6b91bedc50b156973442c15748bd3686e7f0851e8a11684e011c4",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2811,7 +2811,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_beard_ziegenbart.png",
-      "sha256": "b348f86927b694608959355e1b968d150108ebb13f45041f4d0cde91bdbf5ee0",
+      "sha256": "929671cd803f3c03f0021bca4a5773d04a18160c38a40e1e6f7e827260840e6d",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2826,7 +2826,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_combo_all.png",
-      "sha256": "a9a2779284247cd27fa2e36087b735beec6df134228ec0ca710f8e645cb91292",
+      "sha256": "3a544087977ade60340e1f96cc25b54808d0b10227b5192d400a63e4d7ce14ab",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2841,7 +2841,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_dress_hat.png",
-      "sha256": "6c4e14a1c8a616dbc9ab01dcaddd2e7765c67480c7970a628a3fd7109fadcece",
+      "sha256": "41f584051b4db7fcfaea49f61b006fcc0bbee7f5381a05c4d7dafc7eb0ebe4a4",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2856,7 +2856,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_dress_navy.png",
-      "sha256": "70d0127b0e6dcc67214069e7b7ce7922a91a90e547fa9fb072f0ee89bc841699",
+      "sha256": "d6fc0f1b11783eacf794140ba1d8dfce8a6f3ca51e42724b0153b890cfd145c5",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2871,7 +2871,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_dress_red.png",
-      "sha256": "88d57fb1a00db29ff3b5ba0b5a4d9b88e0c35015d1b54ea36a2257e2a6ef9b96",
+      "sha256": "0687afe906ba4dbd7e859818708a75a49858d039e83cc938a60115130da194dc",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2886,7 +2886,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hair_bald.png",
-      "sha256": "0d40e0053d09aabf84633c9e1da6c2bf9307000425c83dda465de984ff264bbe",
+      "sha256": "3cd95f44700227389511cd45499a3c001b5134ac01c2ac7bf0d45dee9c785315",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2901,7 +2901,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hair_bob.png",
-      "sha256": "7df46a811b705e1f197e545b6cf6e73a5999841d4f264ca3f80027de730aef3e",
+      "sha256": "9cc8884ff3d7e7faa0ad59052afc93518258272b8f1ebc35c0acf7adbfac8640",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2916,7 +2916,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hair_braids.png",
-      "sha256": "e3bb1d1b679972dc2b56db2f15ab74848521d5a060bfc21d44e215d411e974ad",
+      "sha256": "653f9a291c2159f91bd8169c00829eefbf54fae9c0e1ad5485e7415b51df86c8",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2931,7 +2931,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hair_bun.png",
-      "sha256": "7930c05461ce96f0c769bfa14aa675705acdaf16c775337b411abfa9bd0694c9",
+      "sha256": "7b02771ad80eaccd99ef8faac119dfa5a131821c1955f7ee2946204395ef080c",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2946,7 +2946,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hair_buzz.png",
-      "sha256": "7686f56f26d01fae41f2bf3348462a3bd435c8fb7d69210a39b767513157cb23",
+      "sha256": "7d06a1d6fbc11c00694d45e84a1411fde2736b354a1999707421f5aa59bb9a9a",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2961,7 +2961,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hair_curly.png",
-      "sha256": "40e346a43bd6f29e47c041dbc223918cf2ffc9df61659601e426d2f60d1ec06d",
+      "sha256": "b84476da718a4b81d3a6c53bbf5d1ce4b096ca927e68f411e4f35d72cbf85e20",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2976,7 +2976,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hair_long.png",
-      "sha256": "1f07c1632f780fb3b9fe164450eb5dce206bffe53c7897963c9af3f6a724a83c",
+      "sha256": "4aef72c4e2e3f3b0fb804f6d76a3d8d56200db1aa0edcc03b4909f3e3b09e771",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -2991,7 +2991,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hair_messy.png",
-      "sha256": "ae14f983cbb6a8a7cb71114ea71f1b26f071d0e124be5273752748991b0ddb42",
+      "sha256": "7603b8209a0779c58f3eef03e3952bcd5c8fac7e16bfe41e89ed7000943e4554",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3006,7 +3006,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hair_ponytail.png",
-      "sha256": "89ab57217889e6c3e2c7aa16e2b0d18656c7a1ff9eb3717f1225f65255835652",
+      "sha256": "7b5d6a465df9e6625a67d1c598f2c6e5c4e722e4b51c587d068b404fa1b9c706",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3021,7 +3021,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hair_side_part.png",
-      "sha256": "723513f47fa189f350d5efb04aa6e7c0408d6b92c9971cb227eb6eb990ef8ada",
+      "sha256": "98bff79b8f7868086a39f2f270ec05d874af69c958aa49b8d6e6be0c4d18f1ee",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3036,7 +3036,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hair_spiky.png",
-      "sha256": "b29ab9c195dce62782e46b59648e854b080523f7d72f1cbc785ded0539412802",
+      "sha256": "d04009352f6964d31288d29d2bb07e4605c7d3772014c2012473c3894b8c394f",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3051,7 +3051,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hat_bierhelm.png",
-      "sha256": "7bedaf25be430a1fd217be5f69cc97a225b96383b811dac9cede54c07c3a22d6",
+      "sha256": "5804f2bace7276027c21e7f574c51188f7ad837852bee25c3380b34e6ea2e181",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3066,7 +3066,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hat_cap.png",
-      "sha256": "fcae63d0e267d929d67a1fed44e976fd08186fe81b4ce27bb114154ba61ae77d",
+      "sha256": "b9ea29f0c7baab380b03b5c9d572a4f74d4f71189a5cd9915deb79774e1f220c",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3081,7 +3081,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hat_cowboy.png",
-      "sha256": "42395e00e7d551077b891d213374e6c941a0adfa12f6713b5f5ccd8e3a2becb3",
+      "sha256": "d1b86867cba433a63d6f3d4c3cb66171c47a48a8cc1652970a445c1315184b2a",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3096,7 +3096,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hat_diadem.png",
-      "sha256": "8850b04d397671d40aa2f3ec5ef072a3c185bddbf2defea298673966f69a9ac1",
+      "sha256": "35fc098d7a6f0f78f74848b484248acd1d1a3ab069fa1b0292d7cea501cce547",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3111,7 +3111,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hat_krone.png",
-      "sha256": "472cab39cd1641b7e07c09fee184054ae04837643f79c7868606abca97f2b197",
+      "sha256": "0eef540265756636e237687369ee1f36f937b8cb4e15a0981ec7fc2017ce38ee",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3126,7 +3126,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hat_zylinder.png",
-      "sha256": "515fe93523c911e52bb5ae9668080b909a39afbddb7704ad01437f185e191bfa",
+      "sha256": "6ff1c3f55cadd8d91f6360444be98a226b1e354be45009440061f4833758359e",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3141,7 +3141,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hood_combo.png",
-      "sha256": "c5bae210aa6d2ed28b46463dc69ecd6a0da50f3f0693ef77eca6dc161a095777",
+      "sha256": "ae521650e0d2835f675ff79b2582011e678b848e5c4b942f9eccadfe16297ad7",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3156,7 +3156,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hood_dress.png",
-      "sha256": "ea699d864862cace7d6e4e3e1ae02fd041bf7aba6ea8f45517c621bc64911f9b",
+      "sha256": "bfa4bb99f0af6028c66bdd191479cc8b1e5689a66fb91ce0d380900b18a630f6",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3171,7 +3171,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_hood_trousers.png",
-      "sha256": "419d185f4b7924144d8a4e2ded7ca0b1594edcdeb84370cd3c2d38148c5205fd",
+      "sha256": "120b33dc416be221803b7631e8627e9a22fe18c9eb601fb5096193b75b170ceb",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3186,7 +3186,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_misc_kette.png",
-      "sha256": "1629aba46492c5b3a232d0dfedf5b2caba2b287756aee33799e9f9eac66786a2",
+      "sha256": "a006512e408722f9f4958146a0c00fd5c85e5fbb267000aeac94433ecaf75e67",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3201,7 +3201,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_misc_schnuller.png",
-      "sha256": "d1b03655ab870cbf9ff51c4be0e1e764108031c3d8a29cc6e1ba859ea3e674b4",
+      "sha256": "988dbdb586d78388479da8bf0d6cd3d7137d87c67e9346bf527c52e05b78b76b",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
@@ -3216,7 +3216,7 @@
     },
     {
       "path": "packages/shared/src/sprite/__fixtures__/fx_misc_zigarette.png",
-      "sha256": "b394095c04a03d2dfae442fba71aea6efe961a6b32ba51d6295e2738155f9bd3",
+      "sha256": "4089f3d9de21a7f6130aeda37549d174e58ce173ba4a5a8d7cad560407e0be3a",
       "type": ".png",
       "license": "MIT",
       "copyright": "Tiamat UG",
