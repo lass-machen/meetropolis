@@ -76,7 +76,7 @@ async function compareSurfaceWithReferenceStyle(page: Page, testInfo: TestInfo, 
     expect(await handleVisibility(canvas)).toBe('visible');
     await assertTargetUnchanged(target, box);
 
-    const { maxDiffPixelRatio: _tolerance, stylePath, ...options } = await surfaceScreenshotOptions(page);
+    const { maxDiffPixelRatio: _tolerance, stylePath, ...options } = surfaceScreenshotOptions();
     const actual = await page.screenshot({
       ...options,
       fullPage: false,

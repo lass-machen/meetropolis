@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { expect } from '@playwright/test';
 import type { Locator, Page, TestInfo } from '@playwright/test';
 
@@ -22,18 +24,14 @@ export const AXE_GATE: AxeGate = 'report';
 const MAX_DIFF_PIXEL_RATIO = 0.01;
 
 /**
- * Surfaces that draw themselves differently on every frame. The roster line
- * with the last-seen time of a member who is not in the room is the only place
- * in the world that carries this color.
+ * Surfaces that draw themselves differently on every frame (world canvas,
+ * video tiles, times, avatars and the roster line with the last-seen time of a
+ * member who is not in the room) are hidden by this stylesheet, relative to the
+ * suite root. Playwright paints a mask box above every other layer, so masking
+ * the canvas also covered the HUD and the dialogs that sit on top of the world;
+ * a hidden surface leaves everything above it visible.
  */
-const DYNAMIC_SELECTORS = [
-  'canvas',
-  'video',
-  'time',
-  'img[src*="avatar"]',
-  'img[class*="avatar"]',
-  '[role="complementary"] div[style*="rgba(229, 231, 235, 0.35)"]',
-] as const;
+const SNAPSHOT_STYLE = 'snapshot.css';
 
 interface AxeBrowserApi {
   run: (context?: Document) => Promise<AxeResults>;
@@ -141,15 +139,6 @@ async function waitForImages(page: Page): Promise<void> {
   }
 }
 
-async function dynamicMask(page: Page): Promise<Locator[]> {
-  const masks: Locator[] = [];
-  for (const selector of DYNAMIC_SELECTORS) {
-    const locator = page.locator(selector);
-    if ((await locator.count()) > 0) masks.push(locator);
-  }
-  return masks;
-}
-
 export interface SurfaceScreenshotOptions {
   animations: 'disabled';
   caret: 'hide';
@@ -159,19 +148,20 @@ export interface SurfaceScreenshotOptions {
   stylePath?: string;
 }
 
-export async function surfaceScreenshotOptions(page: Page): Promise<SurfaceScreenshotOptions> {
+export function surfaceScreenshotOptions(): SurfaceScreenshotOptions {
   return {
     animations: 'disabled',
     caret: 'hide',
     fullPage: true,
     maxDiffPixelRatio: MAX_DIFF_PIXEL_RATIO,
-    mask: await dynamicMask(page),
+    mask: [],
+    stylePath: path.resolve(test.info().config.rootDir, SNAPSHOT_STYLE),
   };
 }
 
 export async function captureSurface(page: Page, name: string): Promise<void> {
   await prepareSurface(page);
-  await expect(page).toHaveScreenshot(`${name}.png`, await surfaceScreenshotOptions(page));
+  await expect(page).toHaveScreenshot(`${name}.png`, surfaceScreenshotOptions());
 }
 
 /**
