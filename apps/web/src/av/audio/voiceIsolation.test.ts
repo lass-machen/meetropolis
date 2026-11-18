@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import { wrapTrackWithVoiceIsolation } from './voiceIsolation';
+import {
+  VOICE_ISOLATION_INIT_TIMEOUT_MS,
+  VOICE_ISOLATION_TIMEOUT,
+  wrapTrackWithVoiceIsolation,
+} from './voiceIsolation';
 
 describe('voiceIsolation (worklet chain)', () => {
   const realWindowAudioWorkletNode = (global as any).window?.AudioWorkletNode;
@@ -11,6 +15,7 @@ describe('voiceIsolation (worklet chain)', () => {
   // assert on the single AudioContext instance created per
   // wrapTrackWithVoiceIsolation() call.
   let createdContexts: { close: ReturnType<typeof vi.fn> }[] = [];
+  let fakeWorklet: { addModule: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     createdContexts = [];
@@ -26,7 +31,7 @@ describe('voiceIsolation (worklet chain)', () => {
       this.connect = vi.fn();
     } as any;
 
-    const fakeWorklet = { addModule: vi.fn(async () => {}) } as any;
+    fakeWorklet = { addModule: vi.fn(async () => {}) };
     const fakeDestinationTrack: any = { kind: 'audio', contentHint: '' };
     const fakeDestination = {
       stream: {
@@ -83,6 +88,7 @@ describe('voiceIsolation (worklet chain)', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     (global as any).window.AudioWorkletNode = realWindowAudioWorkletNode;
     (global as any).window.AudioContext = realWindowAudioContext;
     (global as any).window.webkitAudioContext = realWindowWebkitAudioContext;
@@ -152,5 +158,49 @@ describe('voiceIsolation (worklet chain)', () => {
     // the (already-closed) context a second time.
     stopSource();
     expect(createdContexts[0].close).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects with the timeout marker when addModule does not settle within the init timeout', async () => {
+    vi.useFakeTimers();
+    fakeWorklet.addModule.mockReturnValueOnce(new Promise<void>(() => undefined));
+    const fakeInputTrack: any = {
+      kind: 'audio',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      stop: vi.fn(),
+    };
+    const pending = wrapTrackWithVoiceIsolation(fakeInputTrack);
+    const outcome = pending.then(
+      () => 'resolved',
+      (error: Error) => error.message,
+    );
+
+    await vi.advanceTimersByTimeAsync(VOICE_ISOLATION_INIT_TIMEOUT_MS);
+
+    expect(await outcome).toBe(VOICE_ISOLATION_TIMEOUT);
+    // The half-built graph is released, but the raw capture stays alive so
+    // the caller can fall back to it without a second getUserMedia.
+    expect(createdContexts[0].close).toHaveBeenCalledTimes(1);
+    expect(fakeInputTrack.stop).not.toHaveBeenCalled();
+    expect(fakeInputTrack.removeEventListener).toHaveBeenCalledWith('ended', expect.any(Function));
+  });
+
+  it('uses a 3 s init timeout by default', () => {
+    expect(VOICE_ISOLATION_INIT_TIMEOUT_MS).toBe(3_000);
+  });
+
+  it('releases the AudioContext when addModule rejects', async () => {
+    fakeWorklet.addModule.mockRejectedValueOnce(new Error('load-failed'));
+    const fakeInputTrack: any = {
+      kind: 'audio',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      stop: vi.fn(),
+    };
+
+    await expect(wrapTrackWithVoiceIsolation(fakeInputTrack)).rejects.toThrow('load-failed');
+
+    expect(createdContexts[0].close).toHaveBeenCalledTimes(1);
+    expect(fakeInputTrack.stop).not.toHaveBeenCalled();
   });
 });

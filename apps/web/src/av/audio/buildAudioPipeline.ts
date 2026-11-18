@@ -1,6 +1,7 @@
 import type { LocalAudioTrack } from 'livekit-client';
 import type { AvSettings } from '../../state/avSettings';
-import { wrapTrackWithVoiceIsolation } from './voiceIsolation';
+import { AVLogger } from '../AVLogger';
+import { VOICE_ISOLATION_TIMEOUT, wrapTrackWithVoiceIsolation } from './voiceIsolation';
 import type { TrackLike } from '../../types/livekit';
 
 type BuildParams = {
@@ -114,7 +115,15 @@ async function applyVoiceIsolationFallback(
     // explicitly on hard-close mute/unpublish.
     first.__avStopSource = stopSource;
     return first;
-  } catch {
+  } catch (error) {
+    if ((error as Error)?.message === VOICE_ISOLATION_TIMEOUT) {
+      // The worklet did not come up in time. Publish the raw capture (no
+      // voice isolation) instead of stacking another getUserMedia on the
+      // publish budget.
+      AVLogger.warn('track.mic.voice_isolation_fallback', { reason: 'timeout' });
+      return first;
+    }
+    AVLogger.warn('track.mic.voice_isolation_fallback', { reason: 'error' });
     try {
       first?.stop?.();
     } catch {}

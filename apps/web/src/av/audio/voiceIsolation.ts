@@ -1,6 +1,16 @@
 // Lightweight wrapper to build a WebAudio graph and return a processed MediaStreamTrack
 // The actual RNNoise processing is encapsulated in an AudioWorklet processor file.
 
+/**
+ * Upper bound for loading the worklet module. A local ~4 KB module loads in
+ * well under 100 ms; 3 s leaves ample margin while keeping most of the 10 s
+ * microphone publish budget for getUserMedia and the publish itself.
+ */
+export const VOICE_ISOLATION_INIT_TIMEOUT_MS = 3_000;
+
+/** Error message used when the worklet init exceeds its time bound. */
+export const VOICE_ISOLATION_TIMEOUT = 'voice_isolation_timeout';
+
 export interface VoiceIsolationResult {
   processed: MediaStreamTrack;
   /**
@@ -24,7 +34,7 @@ export interface VoiceIsolationResult {
 function createTeardown(
   inputTrack: MediaStreamTrack,
   audioContext: AudioContext,
-): { onInputEnded: () => void; stopSource: () => void } {
+): { onInputEnded: () => void; stopSource: () => void; release: () => void } {
   let contextClosed = false;
   const closeContext = () => {
     if (contextClosed) return;
@@ -50,7 +60,15 @@ function createTeardown(
     } catch {}
     closeContext();
   };
-  return { onInputEnded, stopSource };
+  // Releases the graph but leaves the input track running, so a caller can
+  // still fall back to the raw capture.
+  const release = () => {
+    try {
+      inputTrack.removeEventListener('ended', onInputEnded);
+    } catch {}
+    closeContext();
+  };
+  return { onInputEnded, stopSource, release };
 }
 
 /**
@@ -105,13 +123,17 @@ function applySpeechContentHint(track: MediaStreamTrack): void {
   } catch {}
 }
 
-export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack): Promise<VoiceIsolationResult> {
+export async function wrapTrackWithVoiceIsolation(
+  inputTrack: MediaStreamTrack,
+  options: { initTimeoutMs?: number } = {},
+): Promise<VoiceIsolationResult> {
+  const initTimeoutMs = options.initTimeoutMs ?? VOICE_ISOLATION_INIT_TIMEOUT_MS;
   if (typeof window.AudioWorkletNode === 'undefined') {
     throw new Error('AudioWorklet not supported');
   }
 
   const audioContext = new (window.AudioContext || window.webkitAudioContext!)();
-  const { onInputEnded, stopSource } = createTeardown(inputTrack, audioContext);
+  const { onInputEnded, stopSource, release } = createTeardown(inputTrack, audioContext);
   try {
     inputTrack.addEventListener('ended', onInputEnded);
   } catch {}
@@ -121,7 +143,20 @@ export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack):
 
   // Load worklet module (bundled locally)
   const url = new URL('./worklets/rnnoise-processor.js', import.meta.url).toString();
-  await audioContext.audioWorklet.addModule(url);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      audioContext.audioWorklet.addModule(url),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(VOICE_ISOLATION_TIMEOUT)), initTimeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    release();
+    throw error;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 
   const destination = buildDenoiseGraph(audioContext, source);
   const processed = destination.stream.getAudioTracks()[0];

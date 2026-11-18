@@ -13,7 +13,12 @@ vi.mock('livekit-client', () => {
   return { createLocalAudioTrack };
 });
 
+vi.mock('../AVLogger', () => ({
+  AVLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 vi.mock('./voiceIsolation', () => ({
+  VOICE_ISOLATION_TIMEOUT: 'voice_isolation_timeout',
   wrapTrackWithVoiceIsolation: vi.fn((_t: MediaStreamTrack) => {
     // default success; individual tests can override via mock
     return { processed: {} as any as MediaStreamTrack, stopSource: vi.fn() };
@@ -21,6 +26,7 @@ vi.mock('./voiceIsolation', () => ({
 }));
 
 import { createLocalAudioTrack } from 'livekit-client';
+import { AVLogger } from '../AVLogger';
 import { wrapTrackWithVoiceIsolation } from './voiceIsolation';
 import { buildAudioPipeline } from './buildAudioPipeline';
 
@@ -127,5 +133,27 @@ describe('buildAudioPipeline', () => {
     expect((createLocalAudioTrack as any).mock.calls.length).toBe(2);
     expect((createLocalAudioTrack as any).mock.calls[1][0]).toMatchObject({ noiseSuppression: true });
     expect(track.replaceTrack).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the raw microphone without filtering when voice isolation times out', async () => {
+    (wrapTrackWithVoiceIsolation as any).mockRejectedValueOnce(new Error('voice_isolation_timeout'));
+
+    const settings: any = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
+    const track: any = await buildAudioPipeline({ deviceId: 'default', settings });
+
+    // No second getUserMedia: the already captured raw track (NS off) is used.
+    expect((createLocalAudioTrack as any).mock.calls.length).toBe(1);
+    expect((createLocalAudioTrack as any).mock.calls[0][0]).toMatchObject({ noiseSuppression: false });
+    expect(track.stop).not.toHaveBeenCalled();
+    expect(AVLogger.warn).toHaveBeenCalledWith('track.mic.voice_isolation_fallback', { reason: 'timeout' });
+  });
+
+  it('logs the error fallback when voice isolation fails to load', async () => {
+    (wrapTrackWithVoiceIsolation as any).mockRejectedValueOnce(new Error('load-failed'));
+
+    const settings: any = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
+    await buildAudioPipeline({ deviceId: 'default', settings });
+
+    expect(AVLogger.warn).toHaveBeenCalledWith('track.mic.voice_isolation_fallback', { reason: 'error' });
   });
 });
