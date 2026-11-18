@@ -39,7 +39,8 @@ import type { APIRequestContext, Page } from '@playwright/test';
 
 import { expect, test } from '../fixtures';
 import type { SeedData, TestUser } from '../support/api';
-import { getSeedTenant } from '../fixtures/helpers';
+import { MeetropolisApi } from '../support/api';
+import { getSeedTenant, passwordFor } from '../fixtures/helpers';
 
 const SHOULD_RUN = process.env.E2E_RUN === 'true';
 
@@ -206,6 +207,9 @@ test('keeps the main camera usable across editor and map lifecycle', async ({ st
   test.setTimeout(180_000);
   requireIsolatedStack(stack);
   const { owner, mapId } = requireOwnerAndMap(seed);
+  // The editor-state routes need a session; the bare request fixture has none.
+  const ownerApi = new MeetropolisApi(request, stack.apiUrl, owner.tenantSlug);
+  await ownerApi.login(owner.email, passwordFor(owner));
 
   await withBaseline(request, stack.apiUrl, mapId, async () => {
     const { page } = await loginAs(owner);
