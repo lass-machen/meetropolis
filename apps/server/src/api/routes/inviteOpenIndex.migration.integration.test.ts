@@ -3,13 +3,14 @@ import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { Client } from 'pg';
 import { afterAll, expect, it } from 'vitest';
+import { DISPOSABLE_TEST_DATABASE_HINT, isDisposableTestDatabase } from '../../../test/fixtures/testDatabaseGuard.js';
 
 // Apply the real migration history before the open-invite index migration in
 // a private schema, seed duplicate open invites, then apply that migration.
 const rawUrl = process.env.DATABASE_URL;
 if (!rawUrl) throw new Error('The assigned test database is missing.');
 const url = new URL(rawUrl);
-if (url.hostname !== '127.0.0.1' || url.port !== '35440') throw new Error('Migration tests require 127.0.0.1:35440.');
+if (!isDisposableTestDatabase(url)) throw new Error(`Migration tests require ${DISPOSABLE_TEST_DATABASE_HINT}.`);
 const schema = `invite_open_index_migration_${crypto.randomBytes(10).toString('hex')}`;
 const client = new Client({ connectionString: rawUrl });
 let connected = false;

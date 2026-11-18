@@ -10,6 +10,7 @@ import { createTenantAccessMiddleware } from '../../src/api/middleware/tenantAcc
 import { createSessionAuthMiddleware, hashSessionToken } from '../../src/api/utils/sessionAuth.js';
 import { invalidateSessionsForUser } from '../../src/api/utils/sessionCache.js';
 import { getApiTokenPepper, getJwtSecret } from '../../src/api/utils/authHelpers.js';
+import { DISPOSABLE_TEST_DATABASE_HINT, isDisposableTestDatabase } from './testDatabaseGuard.js';
 
 export interface TestCaller {
   id: string;
@@ -23,15 +24,8 @@ export function createHttpFixture() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('This test requires the assigned isolated DATABASE_URL');
   const parsed = new URL(databaseUrl);
-  // Accept only a loopback database that is known to be disposable: the CI service on 35440,
-  // or the database the test stack assigned to its slot (MT_PORT_DB, slot ports 42000-42399).
-  const assignedPort = process.env.MT_PORT_DB ?? '';
-  const port = Number(parsed.port);
-  const isCiDatabase = parsed.port === '35440';
-  const isSlotDatabase =
-    assignedPort !== '' && parsed.port === assignedPort && Number.isInteger(port) && port >= 42000 && port <= 42399;
-  if (parsed.hostname !== '127.0.0.1' || !(isCiDatabase || isSlotDatabase)) {
-    throw new Error('This test may only use the local test database on port 35440 or its test stack slot (MT_PORT_DB)');
+  if (!isDisposableTestDatabase(parsed)) {
+    throw new Error(`This test may only use ${DISPOSABLE_TEST_DATABASE_HINT}`);
   }
   const prisma = createPrismaClient();
   const tenantIds: string[] = [];

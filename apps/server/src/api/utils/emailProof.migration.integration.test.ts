@@ -14,12 +14,13 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import { afterAll, expect, it } from 'vitest';
 import { hasTenantAccess } from './tenantMembership.js';
+import { DISPOSABLE_TEST_DATABASE_HINT, isDisposableTestDatabase } from '../../../test/fixtures/testDatabaseGuard.js';
 
 // Apply the complete real migration history in a private schema.
 const rawUrl = process.env.DATABASE_URL;
 if (!rawUrl) throw new Error('The assigned test database is missing.');
 const url = new URL(rawUrl);
-if (url.hostname !== '127.0.0.1' || url.port !== '35440') throw new Error('Migration tests require 127.0.0.1:35440.');
+if (!isDisposableTestDatabase(url)) throw new Error(`Migration tests require ${DISPOSABLE_TEST_DATABASE_HINT}.`);
 const schema = `email_proof_migration_fixture_${crypto.randomBytes(10).toString('hex')}`;
 const client = new Client({ connectionString: rawUrl });
 let prisma: PrismaClient | undefined;

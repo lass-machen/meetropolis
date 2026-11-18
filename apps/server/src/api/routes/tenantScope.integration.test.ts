@@ -13,13 +13,14 @@ import { createSessionAuthMiddleware, hashSessionToken } from '../utils/sessionA
 import { handleAuthPosition } from './auth.profile.js';
 import { registerNpcRoutes } from './npcs.js';
 import { registerPresenceRoutes } from './presence.js';
+import { DISPOSABLE_TEST_DATABASE_HINT, isDisposableTestDatabase } from '../../../test/fixtures/testDatabaseGuard.js';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('tenantScope.integration.test.ts requires an isolated migrated DATABASE_URL');
 }
 const databaseUrl = new URL(process.env.DATABASE_URL);
-if (databaseUrl.hostname !== '127.0.0.1' || databaseUrl.port !== '35440') {
-  throw new Error('This test requires the local test database on port 35440');
+if (!isDisposableTestDatabase(databaseUrl)) {
+  throw new Error(`This test requires ${DISPOSABLE_TEST_DATABASE_HINT}`);
 }
 
 const prisma = createPrismaClient();
