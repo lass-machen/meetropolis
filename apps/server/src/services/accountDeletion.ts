@@ -1,5 +1,4 @@
-import type { PrismaClient } from '../generated/prisma/index.js';
-import { Prisma } from '../generated/prisma/index.js';
+import type { Prisma, PrismaClient } from '../generated/prisma/index.js';
 import type { TenantDeletionOptions } from './tenantDeletionContract.js';
 import {
   TENANT_DELETION_TX_MAX_WAIT_MS,
@@ -322,9 +321,12 @@ export async function deleteTenantWithMembers(
     .$transaction(
       async (tx) => {
         // Same row lock as removeMemberFromTenant in id order so that
-        // two deletions cannot deadlock each other.
+        // two deletions cannot deadlock each other. One array parameter instead of
+        // Prisma.join: a composed Sql fragment is only recognized by the runtime that
+        // built it, so a host transaction from another Prisma runtime would bind it as
+        // one value, match no row and silently skip the lock.
         if (targets.memberIds.length > 0) {
-          await tx.$queryRaw`SELECT id FROM "User" WHERE id IN (${Prisma.join(targets.memberIds)}) ORDER BY id FOR UPDATE`;
+          await tx.$queryRaw`SELECT id FROM "User" WHERE id = ANY(${targets.memberIds}::text[]) ORDER BY id FOR UPDATE`;
         }
         // Journal/tasks come before the first operational DELETE; EE cleanup runs after.
         const prepared = await prepareTenantDeletionInTx(tx, tenantId, targets.memberIds, managed);
