@@ -223,6 +223,15 @@ async function readMainSceneState(page: Page): Promise<{ active: boolean; hasMai
   });
 }
 
+// Phaser registers Main at boot (phaserGame.ts scene list), so getScene('Main')
+// returns it while BootScene still loads the map and while changeMap restarts
+// it. Existence alone does not mean the scene is running again.
+async function waitForActiveMainScene(page: Page): Promise<void> {
+  await expect
+    .poll(async () => (await readMainSceneState(page))?.active ?? false, { timeout: UI_TIMEOUT_MS })
+    .toBe(true);
+}
+
 // Seeded users start with the onboarding wizard over the room (smoke/auth.spec.ts).
 test.beforeEach(async ({ stack, seed }) => {
   await completeSeedOnboarding(stack.apiUrl, seed);
@@ -275,7 +284,7 @@ test('keeps the main camera usable across editor and map lifecycle', async ({ st
     await openEditor(page);
     await page.reload();
     await expectGameCanvasVisible(page);
-    await expect.poll(() => readMainSceneState(page), { timeout: UI_TIMEOUT_MS }).not.toBeNull();
+    await waitForActiveMainScene(page);
 
     const switcher = page.locator('select[title="Map wechseln"]');
     if ((await switcher.count()) > 0) {
@@ -284,7 +293,7 @@ test('keeps the main camera usable across editor and map lifecycle', async ({ st
       const current = await switcher.inputValue();
       const otherIndex = (await options.nth(0).getAttribute('value')) === current && optionCount > 1 ? 1 : 0;
       await switcher.selectOption({ index: otherIndex });
-      await expect.poll(() => readMainSceneState(page), { timeout: UI_TIMEOUT_MS }).not.toBeNull();
+      await waitForActiveMainScene(page);
     }
 
     const state = await readMainSceneState(page);
