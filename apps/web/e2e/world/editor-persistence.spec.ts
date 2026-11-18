@@ -551,7 +551,7 @@ test('places, moves, rotates and deletes an object with live update and reload',
  * the server PUT merges `spawn ?? currentMeta.spawn` and the UI save omits an
  * empty spawn, so no HTTP path clears it — see the result notes.
  */
-test('uses the saved spawn as entry position', async ({ stack, seed, loginAs, request }) => {
+test('uses the saved spawn as entry position', async ({ stack, seed, loginAs, request, db }) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack.apiUrl, stack.baseUrl);
   const { owner, admin, mapId, tenantSlug } = requireSeedAccounts(seed);
@@ -564,18 +564,29 @@ test('uses the saved spawn as entry position', async ({ stack, seed, loginAs, re
     const stored = await getEditorState(request, stack.apiUrl, mapId);
     expect(stored.spawn).toEqual(spawn);
 
+    // The spawn only applies to a user without a saved position: a saved
+    // presence is sent as the join position (useFetchMe.ts, applyPosition;
+    // useColyseusConnection.ts, positionToUse). Earlier cases saved one for
+    // admin, so it is cleared here.
+    await db.query('DELETE FROM "Presence" WHERE "userId" = $1', [admin.userId]);
     const late = await loginAs(admin);
     try {
       const tile = await readTileSize(late.page);
+      const spawnTile = [Math.floor(spawn.x / tile), Math.floor(spawn.y / tile)];
+      // The scene first places the hero at a local fallback (MainScene.ts,
+      // initialPos) and moves it once the server position arrives.
       await expect
-        .poll(() => readHeroPixels(late.page), {
-          timeout: UI_TIMEOUT_MS,
-          message: 'The fresh client never spawned a local player in the scene.',
-        })
-        .not.toBeNull();
-      const hero = (await readHeroPixels(late.page)) as { x: number; y: number };
-      expect(Math.floor(hero.x / tile)).toBe(Math.floor(spawn.x / tile));
-      expect(Math.floor(hero.y / tile)).toBe(Math.floor(spawn.y / tile));
+        .poll(
+          async () => {
+            const hero = await readHeroPixels(late.page);
+            return hero ? [Math.floor(hero.x / tile), Math.floor(hero.y / tile)] : null;
+          },
+          {
+            timeout: UI_TIMEOUT_MS,
+            message: 'The fresh client never placed its local player on the saved spawn tile.',
+          },
+        )
+        .toEqual(spawnTile);
     } finally {
       await late.context.close();
     }
