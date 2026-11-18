@@ -379,6 +379,91 @@ async function clearSavedPosition(db: Client, user: TestUser): Promise<void> {
   await db.query('DELETE FROM "Presence" WHERE "userId" = $1', [user.userId]);
 }
 
+/**
+ * The client takes over the entry position the server picks (saved spawn, else
+ * the room's map centre: server rooms/lifecycle/onJoin.completion.ts,
+ * pickInitialPosition), and a saved presence overrides both. Neither is under
+ * the test's control, so the movement cases put every client on START_TILE: a
+ * free corridor of the seed map (apps/web/public/maps/office.json, row 17 has
+ * no Walls or Collision tile from x 1 to 48).
+ */
+const START_TILE = { tx: 10, ty: 17 };
+let restoreStart: (() => Promise<void>) | null = null;
+
+async function readEditorSpawn(
+  request: APIRequestContext,
+  apiUrl: string,
+  mapId: string,
+): Promise<{ x: number; y: number } | null> {
+  const response = await request.get(`${apiUrl}/maps/${encodeURIComponent(mapId)}/editor-state?t=${Date.now()}`);
+  if (!response.ok()) throw new Error(`GET editor-state failed: HTTP ${response.status()}.`);
+  const body: unknown = await response.json();
+  if (!isRecord(body) || !isRecord(body.spawn)) return null;
+  const { x, y } = body.spawn;
+  return typeof x === 'number' && typeof y === 'number' ? { x, y } : null;
+}
+
+async function putEditorSpawn(
+  request: APIRequestContext,
+  apiUrl: string,
+  mapId: string,
+  spawn: { x: number; y: number } | null,
+): Promise<void> {
+  const response = await request.put(`${apiUrl}/maps/${encodeURIComponent(mapId)}/editor-state`, {
+    data: { spawn },
+  });
+  if (!response.ok()) throw new Error(`PUT editor-state failed: HTTP ${response.status()} ${await response.text()}.`);
+}
+
+/** Sets the start for `users`; the afterEach hook below restores spawn and presences. */
+async function startAtTile(
+  request: APIRequestContext,
+  apiUrl: string,
+  mapId: string,
+  db: Client,
+  users: TestUser[],
+  dims: MapDims,
+): Promise<void> {
+  const userIds = users.map((user) => user.userId);
+  const previousSpawn = await readEditorSpawn(request, apiUrl, mapId);
+  const saved = await db.query<Record<string, unknown>>('SELECT * FROM "Presence" WHERE "userId" = ANY($1)', [userIds]);
+  restoreStart = async () => {
+    const errors: string[] = [];
+    try {
+      await putEditorSpawn(request, apiUrl, mapId, previousSpawn);
+    } catch (error) {
+      errors.push(`spawn: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    try {
+      await db.query('DELETE FROM "Presence" WHERE "userId" = ANY($1)', [userIds]);
+      for (const row of saved.rows) {
+        const columns = Object.keys(row);
+        const names = columns.map((column) => `"${column}"`).join(', ');
+        const params = columns.map((_column, index) => `$${index + 1}`).join(', ');
+        await db.query(
+          `INSERT INTO "Presence" (${names}) VALUES (${params})`,
+          columns.map((column) => row[column]),
+        );
+      }
+    } catch (error) {
+      errors.push(`presence: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (errors.length > 0) throw new Error(`Restoring the start failed: ${errors.join('; ')}`);
+  };
+  await putEditorSpawn(request, apiUrl, mapId, {
+    x: START_TILE.tx * dims.tileWidth + dims.tileWidth / 2,
+    y: START_TILE.ty * dims.tileHeight + dims.tileHeight / 2,
+  });
+  await db.query('DELETE FROM "Presence" WHERE "userId" = ANY($1)', [userIds]);
+}
+
+// Runs after red cases too, so spawn and presences never leak into later specs.
+test.afterEach(async () => {
+  const restore = restoreStart;
+  restoreStart = null;
+  if (restore) await restore();
+});
+
 async function holdKey(page: Page, key: 'ArrowRight' | 'ArrowLeft' | 'ArrowUp', ms: number): Promise<void> {
   await page.keyboard.down(key);
   await page.waitForTimeout(ms);
@@ -404,7 +489,7 @@ test('painted wall persists and blocks movement', async ({ stack, seed, loginAs,
   await ownerApi.login(owner.email, passwordFor(owner));
   const dims = await getMapDims(request, stack.apiUrl, mapId);
 
-  await clearSavedPosition(db, owner);
+  await startAtTile(request, stack.apiUrl, mapId, db, [owner, admin], dims);
   const clientA = await loginAs(owner);
   try {
     const first = await waitForScene(clientA.page);
@@ -417,7 +502,9 @@ test('painted wall persists and blocks movement', async ({ stack, seed, loginAs,
       height: 3,
       startTx: startTx + 2,
       startTy: startTy - 1,
-      maxRadius: 10,
+      // Only this exact place: a wider search could put the wall right next to
+      // the hero, leaving no 8 px to walk towards it.
+      maxRadius: 0,
       mapTilesX: dims.width,
       mapTilesY: dims.height,
     });
@@ -638,7 +725,7 @@ test('out-of-bounds move is not applied', async ({ stack, seed, loginAs, request
   const widthPx = dims.width * dims.tileWidth;
   const heightPx = dims.height * dims.tileHeight;
 
-  await clearSavedPosition(db, owner);
+  await startAtTile(request, stack.apiUrl, mapId, db, [owner], dims);
   const client = await loginAs(owner);
   try {
     const first = await waitForScene(client.page);
@@ -715,7 +802,7 @@ test('large map loads and streams chunks', async ({ stack, seed, loginAs, reques
   expect(resized.newWidth, 'The map must accept the large size.').toBe(target);
   try {
     const pageErrors: string[] = [];
-    await clearSavedPosition(db, owner);
+    await startAtTile(request, stack.apiUrl, mapId, db, [owner], dims);
     const client = await loginAs(owner);
     try {
       client.page.on('pageerror', (error) => {
@@ -746,6 +833,12 @@ test('large map loads and streams chunks', async ({ stack, seed, loginAs, reques
         throw new Error('No clear corridor of 6 tiles on the large map: the test refuses a blocked walk.');
       }
 
+      // Walk until the camera reaches a chunk that was not loaded at the start.
+      // The chunks follow the camera's world view (src/game/map/chunks.ts:73-82);
+      // from START_TILE the hero reaches the first chunk border (x 512 at chunk
+      // size 32, tile 16) after 344 px, at 80 px/s (src/game/scenes/main/
+      // playerManager.ts:131) about 4.3 s, well inside LIVE_SYNC_TIMEOUT_MS.
+      const startKeys = new Set(first.loadedChunkKeys);
       await client.page.keyboard.down(direction);
       try {
         await expect
@@ -753,7 +846,9 @@ test('large map loads and streams chunks', async ({ stack, seed, loginAs, reques
             async () => {
               const snap = await sceneSnapshot(client.page, []);
               if (snap.heroX === null) return 'waiting';
-              return Math.abs(snap.heroX - (first.heroX as number)) > dims.tileWidth * 4 ? 'moved' : 'waiting';
+              const walked = Math.abs(snap.heroX - (first.heroX as number)) > dims.tileWidth * 4;
+              const streamed = snap.loadedChunkKeys.some((key) => !startKeys.has(key));
+              return walked && streamed ? 'moved' : 'waiting';
             },
             { timeout: LIVE_SYNC_TIMEOUT_MS, message: 'The hero never walked on the large map.' },
           )
