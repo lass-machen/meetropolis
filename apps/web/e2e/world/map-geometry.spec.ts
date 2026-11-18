@@ -483,7 +483,64 @@ test('painted wall persists and blocks movement', async ({ stack, seed, loginAs,
   }
 });
 
-/** Case for matrix row 3 (floors): a painted floor tile survives a full reload. */
+/**
+ * Reads the stored tile refs of a rect, row by row, from GET chunks. Chunk
+ * data is base64 JSON run-length pairs (apps/server/src/mapEncoding.ts); a
+ * missing chunk counts as empty.
+ */
+function readRectValues(chunks: Record<string, unknown>, rect: TileRect, chunkSize: number): number[] {
+  const decoded = new Map<string, number[]>();
+  const valuesOf = (key: string): number[] => {
+    const cached = decoded.get(key);
+    if (cached) return cached;
+    const values = new Array<number>(chunkSize * chunkSize).fill(0);
+    const chunk = chunks[key];
+    if (isRecord(chunk) && typeof chunk.data === 'string') {
+      const pairs: unknown = JSON.parse(Buffer.from(chunk.data, 'base64').toString('utf8'));
+      let index = 0;
+      if (Array.isArray(pairs)) {
+        for (const pair of pairs) {
+          if (!Array.isArray(pair)) continue;
+          const [value, count] = pair as [number, number];
+          for (let n = 0; n < count && index < values.length; n += 1) values[index++] = value;
+        }
+      }
+    }
+    decoded.set(key, values);
+    return values;
+  };
+  const out: number[] = [];
+  for (let ty = rect.y0; ty <= rect.y1; ty += 1) {
+    for (let tx = rect.x0; tx <= rect.x1; tx += 1) {
+      const key = `${Math.floor(tx / chunkSize)}:${Math.floor(ty / chunkSize)}`;
+      out.push(valuesOf(key)[(ty % chunkSize) * chunkSize + (tx % chunkSize)] ?? 0);
+    }
+  }
+  return out;
+}
+
+/** Reads the scene tile index of every tile of a rect, row by row (-1 when empty). */
+async function sceneTileIndices(page: Page, layer: string, rect: TileRect): Promise<number[]> {
+  const tiles = tilesForRect(layer, rect);
+  const raw: unknown = await page.evaluate((wanted: SceneTileRef[]) => {
+    const holder = window as unknown as Record<string, unknown>;
+    const game = holder.__PHASER_GAME__ as { scene: { getScene: (key: string) => unknown } } | undefined;
+    const scene = game?.scene.getScene('Main') as Record<string, unknown> | undefined;
+    return wanted.map((tile) => {
+      const target = scene?.[tile.layer] as { getTileAt?: (tx: number, ty: number) => unknown } | undefined;
+      const found = target?.getTileAt?.(tile.tx, tile.ty) as { index?: unknown } | null | undefined;
+      return found && typeof found.index === 'number' ? found.index : -1;
+    });
+  }, tiles);
+  return Array.isArray(raw) ? raw.map((entry) => (typeof entry === 'number' ? entry : -1)) : [];
+}
+
+/**
+ * Case for matrix row 3 (floors): painting an occupied floor rect with another
+ * tile ref survives a full reload. The seed map floor is fully painted
+ * (apps/web/public/maps/office.json, layer Ground), so the case overwrites
+ * seed tiles and writes the secured refs back tile by tile, also on failure.
+ */
 test('floor paint persists across reload', async ({ stack, seed, loginAs, request, db }, testInfo) => {
   test.setTimeout(180_000);
   requireIsolatedStack(stack);
@@ -494,52 +551,77 @@ test('floor paint persists across reload', async ({ stack, seed, loginAs, reques
 
   await clearSavedPosition(db, owner);
   const client = await loginAs(owner);
+  let secured: { rect: TileRect; keys: string[]; values: number[] } | null = null;
+  let bodyError: Error | null = null;
   try {
     const first = await waitForScene(client.page);
     if (first.heroX === null || first.heroY === null) throw new Error('The hero has no position after scene start.');
-    const rect = await findEmptyRect(client.page, {
-      layers: ['editorGround'],
-      width: 2,
-      height: 2,
-      startTx: Math.floor(first.heroX / dims.tileWidth),
-      startTy: Math.floor(first.heroY / dims.tileHeight),
-      maxRadius: 12,
-      mapTilesX: dims.width,
-      mapTilesY: dims.height,
-    });
-    if (!rect) {
-      throw new Error('No empty 2x2 floor area near the hero: the test refuses to overwrite seed tiles.');
-    }
+    const heroTx = Math.floor(first.heroX / dims.tileWidth);
+    const heroTy = Math.floor(first.heroY / dims.tileHeight);
+    const x0 = Math.min(Math.max(heroTx + 1, 0), dims.width - 2);
+    const y0 = Math.min(Math.max(heroTy, 0), dims.height - 2);
+    const rect: TileRect = { x0, y0, x1: x0 + 1, y1: y0 + 1 };
     const keys = chunkKeysForRect(rect, dims.chunkSize);
     const before = await getChunks(request, stack.apiUrl, mapId, 'ground', keys);
     await testInfo.attach('secured-chunks-before', {
       body: JSON.stringify({ layer: 'ground', keys, before }, null, 2),
       contentType: 'application/json',
     });
+    const previous = readRectValues(before, rect, dims.chunkSize);
+    secured = { rect, keys, values: previous };
+    const tileRefId = [FLOOR_TILE_REF_ID, 2, 4, 5, 6].find((candidate) => !previous.includes(candidate));
+    if (tileRefId === undefined) throw new Error('No floor tile ref differs from the four secured ones.');
+    const sceneBefore = await sceneTileIndices(client.page, 'editorGround', rect);
 
-    const painted = await patchPaintRect(request, stack.apiUrl, mapId, {
-      layer: 'ground',
-      rect,
-      tileRefId: FLOOR_TILE_REF_ID,
-    });
+    const painted = await patchPaintRect(request, stack.apiUrl, mapId, { layer: 'ground', rect, tileRefId });
     expect(painted.updates.length, 'The paint call must store ground chunks.').toBeGreaterThan(0);
+    const stored = readRectValues(await getChunks(request, stack.apiUrl, mapId, 'ground', keys), rect, dims.chunkSize);
+    expect(stored, 'The server must store the new floor ref on all four tiles.').toEqual([
+      tileRefId,
+      tileRefId,
+      tileRefId,
+      tileRefId,
+    ]);
 
     await client.page.reload();
     await waitForScene(client.page);
-    const seen = await sceneSnapshot(client.page, tilesForRect('editorGround', rect));
+    const sceneAfter = await sceneTileIndices(client.page, 'editorGround', rect);
+    expect(sceneAfter.length, 'The scene must report all four floor tiles.').toBe(4);
     expect(
-      seen.present.every(Boolean),
-      'Every painted floor tile must still be in the ground layer after reload.',
+      sceneAfter.every((index, at) => index !== -1 && index !== sceneBefore[at]),
+      'Every painted floor tile must show the new tile after reload.',
     ).toBe(true);
-    const stored = await getChunks(request, stack.apiUrl, mapId, 'ground', keys);
-    expect(Object.keys(stored).length, 'The ground chunks must be readable back from the server.').toBeGreaterThan(0);
-
-    await patchPaintRect(request, stack.apiUrl, mapId, { layer: 'ground', rect, erase: true });
-    const cleared = await getChunks(request, stack.apiUrl, mapId, 'ground', keys);
-    expect(Object.keys(cleared).length, 'The floor rect must be empty again after cleanup.').toBe(0);
+  } catch (error) {
+    bodyError = error instanceof Error ? error : new Error('test body failed without an error object.');
   } finally {
     await client.context.close();
   }
+
+  const cleanupErrors: string[] = [];
+  if (secured) {
+    try {
+      await patchPaintRect(request, stack.apiUrl, mapId, {
+        layer: 'ground',
+        rect: secured.rect,
+        values: secured.values,
+      });
+      const restored = readRectValues(
+        await getChunks(request, stack.apiUrl, mapId, 'ground', secured.keys),
+        secured.rect,
+        dims.chunkSize,
+      );
+      if (restored.join(',') !== secured.values.join(',')) {
+        cleanupErrors.push('The floor rect does not match the secured chunks after cleanup.');
+      }
+    } catch (error) {
+      cleanupErrors.push(`Floor restore failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (bodyError) {
+    if (cleanupErrors.length > 0) bodyError.message += ` | Cleanup: ${cleanupErrors.join('; ')}`;
+    throw bodyError;
+  }
+  expect(cleanupErrors, 'The floor rect must match the secured chunks after cleanup.').toEqual([]);
 });
 
 /**
