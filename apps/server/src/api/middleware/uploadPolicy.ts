@@ -335,7 +335,9 @@ export function uploadParser(kind: UploadKind): multer.Multer {
       fileSize: FILE_LIMITS[kind] + 1,
       files,
       fields: 16,
-      fieldSize: 64 * 1024 + 1,
+      // Multer 2.5 treats fieldSize as the largest accepted value and passes
+      // one more to busboy itself.
+      fieldSize: 64 * 1024,
       parts: files + 17,
     },
     streamHandler: createStreamHandler(kind),
