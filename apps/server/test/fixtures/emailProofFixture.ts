@@ -50,7 +50,8 @@ export function createEmailProofFixture() {
       ? cookies.find((value: string) => value.startsWith('auth_token='))?.split(';')[0]
       : null;
     if (!cookie) throw new Error('Pending registration did not create a restricted session cookie.');
-    return { ...own, user, invite, token: await mail.token(target), password, cookie };
+    // invite.code holds only the hash; callers that register again need the raw code.
+    return { ...own, user, invite, code, token: await mail.token(target), password, cookie };
   }
   return {
     fixture,

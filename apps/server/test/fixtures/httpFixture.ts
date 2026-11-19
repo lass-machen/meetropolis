@@ -69,7 +69,8 @@ export function createHttpFixture() {
       .createHash('sha256')
       .update(getApiTokenPepper() + apiToken)
       .digest('hex');
-    await prisma.apiToken.create({ data: { userId: user.id, hash, name: 'http-fixture-caller' } });
+    // Write scope: the fixture caller drives write routes, and read is the default since the scope column.
+    await prisma.apiToken.create({ data: { userId: user.id, hash, name: 'http-fixture-caller', scope: 'write' } });
     return { id: user.id, session: auth.token, sessionId: auth.id, apiToken };
   }
 

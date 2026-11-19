@@ -16,7 +16,7 @@ it('preserves the password and existing role on registration retry', async () =>
   const retry = await request(app)
     .post('/auth/register')
     .set('X-Tenant', value.tenant.slug)
-    .send({ code: value.invite.code, email: value.user.email, password: crypto.randomBytes(24).toString('hex') });
+    .send({ code: value.code, email: value.user.email, password: crypto.randomBytes(24).toString('hex') });
   expect(retry.status).toBe(409);
   expect((await fixture.prisma.user.findUniqueOrThrow({ where: { id: value.user.id } })).passwordHash === before).toBe(
     true,

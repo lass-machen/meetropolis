@@ -59,7 +59,7 @@ async function createCaller(tenant: Tenant, role: Role = 'member', expiresAt?: D
     .createHash('sha256')
     .update(getApiTokenPepper() + apiToken)
     .digest('hex');
-  await prisma.apiToken.create({ data: { userId: user.id, hash, name: 'scope-fixture' } });
+  await prisma.apiToken.create({ data: { userId: user.id, hash, name: 'scope-fixture', scope: 'write' } });
   return { id: user.id, session, apiToken };
 }
 

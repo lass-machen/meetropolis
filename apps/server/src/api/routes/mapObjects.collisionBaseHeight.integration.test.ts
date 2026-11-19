@@ -170,7 +170,7 @@ async function collisionChunkSnapshot(mapId: string): Promise<{ version: number;
 describe('PATCH collisionBaseHeight against a real database', () => {
   it('round-trips HTTP POST then PATCH 1 then PATCH 0 with DB collision cells', async () => {
     const { tenant } = await fixture.tenant();
-    const caller = await fixture.caller(tenant, 'member');
+    const caller = await fixture.caller(tenant, 'admin');
     const map = await makeMap(tenant.id);
     const packUuid = await makePack();
     const headers = authHeaders(tenant, caller.session);
@@ -206,7 +206,7 @@ describe('PATCH collisionBaseHeight against a real database', () => {
 
   it('keeps a real collision_manual top cell when shrinking to foot height 1', async () => {
     const { tenant } = await fixture.tenant();
-    const caller = await fixture.caller(tenant, 'member');
+    const caller = await fixture.caller(tenant, 'admin');
     const map = await makeMap(tenant.id);
     const packUuid = await makePack();
     const headers = authHeaders(tenant, caller.session);
@@ -239,7 +239,7 @@ describe('PATCH collisionBaseHeight against a real database', () => {
     'rejects PATCH collisionBaseHeight %s with 400 and leaves object plus collision untouched',
     async (value) => {
       const { tenant } = await fixture.tenant();
-      const caller = await fixture.caller(tenant, 'member');
+      const caller = await fixture.caller(tenant, 'admin');
       const map = await makeMap(tenant.id);
       const packUuid = await makePack();
       const headers = authHeaders(tenant, caller.session);

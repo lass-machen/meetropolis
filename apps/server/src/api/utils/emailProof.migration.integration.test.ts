@@ -115,6 +115,11 @@ it('marks only proven unverified invitation memberships and preserves identifier
     [oldProof],
   );
   expect(expired.rows[0]).toEqual({ expired: true, unready: true });
+  // The Prisma client and the auth routes below expect the current schema, so
+  // the later migrations run as well before the client connects.
+  for (const migration of migrations.filter((name) => name > second)) {
+    await client.query(await readFile(path.join(directory, migration, 'migration.sql'), 'utf8'));
+  }
   prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString: rawUrl, options: `-c search_path=${schema}` }, { schema }),
   });
