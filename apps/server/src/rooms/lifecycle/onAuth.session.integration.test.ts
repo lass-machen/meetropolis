@@ -21,7 +21,6 @@ import { createPrismaClient } from '../../db.js';
 import { getJwtSecret } from '../../api/utils/authHelpers.js';
 import { hashSessionToken, revokeSessionsForUser } from '../../api/utils/sessionAuth.js';
 import { deleteAccount } from '../../services/accountDeletion.js';
-import { AUTH_REJECTED_CODE } from './onAuth.js';
 import {
   disposeAllRooms,
   startMatchmakeServer,
@@ -111,10 +110,17 @@ async function attemptJoin(identity: string, token?: string): Promise<JoinAttemp
   }
 }
 
-/** A rejected join carries 4401 'unauthorized'; an admitted join is left behind. */
+/**
+ * Matchmaking answers a refused world auth with the HTTP status that the
+ * WebSocket close code mirrors (4401 -> 401), see toMatchmakeError in
+ * worldMatchmakeAuth.ts.
+ */
+const MATCHMAKE_AUTH_REJECTED_STATUS = 401;
+
+/** A rejected join carries 401 'unauthorized'; an admitted join is left behind. */
 async function expectUnauthorized(attempt: JoinAttempt): Promise<void> {
   if (attempt.room) await attempt.room.leave();
-  expect(attempt.error).toMatchObject({ code: AUTH_REJECTED_CODE, message: 'unauthorized' });
+  expect(attempt.error).toMatchObject({ code: MATCHMAKE_AUTH_REJECTED_STATUS, message: 'unauthorized' });
 }
 
 beforeAll(async () => {
