@@ -10,6 +10,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.resolve(HERE, '..', '..');
 const ENTRYPOINT = path.resolve(SERVER_DIR, 'entrypoint.sh');
 const TEMPLATE_PATH = path.resolve(SERVER_DIR, '..', '..', '.env.example');
+// Former .env.example value for TOOLS_PASSWORD. The template now leaves the
+// key empty, but production must keep rejecting this known public value.
+const FORMER_TEMPLATE_TOOLS_PASSWORD = 'changeme';
 
 let checkerDir: string;
 
@@ -192,8 +195,14 @@ describe('startup credentials', () => {
 
     it('production_rejects_example_TOOLS_PASSWORD', () => {
       const env = validEnv(PRODUCTION);
-      env.TOOLS_PASSWORD = readTemplateValue('TOOLS_PASSWORD');
+      // former template value, still rejected
+      env.TOOLS_PASSWORD = FORMER_TEMPLATE_TOOLS_PASSWORD;
       expectRejected(startWithEnv(env), 'TOOLS_PASSWORD');
+    });
+
+    it('template_suggests_no_TOOLS_credentials', () => {
+      expect(readTemplateValue('TOOLS_USER')).toBe('');
+      expect(readTemplateValue('TOOLS_PASSWORD')).toBe('');
     });
 
     it('production_accepts_valid_TOOLS_PASSWORD', () => {
@@ -202,7 +211,8 @@ describe('startup credentials', () => {
 
     it('development_accepts_example_TOOLS_PASSWORD', () => {
       const env = validEnv(DEVELOPMENT);
-      env.TOOLS_PASSWORD = readTemplateValue('TOOLS_PASSWORD');
+      // former template value; the template itself no longer suggests one
+      env.TOOLS_PASSWORD = FORMER_TEMPLATE_TOOLS_PASSWORD;
       expectStarted(startWithEnv(env));
     });
 

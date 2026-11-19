@@ -12,10 +12,13 @@ const PRODUCTION_MODE = 'production';
 
 // Known public template placeholders. Derived once from the versioned
 // template state (.env.example: key entries for the LiveKit pair, the
-// database url, the database password, and the tools password) and kept in
-// this single place instead of spreading a second list across readers.
+// database url and the database password) and kept in this single place
+// instead of spreading a second list across readers. The tools password is a
+// former template value: .env.example now leaves TOOLS_USER and
+// TOOLS_PASSWORD empty, but 'changeme' was published and stays rejected.
 const TEMPLATE_LIVEKIT_API_KEY = 'devkey';
 const TEMPLATE_LIVEKIT_API_SECRET = 'secret';
+// Former template value for TOOLS_PASSWORD, still rejected in production.
 const TEMPLATE_TOOLS_PASSWORD = 'changeme';
 // Password part shared by the versioned template entries for DATABASE_URL
 // and POSTGRES_PASSWORD.
