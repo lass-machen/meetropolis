@@ -4,18 +4,24 @@ import { promisify } from 'node:util';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createHttpFixture } from '../../../test/fixtures/httpFixture.js';
 import { registerAdminPasswordResetRoutes } from './admin.passwordReset.js';
+import { createMailFixture } from '../../../test/fixtures/mailFixture.js';
 
 const fixture = createHttpFixture();
 const app = fixture.app();
 registerAdminPasswordResetRoutes(app, fixture.prisma);
+// The email proof needs actual mail delivery; set it up here like the other mail tests
+// instead of relying on the SMTP settings of the caller.
+const mail = createMailFixture();
 const originalBase = process.env.PUBLIC_BASE_URL;
-beforeAll(() => {
+beforeAll(async () => {
+  await mail.connect();
   process.env.PUBLIC_BASE_URL = 'https://app.example.test';
 });
 afterAll(async () => {
   if (originalBase === undefined) delete process.env.PUBLIC_BASE_URL;
   else process.env.PUBLIC_BASE_URL = originalBase;
   await fixture.close();
+  await mail.close();
 });
 
 it('returns only delivery confirmation and no reset secrets to tenant administrators', async () => {

@@ -4,19 +4,25 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createHttpFixture } from '../../../test/fixtures/httpFixture.js';
 import { registerMiscRoutes } from './misc.js';
 import { registerAuthRoutes } from './auth.js';
+import { createMailFixture } from '../../../test/fixtures/mailFixture.js';
 
 const fixture = createHttpFixture();
 const app = fixture.app();
 registerMiscRoutes(app, fixture.prisma);
 registerAuthRoutes(app, fixture.prisma);
+// The email proof needs actual mail delivery; set it up here like the other mail tests
+// instead of relying on the SMTP settings of the caller.
+const mail = createMailFixture();
 const originalBase = process.env.PUBLIC_BASE_URL;
-beforeAll(() => {
+beforeAll(async () => {
+  await mail.connect();
   process.env.PUBLIC_BASE_URL = 'https://app.example.test';
 });
 afterAll(async () => {
   if (originalBase === undefined) delete process.env.PUBLIC_BASE_URL;
   else process.env.PUBLIC_BASE_URL = originalBase;
   await fixture.close();
+  await mail.close();
 });
 
 it('prevents tenant administrators from overwriting another account email address', async () => {
