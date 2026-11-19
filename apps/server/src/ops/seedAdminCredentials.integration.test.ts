@@ -21,7 +21,14 @@ import type { PrismaClient } from '../generated/prisma/index.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.resolve(HERE, '..', '..');
-const TEMPLATE_PATH = path.resolve(SERVER_DIR, '..', '..', '.env.example');
+/**
+ * The historical public seed-admin placeholders. b1c58d3 emptied them in
+ * .env.example; the seed still treats them as the known defaults
+ * (TEMPLATE_SEED_ADMIN_* in seedAdminCredentials.ts), so the suite names them
+ * here instead of reading the template.
+ */
+const LEGACY_ADMIN_EMAIL = 'admin@meetropolis.local';
+const LEGACY_ADMIN_PASSWORD = 'admin123';
 const PRODUCTION = 'production';
 const DEVELOPMENT = 'development';
 const SEED_TIMEOUT_MS = 180_000;
@@ -341,23 +348,12 @@ describe('seed admin credentials', { timeout: 240_000 }, () => {
   });
 });
 
-function readTemplateValue(key: string): string {
-  const text = fs.readFileSync(TEMPLATE_PATH, 'utf8');
-  for (const line of text.split(/\r?\n/)) {
-    const match = /^\s*#?\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
-    if (match !== null && match[1] === key) {
-      return match[2];
-    }
-  }
-  throw new Error(`template entry missing for key: ${key}`);
-}
-
 function templateAdminEmail(): string {
-  return readTemplateValue('SEED_ADMIN_EMAIL');
+  return LEGACY_ADMIN_EMAIL;
 }
 
 function templateAdminPassword(): string {
-  return readTemplateValue('SEED_ADMIN_PASSWORD');
+  return LEGACY_ADMIN_PASSWORD;
 }
 
 function requiredDatabaseUrl(): string {
