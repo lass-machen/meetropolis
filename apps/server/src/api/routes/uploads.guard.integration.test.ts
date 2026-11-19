@@ -61,16 +61,19 @@ for (const route of [
   });
 }
 
-it('returns tenant_required without a resolved tenant', async () => {
+it('answers a malformed multipart body of an allowed caller with 400 UPLOAD_INVALID', async () => {
   const { tenant, map } = await fixture.tenant();
   const owner = await fixture.caller(tenant, 'owner');
+  const before = await fixture.prisma.map.findUniqueOrThrow({ where: { id: map.id } });
   const result = await request(app)
     .post(`/maps/${map.id}/import-tmj`)
+    .set('X-Tenant', tenant.slug)
     .set('Authorization', `Bearer ${owner.session}`)
     .set('Content-Type', 'multipart/form-data; boundary=fixture-broken')
     .send('incomplete body');
   expect(result.status).toBe(400);
-  expect(result.body).toEqual({ error: 'tenant_required' });
+  expect(result.body.error.code).toBe('UPLOAD_INVALID');
+  expect(await fixture.prisma.map.findUniqueOrThrow({ where: { id: map.id } })).toEqual(before);
 });
 
 it('returns admin-required forbidden for tmj member uploads', async () => {

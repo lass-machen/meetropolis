@@ -234,6 +234,20 @@ export function uploadGuard(prisma: PrismaClient, kind: UploadKind): express.Req
   };
 }
 
+/**
+ * Errors the multipart parser raised about the body itself (busboy: a
+ * malformed part header, an unexpected end of form or file). Own
+ * AppErrors and Multer limit errors keep their status.
+ */
+const parseErrors = new WeakSet<Error>();
+
+function markParseError(error: Error): Error {
+  if (error instanceof Error && !(error instanceof AppError) && !(error instanceof multer.MulterError)) {
+    parseErrors.add(error);
+  }
+  return error;
+}
+
 /** Enforce field-specific limits before Buffer.concat in addition to Busboy limits. */
 function createUploadStorage(kind: UploadKind): multer.StorageEngine {
   return {
@@ -272,7 +286,7 @@ function createUploadStorage(kind: UploadKind): multer.StorageEngine {
         }
         chunks.push(chunk);
       });
-      file.stream.once('error', finish);
+      file.stream.once('error', (error: Error) => finish(markParseError(error)));
       file.stream.once('end', () => finish(null));
     },
     _removeFile(_req, file, callback) {
@@ -310,6 +324,8 @@ function createStreamHandler(kind: UploadKind): (req: express.Request, parser: W
     };
     abortParsers.set(req, stop);
     meter.once('error', stop);
+    // Tag before Multer's own listener hands the same error on.
+    parser.prependListener('error', markParseError);
     parser.once('error', stop);
     parser.once('close', () => {
       req.unpipe(meter);
@@ -377,6 +393,10 @@ export function boundedMultipart(parser: express.RequestHandler): express.Reques
             size ? 'UPLOAD_TOO_LARGE' : 'UPLOAD_INVALID',
           ),
         );
+        return;
+      }
+      if (error instanceof Error && parseErrors.has(error)) {
+        next(new AppError('Invalid upload.', 400, 'UPLOAD_INVALID'));
         return;
       }
       next(error);
