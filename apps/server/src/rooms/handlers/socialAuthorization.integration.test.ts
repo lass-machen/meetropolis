@@ -170,6 +170,21 @@ function lockMentions(payloads: unknown[], zoneName: string, mapId: string): boo
   });
 }
 
+/**
+ * lockZone waits for the server state only; the zone_lock_state broadcast of
+ * that lock can still be on its way. Wait until the collecting client has it
+ * and zone_lock_state stays quiet, so a late announcement is not taken for a
+ * reaction to what follows.
+ */
+async function settleLockAnnouncement(seen: unknown[]): Promise<void> {
+  expect(await waitUntil(() => lockMentions(seen, ZONE_NAME, officeId), STEP_MS), 'the lock was announced').toBe(true);
+  for (;;) {
+    const count = seen.length;
+    await sleep(SEED_SETTLE_MS);
+    if (seen.length === count) return;
+  }
+}
+
 function deniedZone(payloads: unknown[], zoneName: string): boolean {
   return payloads.some((payload) => isRecord(payload) && payload.zoneName === zoneName);
 }
@@ -452,6 +467,7 @@ describe('zone access requests that name another map', () => {
       await waitForMap(bob, officeId);
       const seen = collect(alice, 'zone_lock_state');
       await lockZone(alice);
+      await settleLockAnnouncement(seen);
       seen.length = 0;
       await moveTo(bob, studioId);
       bob.send('zone_access_request', { zoneName: ZONE_NAME, mapId: officeId });
@@ -476,6 +492,7 @@ describe('zone access responses without a pending request', () => {
       await waitForMap(carol, officeId);
       const seen = collect(carol, 'zone_lock_state');
       await lockZone(alice);
+      await settleLockAnnouncement(seen);
       const before = accessIds(alice);
       seen.length = 0;
       alice.send('zone_access_response', { zoneName: ZONE_NAME, sessionId: carol.sessionId, approved: true });
@@ -683,8 +700,10 @@ describe('a player leaves the room', () => {
       const bob = await connect(hostB.token, OUTSIDE);
       await waitForMap(alice, officeId);
       await waitForMap(bob, officeId);
-      await lockZone(alice);
       const seen = collect(bob, 'zone_lock_state');
+      await lockZone(alice);
+      await settleLockAnnouncement(seen);
+      seen.length = 0;
       await alice.leave();
       const released = await waitUntil(() => !zoneLock(bob) && seen.length > 0, STEP_MS);
       expect(released).toBe(true);
