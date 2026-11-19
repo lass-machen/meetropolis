@@ -214,7 +214,10 @@ async function connectRecordedNpc(slug: string): Promise<string> {
   return wireIdentity;
 }
 
-/** Keeps the socket referenced so the joined seat still exists when access is revoked. */
+/**
+ * Keeps the socket referenced so the joined seat still exists when access is revoked.
+ * A media token needs this live world session of the same login (415feda).
+ */
 async function joinWorld(member: SeededMember): Promise<{ sessionId: string }> {
   const client = new Client(server.base);
   client.auth.token = member.token;
@@ -317,6 +320,7 @@ afterAll(async () => {
 describe('livekit token metadata', () => {
   it('binds the token to the session reference', async () => {
     const member = await seedMember(prisma, tenantId);
+    await joinWorld(member);
     const issued = await postLivekitToken(member);
     const metadata = jwtMetadata(issued.text);
     expect(issued.status).toBe(200);
@@ -330,6 +334,7 @@ describe('current members', () => {
     'keeps a participant with a live session',
     async () => {
       const member = await seedMember(prisma, tenantId);
+      await joinWorld(member);
       await connectIssued(member);
       await currentReconciler().runRound();
       expect(await listIdentities(worldName(tenantSlug))).toContain(member.userId);
@@ -368,6 +373,7 @@ describe('reused token after membership removal', () => {
     'removes the participant on the next round',
     async () => {
       const member = await seedMember(prisma, tenantId);
+      await joinWorld(member);
       const token = await connectIssued(member);
       await removeMemberFromTenant(prisma, { userId: member.userId, tenantId });
       await disconnectAll();
@@ -412,6 +418,7 @@ describe('participant metadata', () => {
     'rejects a self-serve metadata change',
     async () => {
       const member = await seedMember(prisma, tenantId);
+      await joinWorld(member);
       const token = await issuedToken(member);
       const room = await connectParticipant(token);
       const local = room.localParticipant;
@@ -430,6 +437,7 @@ describe('revocation across a reconciler restart', () => {
     'removes the participant on the round after restart',
     async () => {
       const member = await seedMember(prisma, tenantId);
+      await joinWorld(member);
       await connectIssued(member);
       await pauseForRevocation(member, async () => {
         await reconciler?.stop();
