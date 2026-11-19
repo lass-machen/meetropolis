@@ -142,8 +142,11 @@ describe('tenant data requires a membership (real stack)', () => {
     const exported = await request(app).get(`/maps/${mapId}/export-tmj`).set(as(outsiderToken));
     expect(exported.status).toBe(400);
     expect(exported.body.error).toBe('tenant_required');
+    // The upload guard answers a refused tenant with 403 like the other tenant
+    // role guards (authHelpers.ts), not with tenant_required.
     const imported = await request(app).post(`/maps/${mapId}/import-tmj`).set(as(outsiderToken));
-    expect(imported.body.error).toBe('tenant_required');
+    expect(imported.status).toBe(403);
+    expect(imported.body.error).toBe('forbidden');
   });
 
   it('refuses writing presence into the tenant to a signed-in non-member', async () => {

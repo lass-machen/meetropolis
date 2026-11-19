@@ -10,6 +10,7 @@ import {
   requireMembership,
   getTenantFromReq,
 } from '../utils/authHelpers.js';
+import { isTenantAccessDenied } from '../utils/tenantAccessState.js';
 import { detectMimeFromMagic } from '../utils/mediaMime.js';
 import { AppError } from '../../errors/AppError.js';
 import { logger } from '../../logger.js';
@@ -187,6 +188,11 @@ export function uploadGuard(prisma: PrismaClient, kind: UploadKind): express.Req
       }
       const global = kind === 'asset' || kind === 'avatar' || kind === 'admin_map';
       const tenant = getTenantFromReq(req);
+      if (!global && !tenant && isTenantAccessDenied(req)) {
+        // The caller named a tenant it may not access; tenantAccess dropped it.
+        res.status(403).json({ error: 'forbidden' });
+        return;
+      }
       if (!global && !tenant) {
         res.status(400).json({ error: 'tenant_required' });
         return;
