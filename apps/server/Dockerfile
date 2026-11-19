@@ -72,6 +72,8 @@ COPY --from=builder /workspace/apps/server/node_modules ./node_modules
 # Shared package (workspace symlink target, needed at runtime by zoneLockHandler etc.)
 COPY --from=builder /workspace/packages/shared /workspace/packages/shared
 COPY --from=builder /workspace/apps/server/prisma ./prisma
+# Prisma 7 reads datasource.url from this file; the schema has no url.
+COPY --from=builder /workspace/apps/server/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /workspace/apps/server/dist ./dist
 # Copy generated Prisma client to dist/ (compiled code imports from dist/generated)
 COPY --from=builder /workspace/apps/server/src/generated ./dist/generated
