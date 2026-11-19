@@ -7,7 +7,9 @@
 //   - dependency-evidence.mjs maps packages with a missing or non-SPDX raw
 //     license field onto checked original license texts,
 //   - license-expression.mjs evaluates the resulting SPDX expression
-//     against the license set of the consuming area.
+//     against the license set of the consuming area,
+//   - license-reviews.mjs applies the bound decisions of the user to
+//     records whose license needs a review.
 //
 // The check is pure: it reads only from the given snapshot map, never opens
 // a file, never uses the network or node_modules, and neither writes nor
@@ -28,6 +30,7 @@ import {
 } from './dependencies-policy.mjs';
 import { evaluateLicenseExpression } from './license-expression.mjs';
 import { resolveDependencyLicense } from './dependency-evidence.mjs';
+import { createLicenseReviewLedger, readLicenseReviews } from './license-reviews.mjs';
 
 const LOCKFILE_BASENAME = 'package-lock.json';
 
@@ -69,8 +72,11 @@ function mentionsReviewRequiredId(expression, reviewRequiredIds) {
 }
 
 // Evaluates the license of one record against the license set of the area
-// of its consuming root.
-function evaluateAgainstArea(license, area, policy, context, issues) {
+// of its consuming root. A bound approval only lifts a review finding whose
+// expression would pass once the review ids are allowed: a forbidden part of
+// the expression stays forbidden.
+function evaluateAgainstArea(license, area, policy, review, issues) {
+  const context = review.context;
   if (typeof license !== 'string' || license.trim().length === 0) {
     issues.push({ severity: 'error', code: 'LICENSE_MISSING', ...context });
     return { license: null, selected: [] };
@@ -82,9 +88,16 @@ function evaluateAgainstArea(license, area, policy, context, issues) {
     issues.push({ severity: 'error', code: 'LICENSE_EXPRESSION_INVALID', ...context });
     return { license: null, selected: [] };
   }
-  const code = mentionsReviewRequiredId(license, policy.reviewRequiredIds)
-    ? 'LICENSE_REVIEW_REQUIRED'
-    : 'LICENSE_NOT_ALLOWED';
+  const reviewRequired = mentionsReviewRequiredId(license, policy.reviewRequiredIds);
+  if (
+    reviewRequired &&
+    evaluateLicenseExpression(license, [...allowed, ...policy.reviewRequiredIds]).ok &&
+    review.reviews.approves(context, review.record, license)
+  ) {
+    issues.push({ severity: 'info', code: 'LICENSE_REVIEW_APPROVED', ...context });
+    return { license, selected: [] };
+  }
+  const code = reviewRequired ? 'LICENSE_REVIEW_REQUIRED' : 'LICENSE_NOT_ALLOWED';
   issues.push({ severity: 'error', code, ...context });
   return { license, selected: [] };
 }
@@ -121,7 +134,7 @@ function readWorkspaceLicense(record, lockPath, snapshot, context, issues) {
 }
 
 // One record of the production graph under the policy of its consuming root.
-function buildRecord(record, lockPath, snapshot, policy, evidence, issues) {
+function buildRecord(record, lockPath, snapshot, policy, evidence, reviews, issues) {
   const globalRoot = globalPath(lockPath, record.root);
   const area = areaFor(globalRoot, policy.areas);
   const context = { path: lockPath, root: globalRoot, lockPath: record.lockPath };
@@ -135,7 +148,7 @@ function buildRecord(record, lockPath, snapshot, policy, evidence, issues) {
   if (!record.workspace && !isNonEmptyString(record.version)) {
     issues.push({ severity: 'error', code: 'DEPENDENCY_VERSION_MISSING', ...context });
   }
-  const evaluated = evaluateAgainstArea(license, area, policy, context, issues);
+  const evaluated = evaluateAgainstArea(license, area, policy, { context, record, reviews }, issues);
   return {
     ...record,
     globalRoot,
@@ -165,7 +178,7 @@ function rootCoverageIssues(lock, parsed) {
 }
 
 // Production closure of one configured lockfile.
-function collectLock(lock, snapshot, policy, evidence, extras, records, issues) {
+function collectLock(lock, snapshot, policy, evidence, reviews, extras, records, issues) {
   const bytes = snapshot.get(lock.path);
   if (bytes === undefined) {
     issues.push({ severity: 'error', code: 'LOCKFILE_MISSING', path: lock.path, root: '' });
@@ -191,7 +204,7 @@ function collectLock(lock, snapshot, policy, evidence, extras, records, issues) 
     });
   }
   for (const record of graph.records) {
-    records.push(buildRecord(record, lock.path, snapshot, policy, evidence, issues));
+    records.push(buildRecord(record, lock.path, snapshot, policy, evidence, reviews, issues));
   }
 }
 
@@ -204,6 +217,7 @@ export function checkDependencies({ files, extraDependencies = {} } = {}) {
   const snapshot = readSnapshot(files);
   const policy = readPolicy(snapshot);
   const evidence = readEvidence(snapshot);
+  const reviews = createLicenseReviewLedger(readLicenseReviews(snapshot));
   const extras = readExtraDependencies(extraDependencies, configuredGlobalRoots(policy.lockfiles));
   const records = [];
   const issues = [];
@@ -213,8 +227,9 @@ export function checkDependencies({ files, extraDependencies = {} } = {}) {
     issues.push({ severity: 'error', code: 'LOCKFILE_UNCONFIGURED', path: key, root: '' });
   }
   for (const lock of policy.lockfiles) {
-    collectLock(lock, snapshot, policy, evidence, extras, records, issues);
+    collectLock(lock, snapshot, policy, evidence, reviews, extras, records, issues);
   }
+  issues.push(...reviews.staleIssues());
   records.sort(
     (a, b) =>
       compareStrings(a.globalRoot, b.globalRoot) ||
