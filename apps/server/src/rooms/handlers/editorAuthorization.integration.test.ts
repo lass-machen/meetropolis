@@ -126,7 +126,7 @@ function collectEditorUpdates(room: Room): { received: unknown[] } {
 }
 
 function ownMapId(room: Room): string | undefined {
-  const player = room.state.players.get(room.sessionId) as { mapId?: unknown } | undefined;
+  const player = room.state?.players?.get(room.sessionId) as { mapId?: unknown } | undefined;
   return typeof player?.mapId === 'string' ? player.mapId : undefined;
 }
 
