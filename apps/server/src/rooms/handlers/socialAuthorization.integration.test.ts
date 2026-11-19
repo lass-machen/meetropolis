@@ -32,6 +32,8 @@ if (!process.env.DATABASE_URL) {
 
 const prisma = createPrismaClient();
 const QUIET_MS = 1_500;
+/** Longer than the 200 ms join seed delay in onJoin.completion.ts. */
+const SEED_SETTLE_MS = 500;
 const STEP_MS = 10_000;
 const CASE_MS = 30_000;
 const ZONE_NAME = 'north-wing';
@@ -135,6 +137,23 @@ function bubbleMentions(payloads: unknown[], sessionId: string): boolean {
     if (!Array.isArray(payload.groups)) return false;
     return payload.groups.some((group) => isRecord(group) && stringList(group.members).includes(sessionId));
   });
+}
+
+/**
+ * Wait until the announcement that carries the group reached the client, then
+ * until bubble_state stays quiet. The join seed (onJoin.completion.ts, sent
+ * HANDLER_REGISTRATION_DELAY_MS = 200 ms after the join) is a bubble_state too
+ * and may arrive before or after the group broadcast; without this, a late
+ * announcement lands after the reset and looks like a reaction to the refused
+ * update.
+ */
+async function settleGroupAnnouncement(seen: unknown[], peerId: string): Promise<void> {
+  expect(await waitUntil(() => bubbleMentions(seen, peerId), STEP_MS), 'the group was announced').toBe(true);
+  for (;;) {
+    const count = seen.length;
+    await sleep(SEED_SETTLE_MS);
+    if (seen.length === count) return;
+  }
 }
 
 function bubbleUsesId(payloads: unknown[], groupId: string): boolean {
@@ -310,7 +329,7 @@ describe('bubble updates from another tenant', () => {
       expectSameRoom([alice, bob, eve]);
       const seen = collect(alice, 'bubble_state');
       await formGroup(alice, bob);
-      expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
+      await settleGroupAnnouncement(seen, bob.sessionId);
       seen.length = 0;
       eve.send('bubble_update', { members: [eve.sessionId, alice.sessionId] });
       await sleep(QUIET_MS);
@@ -334,7 +353,7 @@ describe('bubble updates from another map', () => {
       const seen = collect(alice, 'bubble_state');
       await formGroup(alice, bob);
       await moveTo(carol, studioId);
-      expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
+      await settleGroupAnnouncement(seen, bob.sessionId);
       seen.length = 0;
       carol.send('bubble_update', { members: [carol.sessionId, alice.sessionId] });
       await sleep(QUIET_MS);
@@ -356,7 +375,7 @@ describe('bubble updates from outside a group', () => {
       expectSameRoom([alice, bob, carol]);
       const seen = collect(alice, 'bubble_state');
       await formGroup(alice, bob);
-      expect(await waitUntil(() => seen.length > 0, STEP_MS), 'the group was announced').toBe(true);
+      await settleGroupAnnouncement(seen, bob.sessionId);
       seen.length = 0;
       carol.send('bubble_update', { members: [alice.sessionId] });
       await sleep(QUIET_MS);
