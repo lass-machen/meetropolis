@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/assets/banner.png" alt="Meetropolis — the office that stays. Self-hosted virtual office with spatial audio, video and a 2D world for remote teams." width="100%">
-</p>
-
 # Meetropolis
 
 An open-source virtual office platform for remote teams. Proximity-based

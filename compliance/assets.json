@@ -2825,21 +2825,6 @@
       "note": "Generator writes repo paths, therefore overlay repro"
     },
     {
-      "path": "docs/assets/banner.png",
-      "sha256": "47aace32dba8e50a25c5ed93a9317860aa905e5dbaa1be1ce06636e78798fb1a",
-      "type": ".png",
-      "license": "AGPL-3.0-only",
-      "copyright": "Tiamat UG (root default, no exception record)",
-      "origin": {
-        "kind": "repository",
-        "source": "tools/og-banner/generate.py + copy.en.json + Headless-Browser",
-        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
-        "evidence": "Input files reproduced, final browser render step open for lack of a tool"
-      },
-      "verification": "documented",
-      "note": "Root LICENSE applies; no font-on-image license conclusion"
-    },
-    {
       "path": "packages/shared/sprite/catalog.json",
       "sha256": "ca7866a97fcbd76124bf8f9ea8a62ba7326e35c7d7b667bbd6cace89c687d3f7",
       "type": ".json",
@@ -3393,36 +3378,6 @@
       },
       "verification": "verified",
       "note": "The v6 pipeline is authoritative"
-    },
-    {
-      "path": "tools/asset-lab/design/office-concepts.svg",
-      "sha256": "9dcc614db3e1f6875be4f0dbbb7121daf626ccb86b331cc89016ca7b4dc1dab4",
-      "type": ".svg",
-      "license": "MIT",
-      "copyright": "Tiamat UG (tools/asset-lab/LICENSE)",
-      "origin": {
-        "kind": "repository",
-        "source": "Hand-drawn design document in the repository (German)",
-        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
-        "evidence": "Title and description match, path falls under the tool license"
-      },
-      "verification": "documented",
-      "note": "No file header; license only by path"
-    },
-    {
-      "path": "tools/asset-lab/docs/kollektion.png",
-      "sha256": "35494fce364ae913ca112e7676092ddfc52e5656fc2b92c6fae2d8f546b62c5c",
-      "type": ".png",
-      "license": "MIT",
-      "copyright": "Tiamat UG (tools/asset-lab/LICENSE)",
-      "origin": {
-        "kind": "repository",
-        "source": "Documentation screenshot of the Asset Lab from an earlier revision",
-        "revision": "6b08d1c5fb70f54c1a392b1a1f4e39b552ce6240",
-        "evidence": "Version history and integration into the tool documentation evidenced"
-      },
-      "verification": "documented",
-      "note": "Screenshot, no third-party content apparent"
     },
     {
       "path": "tools/asset-lab/product/atelier-v1.json",
