@@ -101,9 +101,10 @@ describe('PATCH /users/:id/role — owner demotion (real database)', () => {
     ]);
 
     const statuses = [resA.status, resB.status].sort((a, b) => a - b);
-    expect(statuses).toEqual([200, 400]);
-    const rejected = resA.status === 400 ? resA : resB;
-    expect(rejected.body).toEqual({ error: 'cannot_demote_last_owner' });
+    // The later request finds its caller already demoted, whichever check it reaches first.
+    expect(statuses).toEqual([200, 403]);
+    const rejected = resA.status === 403 ? resA : resB;
+    expect(rejected.body).toEqual({ error: 'forbidden - only owners and admins can change roles' });
     expect(await prisma.membership.count({ where: { tenantId: tenant, role: 'owner' } })).toBe(1);
   });
 

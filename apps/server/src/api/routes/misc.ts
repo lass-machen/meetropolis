@@ -350,7 +350,7 @@ async function handleUpdateUser(prisma: PrismaClient, req: express.Request, res:
 
 const changeRoleSchema = z.object({ role: z.enum(['admin', 'member']) });
 
-type ChangeRoleOutcome = 'updated' | 'not_found' | 'guest' | 'owner_forbidden' | 'last_owner';
+type ChangeRoleOutcome = 'updated' | 'not_found' | 'guest' | 'caller_forbidden' | 'owner_forbidden' | 'last_owner';
 
 class LastOwnerDemotionError extends Error {}
 
@@ -358,16 +358,19 @@ async function changeMembershipRole(
   prisma: PrismaClient,
   tenantId: string,
   targetUserId: string,
-  callerRole: MembershipRow['role'],
+  callerUserId: string,
   newRole: 'admin' | 'member',
 ): Promise<ChangeRoleOutcome> {
   try {
     return await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "Membership" WHERE "tenantId" = ${tenantId} AND "role" = 'owner' FOR UPDATE`;
+      // Read the caller role under the lock: a concurrent change may have demoted the caller since the route check.
+      const caller = await tx.membership.findUnique({ where: { tenantId_userId: { tenantId, userId: callerUserId } } });
+      if (!caller || (caller.role !== 'owner' && caller.role !== 'admin')) return 'caller_forbidden';
       const membership = await tx.membership.findFirst({ where: { userId: targetUserId, tenantId } });
       if (!membership) return 'not_found';
       if (membership.role === 'guest') return 'guest';
-      if (membership.role === 'owner' && callerRole !== 'owner') return 'owner_forbidden';
+      if (membership.role === 'owner' && caller.role !== 'owner') return 'owner_forbidden';
       const demotesOwner = membership.role === 'owner';
       await tx.membership.update({ where: { id: membership.id }, data: { role: newRole } });
       if (demotesOwner) {
@@ -413,7 +416,11 @@ async function handleChangeRole(prisma: PrismaClient, req: express.Request, res:
   }
 
   try {
-    const outcome = await changeMembershipRole(prisma, tenant.id, id, callerMembership.role, parse.data.role);
+    const outcome = await changeMembershipRole(prisma, tenant.id, id, auth.userId, parse.data.role);
+    if (outcome === 'caller_forbidden') {
+      res.status(403).json({ error: 'forbidden - only owners and admins can change roles' });
+      return;
+    }
     if (outcome === 'not_found') {
       res.status(404).json({ error: 'user not found in this tenant' });
       return;
