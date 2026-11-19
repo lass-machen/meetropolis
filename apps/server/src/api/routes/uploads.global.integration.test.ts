@@ -109,7 +109,7 @@ it('accepts valid small ZIP, PNG and administrator map uploads', async () => {
   const pack = await request(app)
     .post('/asset-packs/upload')
     .set('X-Tenant', value.tenant.slug)
-    .set('Authorization', `Bearer ${value.caller.apiToken}`)
+    .set('Authorization', `Bearer ${value.caller.session}`)
     .attach('file', await zip.generateAsync({ type: 'nodebuffer' }), {
       filename: 'pack.zip',
       contentType: 'application/zip',
@@ -126,7 +126,7 @@ it('accepts valid small ZIP, PNG and administrator map uploads', async () => {
   const map = await request(app)
     .post('/admin/maps/import')
     .set('X-Tenant', value.tenant.slug)
-    .set('Authorization', `Bearer ${value.caller.apiToken}`)
+    .set('Authorization', `Bearer ${value.caller.session}`)
     .field('tenantId', value.tenant.id)
     .field('name', `fixture-admin-map-${crypto.randomUUID()}`)
     .attach(

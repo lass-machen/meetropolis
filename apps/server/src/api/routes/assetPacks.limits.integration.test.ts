@@ -62,7 +62,7 @@ it('rejects a pack with more ZIP entries than allowed with 413 and stores nothin
   const res = await request(app)
     .post('/asset-packs/upload')
     .set('X-Tenant', value.tenant.slug)
-    .set('Authorization', `Bearer ${value.caller.apiToken}`)
+    .set('Authorization', `Bearer ${value.caller.session}`)
     .attach('file', await zip.generateAsync({ type: 'nodebuffer' }), {
       filename: 'pack.zip',
       contentType: 'application/zip',

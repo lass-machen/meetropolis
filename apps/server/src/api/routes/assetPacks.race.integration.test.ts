@@ -79,7 +79,7 @@ async function upload(value: Operator, uuid: string, version: string) {
   return request(app)
     .post('/asset-packs/upload')
     .set('X-Tenant', value.tenant.slug)
-    .set('Authorization', `Bearer ${value.caller.apiToken}`)
+    .set('Authorization', `Bearer ${value.caller.session}`)
     .attach('file', await packZip(uuid, version), { filename: 'pack.zip', contentType: 'application/zip' });
 }
 
@@ -87,7 +87,7 @@ async function archive(value: Operator, uuid: string) {
   return request(app)
     .patch(`/asset-packs/${uuid}/archive`)
     .set('X-Tenant', value.tenant.slug)
-    .set('Authorization', `Bearer ${value.caller.apiToken}`)
+    .set('Authorization', `Bearer ${value.caller.session}`)
     .send({ archived: true });
 }
 
@@ -95,7 +95,7 @@ async function remove(value: Operator, id: number) {
   return request(app)
     .delete(`/asset-packs/${id}`)
     .set('X-Tenant', value.tenant.slug)
-    .set('Authorization', `Bearer ${value.caller.apiToken}`);
+    .set('Authorization', `Bearer ${value.caller.session}`);
 }
 
 async function currentPack(uuid: string) {
