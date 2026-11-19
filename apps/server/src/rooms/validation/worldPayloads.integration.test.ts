@@ -248,6 +248,17 @@ async function leaveRoom(room: Room | undefined): Promise<void> {
 }
 
 /** Walk to the exact target in steps short enough for the move check. */
+/**
+ * The value the client state holds after the schema encoding. Colyseus sends a
+ * fraction as float32 when that loses less than 1e-4, otherwise as float64,
+ * so Number.MIN_VALUE reaches the client as 0 while the server keeps it.
+ */
+function wireValue(value: number): number {
+  if (value === (value | 0)) return value;
+  const single = Math.fround(value);
+  return Math.abs(Math.abs(single) - Math.abs(value)) < 1e-4 ? single : value;
+}
+
 async function land(x: number, y: number, direction: Direction): Promise<boolean> {
   const room = actor;
   if (!room) return false;
@@ -267,7 +278,9 @@ async function land(x: number, y: number, direction: Direction): Promise<boolean
     const arrived = await waitUntil(() => {
       const current = poseOf(room);
       if (!current || current.direction !== direction) return false;
-      return final ? current.x === x && current.y === y : Math.hypot(current.x - nextX, current.y - nextY) < 0.1;
+      return final
+        ? current.x === wireValue(x) && current.y === wireValue(y)
+        : Math.hypot(current.x - nextX, current.y - nextY) < 0.1;
     }, 200);
     if (final && arrived) return true;
     await elapsed(MOVE_GAP_MS);
