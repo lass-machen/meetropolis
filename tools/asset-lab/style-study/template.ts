@@ -52,9 +52,7 @@ function figureSection(model: SheetModel, figure: FigureRecipe, index: number, b
 function skinRow(model: SheetModel): string {
   const swatches = SKIN_TONES.map((tone) => {
     const mark = tone.isNew ? ' <span class="neu">neu</span>' : '';
-    const bars = tone.ramp
-      .map((hex) => `<span class="bar" style="background:${hex}"></span>`)
-      .join('');
+    const bars = tone.ramp.map((hex) => `<span class="bar" style="background:${hex}"></span>`).join('');
     return `<div class="tone"><div class="ramp">${bars}</div><span>${tone.tone}${mark}</span><code>${tone.ramp.join(' ')}</code></div>`;
   }).join('');
   const img = model.pngPath('skin_row.png');

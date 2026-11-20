@@ -42,7 +42,14 @@ function blitOpaque(target: Pixels, source: Pixels, ox: number, oy: number): voi
   }
 }
 
-function blitRgba(target: Pixels, data: Uint8ClampedArray, width: number, height: number, ox: number, oy: number): void {
+function blitRgba(
+  target: Pixels,
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  ox: number,
+  oy: number,
+): void {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const si = (y * width + x) * 4;
