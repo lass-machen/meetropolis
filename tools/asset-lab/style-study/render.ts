@@ -2,7 +2,7 @@
 // scaling for the 4x sheet views. PNG encoding uses the repo's pngjs.
 
 import { PNG } from 'pngjs';
-import type { FigurePalette } from './palette.ts';
+import { isSymbol, type FigurePalette } from './palette.ts';
 
 export function gridToRgba(grid: string[], palette: FigurePalette): Uint8ClampedArray {
   const data = new Uint8ClampedArray(32 * 32 * 4);
@@ -10,8 +10,8 @@ export function gridToRgba(grid: string[], palette: FigurePalette): Uint8Clamped
     for (let x = 0; x < 32; x++) {
       const symbol = grid[y][x];
       if (symbol === '.') continue;
-      const hex = (palette as Record<string, string>)[symbol];
-      if (!hex) throw new Error(`no palette color for symbol '${symbol}'`);
+      if (!isSymbol(symbol)) throw new Error(`no palette color for symbol '${symbol}'`);
+      const hex = palette[symbol];
       const n = Number.parseInt(hex.replace('#', ''), 16);
       const idx = (y * 32 + x) * 4;
       data[idx] = (n >> 16) & 255;
