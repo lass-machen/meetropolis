@@ -224,6 +224,12 @@ jobs:
           LIVEKIT_API_KEY: devkey
           LIVEKIT_API_SECRET: secret
           TEST_SFU_CONTAINER: ${{ job.services.livekit.id }}
+          # worldAccess.outage.integration.test.ts pauses the test database
+          # through `docker pause`, like the SFU test above.
+          TEST_PG_CONTAINER: ${{ job.services.postgres.id }}
+          # wsUpgradeLimit.integration.test.ts starts the server on this port.
+          # It is not published by any service of this job.
+          WS_UPGRADE_TEST_PORT: '35441'
         run: npm -w @meetropolis/server run test:db
 
   build:
