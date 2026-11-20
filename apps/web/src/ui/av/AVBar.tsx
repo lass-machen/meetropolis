@@ -88,6 +88,7 @@ function DeviceSelector(props: {
         variant={isOn ? 'primary' : 'default'}
         icon="chevron-up"
         iconPosition="only"
+        aria-label={labelSelect}
         onClick={() => setOpen(!open)}
         style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, paddingLeft: 4, paddingRight: 4, minWidth: 24 }}
       />
@@ -198,6 +199,7 @@ function ShareButton({
         void onToggleShare();
       }}
       iconPosition="left"
+      title={shareOn ? t('av.share.stop') : t('av.share.start')}
     >
       <Icon name="screen-share" />
       <span>{shareOn ? t('av.share.stop') : t('av.share.start')}</span>
@@ -275,6 +277,7 @@ export function AVBar(props: AVBarProps) {
         }}
         labelSelect={t('av.selectCam')}
         disabled={dndOn}
+        title={camOn ? t('av.camOff') : t('av.camOn')}
       />
       <Separator variant="vertical" />
       <ShareButton shareOn={shareOn} dndOn={dndOn} onToggleShare={onToggleShare} t={t} />

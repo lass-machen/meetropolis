@@ -36,16 +36,33 @@ grant any rights to use the Marks.
 
 ## If you fork or self-host
 
-The public OSS repository intentionally ships **no** brand assets or
-marketing copy. The following areas are reserved for the private,
-closed-source modules operated by Tiamat and are protected by this
-policy:
+The public OSS repository contains own brand and image files
+for which MIT is explicitly the copyright license (see
+[`apps/web/LICENSE`](apps/web/LICENSE)). Exactly these ten files are
+davon erfasst:
+
+- `apps/web/public/logo.png`
+- `apps/web/public/favicon.svg`
+- `apps/web/public/favicon.ico`
+- `apps/web/public/favicon-16.png`
+- `apps/web/public/favicon-32.png`
+- `apps/web/public/apple-touch-icon.png`
+- `apps/web/public/icon-192.png`
+- `apps/web/public/icon-512.png`
+- `apps/web/public/icon-512-maskable.png`
+- `apps/web/public/images/pub/open-source-teaser-ide.png`
+
+With this exception no additional copyright licenses are granted for
+other files or private modules. The following areas
+remain reserved for Tiamat's private, closed-source modules and
+are protected by this policy:
 
 - Marketing landing sections (Hero, Pricing, Comparison, Social Proof,
   Final CTA, Problem/Solution)
 - Legal pages (Terms of Service, Privacy Policy, Imprint) with
   Meetropolis-specific content
-- Brand logo, wordmark, favicons, product screenshots, editor video
+- Additional brand, logo, favicon, screenshot and editor video content
+  of optional private modules outside the ten files listed above
 - Meta-Pixel tracking integration
 - Multi-tenant administration, Stripe billing, pricing-plan CRUD,
   asset-pack marketplace, audit log
@@ -57,9 +74,7 @@ expected to:
    OSS repository ships this directory as a placeholder slot).
 2. Provide your own legal pages (Privacy Policy, Terms, Imprint).
 3. Adjust the HTML title and favicon path in `apps/web/index.html`.
-4. If you want marketing tracking, set your own `VITE_META_PIXEL_ID`.
-   Do not reuse the Meetropolis pixel ID under any circumstances.
-5. Replace source-code strings that prominently use the "Meetropolis"
+4. Replace source-code strings that prominently use the "Meetropolis"
    name with your own branding.
 
 ## Contact

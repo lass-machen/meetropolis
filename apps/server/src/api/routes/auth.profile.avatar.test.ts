@@ -75,7 +75,9 @@ function makePrisma() {
         return Promise.resolve({ id: USER_ID, onboardingCompleted: true, ...data });
       }),
     },
-  } as PrismaClient;
+    // Partial test double: the handler only uses these delegates, so the
+    // remaining PrismaClient members are intentionally omitted.
+  } as unknown as PrismaClient;
   return { prisma, saved };
 }
 

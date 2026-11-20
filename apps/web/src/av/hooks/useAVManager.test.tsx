@@ -68,6 +68,17 @@ function setup(onConnected?: () => void) {
   return { view, editorActiveRef, avRef };
 }
 
+// The start gate suspends AV until the world confirms the join.
+// In these tests resume() stands in for that confirmed join: it lifts the
+// gate and connects the normal way, so assertions below it keep proving the
+// same gesture/teardown behavior as before, only behind the gate.
+async function confirmJoin(view: { result: { current: { resume: () => void } } }): Promise<void> {
+  view.result.current.resume();
+  await act(async () => {
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  });
+}
+
 // Dispatching the gesture kicks off an async connect chain; a few microtask
 // turns are needed before the AVManager stub has settled.
 async function fireGesture(type: 'pointerdown' | 'keydown' = 'pointerdown'): Promise<void> {
@@ -92,9 +103,12 @@ describe('useAVManager first-interaction connect', () => {
   });
 
   it('stays armed when the editor swallows the first gesture', async () => {
-    const { editorActiveRef, avRef } = setup();
+    const { view, editorActiveRef, avRef } = setup();
 
     editorActiveRef.current = true;
+    await confirmJoin(view);
+    // The confirmed join alone must not start AV while the editor is
+    // active; the real gesture below proves the editor still swallows it.
     await fireGesture();
     expect(avStub.construct).not.toHaveBeenCalled();
     expect(avRef.current).toBeNull();
@@ -107,8 +121,9 @@ describe('useAVManager first-interaction connect', () => {
   });
 
   it('does not connect twice for two gestures in a row', async () => {
-    setup();
+    const { view } = setup();
 
+    await confirmJoin(view);
     await fireGesture();
     await fireGesture('keydown');
 
@@ -116,9 +131,9 @@ describe('useAVManager first-interaction connect', () => {
   });
 
   it('disarms the listeners once a room exists', async () => {
-    setup();
+    const { view } = setup();
 
-    await fireGesture();
+    await confirmJoin(view);
     expect(avStub.construct).toHaveBeenCalledTimes(1);
 
     await fireGesture();
@@ -127,10 +142,10 @@ describe('useAVManager first-interaction connect', () => {
   });
 
   it('retries on the next gesture after a failed connect', async () => {
-    setup();
+    const { view } = setup();
 
     avStub.switchTo.mockRejectedValueOnce(new Error('livekit unreachable'));
-    await fireGesture();
+    await confirmJoin(view);
     expect(avStub.switchTo).toHaveBeenCalledTimes(1);
 
     await fireGesture();
@@ -164,7 +179,7 @@ describe('useAVManager teardown', () => {
   // AVManager.dispose() leaves LiveKit before its teardown (avManager.test.ts).
   it('disposes the manager when the world unmounts', async () => {
     const { view, avRef } = setup();
-    await fireGesture();
+    await confirmJoin(view);
     expect(avRef.current).toBe(avStub.instances[0]);
 
     view.unmount();
@@ -174,10 +189,10 @@ describe('useAVManager teardown', () => {
   });
 
   it('disposes a failed attempt before the next one, so a retry starts clean', async () => {
-    const { avRef } = setup();
+    const { view, avRef } = setup();
     avStub.switchTo.mockRejectedValueOnce(new Error('livekit unreachable'));
 
-    await fireGesture();
+    await confirmJoin(view);
 
     expect(avStub.calls).toEqual(['dispose']);
     expect(avRef.current).toBeNull();
@@ -208,7 +223,7 @@ describe('useAVManager suspension on terminal world errors', () => {
   // disconnects the room itself after the bound (avManager.test.ts).
   it('disposes the manager, which leaves LiveKit, and drops the reference', async () => {
     const { view, avRef } = setup();
-    await fireGesture();
+    await confirmJoin(view);
     const manager = avStub.instances[0];
     expect(avRef.current).toBe(manager);
 
@@ -237,7 +252,7 @@ describe('useAVManager suspension on terminal world errors', () => {
   it('rebuilds AV on resume the way a normal join does', async () => {
     const onConnected = vi.fn();
     const { view, avRef } = setup(onConnected);
-    await fireGesture();
+    await confirmJoin(view);
     expect(onConnected).toHaveBeenCalledTimes(1);
     act(() => view.result.current.suspend());
     await settle();
@@ -252,13 +267,16 @@ describe('useAVManager suspension on terminal world errors', () => {
     expect(onConnected).toHaveBeenCalledTimes(2);
   });
 
-  it('does nothing on resume without a prior suspend', async () => {
+  it('does not rebuild on a second resume without a new suspend', async () => {
     const { view } = setup();
+
+    await confirmJoin(view);
+    expect(avStub.construct).toHaveBeenCalledTimes(1);
 
     act(() => view.result.current.resume());
     await settle();
 
-    expect(avStub.construct).not.toHaveBeenCalled();
+    expect(avStub.construct).toHaveBeenCalledTimes(1);
   });
 
   it('drops a connect suspended mid-handshake and resumes once it has unwound', async () => {
@@ -272,7 +290,9 @@ describe('useAVManager suspension on terminal world errors', () => {
     const failures = vi.spyOn(AVLogger, 'error');
     const onConnected = vi.fn();
     const { view, avRef } = setup(onConnected);
-    await fireGesture();
+    // Start the join but keep it pending: the gate's resume begins the
+    // normal connect, which blocks on the unreleased switchTo below.
+    act(() => view.result.current.resume());
     const abandoned = avStub.instances[0];
 
     act(() => view.result.current.suspend());

@@ -2,27 +2,35 @@
  * Unit tests for the H4 hardening gate: identity binding (onAuth) +
  * client zone-privacy version gate.
  *
- * All external dependencies (logger, sessionAuth.validateSessionToken) are
+ * All external dependencies (logger, sessionAuth.validateTenantSessionFresh) are
  * mocked so no real JWT signing/DB is required. Tests exercise the pure
  * decision logic in authenticateWorldJoin/isWorldAuth/requireWorldAuth.
  *
- * The gate resolves tokens through `validateSessionToken` (the session ROW is
+ * The gate resolves tokens through `validateTenantSessionFresh` (the session ROW is
  * the authority), not through `verifyAuthJwt` (signature only) — a revoked
- * session must not open the world. `validateSessionToken` returning null is
+ * session must not open the world. `validateTenantSessionFresh` returning null is
  * therefore the single "not authenticated" signal here, covering a bad
  * signature AND a valid signature whose session is gone.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ServerError, type AuthContext } from 'colyseus';
-import { MIN_ZONE_PRIVACY_CLIENT_VERSION } from '@meetropolis/shared';
+import { ServerError, type AuthContext } from '@colyseus/core';
+import {
+  CLIENT_UPDATE_REQUIRED_CODE,
+  MIN_ASSET_PROTOCOL_VERSION,
+  MIN_ZONE_PRIVACY_CLIENT_VERSION,
+} from '@meetropolis/shared';
 
 vi.mock('../../logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-const validateSessionTokenMock = vi.fn();
+const validateTenantSessionFreshMock = vi.fn();
+const verifyAuthJwtMock = vi.fn();
+vi.mock('../../api/utils/authHelpers.js', () => ({
+  verifyAuthJwt: (...args: unknown[]) => verifyAuthJwtMock(...args),
+}));
 vi.mock('../../api/utils/sessionAuth.js', () => ({
-  validateSessionToken: (...args: unknown[]) => validateSessionTokenMock(...args),
+  validateTenantSessionFresh: (...args: unknown[]) => validateTenantSessionFreshMock(...args),
 }));
 
 import {
@@ -36,15 +44,19 @@ import type { RoomOptions } from '../WorldRoom.js';
 
 type WorldJoinPrisma = Parameters<typeof authenticateWorldJoin>[2];
 
-/** Default resolver: no tenant row, so no authoritative slug is attached. */
+/** Default resolver: the verified tenant has a slug, so it is attached. */
 const prisma = {
-  tenant: { findUnique: vi.fn(() => Promise.resolve(null)) },
+  tenant: { findUnique: vi.fn(() => Promise.resolve({ id: 'tenant-1', slug: 'acme' })) },
   session: { findUnique: vi.fn(), update: vi.fn() },
+  // Joins in these tests come from members; the membership gate has its own tests.
+  membership: { findUnique: vi.fn(() => Promise.resolve({ expiresAt: null })) },
+  npc: { findUnique: vi.fn(() => Promise.resolve({ id: 'npc-id', identity: 'bob' })) },
 } as unknown as WorldJoinPrisma;
 
-function makeContext(opts: { token?: string; cookie?: string } = {}): AuthContext {
+function makeContext(opts: { token?: string; cookie?: string; origin?: string } = {}): AuthContext {
   const headerInit: Record<string, string> = {};
   if (opts.cookie !== undefined) headerInit.cookie = opts.cookie;
+  if (opts.origin !== undefined) headerInit.origin = opts.origin;
   const context: AuthContext = {
     headers: new Headers(headerInit),
     ip: '127.0.0.1',
@@ -56,12 +68,11 @@ function makeContext(opts: { token?: string; cookie?: string } = {}): AuthContex
 const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
-  validateSessionTokenMock.mockReset();
+  validateTenantSessionFreshMock.mockReset();
+  verifyAuthJwtMock.mockReset();
+  verifyAuthJwtMock.mockReturnValue({ userId: 'user-real', tenantId: 'tenant-1' });
   process.env = { ...ORIGINAL_ENV };
   process.env.NODE_ENV = 'test';
-  // Default the suite to the fully-enforced gate; the staged-rollout describe
-  // block below turns it off explicitly to exercise the transitional path.
-  process.env.ZONE_PRIVACY_AUTH_ENFORCE = 'true';
 });
 
 afterEach(() => {
@@ -70,7 +81,13 @@ afterEach(() => {
 
 describe('authenticateWorldJoin: user identity binding', () => {
   it('binds identity to the JWT subject, ignoring a client-supplied options.identity', async () => {
-    validateSessionTokenMock.mockResolvedValue({ userId: 'user-real', tenantId: 'tenant-1' });
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-real',
+      tenantId: 'tenant-1',
+    });
     const options: RoomOptions = { identity: 'user-victim', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=jwt-abc' });
 
@@ -79,20 +96,29 @@ describe('authenticateWorldJoin: user identity binding', () => {
     expect(auth).toEqual({
       identity: 'user-real',
       tenantId: 'tenant-1',
+      tenantSlug: 'acme',
+      sessionId: 'db-session-1',
+      authSessionId: 'db-session-1',
       isNpc: false,
       zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION,
     });
-    expect(validateSessionTokenMock).toHaveBeenCalledWith(prisma, 'jwt-abc');
+    expect(validateTenantSessionFreshMock).toHaveBeenCalledWith(prisma, 'jwt-abc', 'tenant-1');
   });
 
   it('prefers context.token (Bearer/native) over the auth_token cookie when both are present', async () => {
-    validateSessionTokenMock.mockResolvedValue({ userId: 'user-native' });
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-native',
+      tenantId: 'tenant-1',
+    });
     const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ token: 'bearer-jwt', cookie: 'auth_token=cookie-jwt' });
 
     await authenticateWorldJoin(options, context, prisma);
 
-    expect(validateSessionTokenMock).toHaveBeenCalledWith(prisma, 'bearer-jwt');
+    expect(validateTenantSessionFreshMock).toHaveBeenCalledWith(prisma, 'bearer-jwt', 'tenant-1');
   });
 
   it('rejects a join with no cookie and no bearer token (fail-closed)', async () => {
@@ -102,40 +128,52 @@ describe('authenticateWorldJoin: user identity binding', () => {
     await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({
       code: AUTH_REJECTED_CODE,
     });
-    expect(validateSessionTokenMock).not.toHaveBeenCalled();
+    expect(validateTenantSessionFreshMock).not.toHaveBeenCalled();
   });
 
   it('rejects a join whose token fails JWT verification', async () => {
-    validateSessionTokenMock.mockResolvedValue(null);
+    verifyAuthJwtMock.mockReturnValue(null);
     const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=expired-or-tampered' });
 
     await expect(authenticateWorldJoin(options, context, prisma)).rejects.toBeInstanceOf(ServerError);
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
+    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({
+      code: AUTH_REJECTED_CODE,
+      message: 'unauthorized',
+    });
+    expect(validateTenantSessionFreshMock).not.toHaveBeenCalled();
   });
 
   it('rejects a REVOKED session even though the JWT signature is still valid', async () => {
+    verifyAuthJwtMock.mockReturnValue({ userId: 'user-revoked', tenantId: 'tenant-1' });
     // The regression this gate exists for: logout / session revocation /
     // password reset delete the Session row but cannot un-sign the JWT, which
     // stays cryptographically valid for its full 30-day lifetime. Resolving the
-    // token through validateSessionToken (null = no live row) is what closes the
+    // token through validateTenantSessionFresh (unauthenticated = no live row) is what closes the
     // world door at the same moment REST closes; verifyAuthJwt would still say
     // "signed by us" and admit the join.
-    validateSessionTokenMock.mockResolvedValue(null);
+    validateTenantSessionFreshMock.mockResolvedValue({ status: 'unauthenticated' });
     const options: RoomOptions = { identity: 'user-revoked', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=validly-signed-but-revoked' });
 
     await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({
       code: AUTH_REJECTED_CODE,
     });
-    expect(validateSessionTokenMock).toHaveBeenCalledWith(prisma, 'validly-signed-but-revoked');
+    expect(validateTenantSessionFreshMock).toHaveBeenCalledWith(prisma, 'validly-signed-but-revoked', 'tenant-1');
   });
 
   it('accepts a guest JWT identically to a regular user JWT (same {sub,tid} shape)', async () => {
     // Guest logins sign the exact same JWT payload shape as regular users
     // (see apps/server/src/api/routes/guests.ts handleGuestLogin) - the
     // gate must not special-case them.
-    validateSessionTokenMock.mockResolvedValue({ userId: 'guest-42', tenantId: 'tenant-acme' });
+    verifyAuthJwtMock.mockReturnValue({ userId: 'guest-42', tenantId: 'tenant-acme' });
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'guest-42',
+      tenantId: 'tenant-acme',
+    });
     const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=guest-jwt' });
 
@@ -144,36 +182,50 @@ describe('authenticateWorldJoin: user identity binding', () => {
     expect(auth).toEqual({
       identity: 'guest-42',
       tenantId: 'tenant-acme',
+      tenantSlug: 'acme',
+      sessionId: 'db-session-1',
+      authSessionId: 'db-session-1',
       isNpc: false,
       zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION,
     });
   });
 });
 
-describe('authenticateWorldJoin: staged rollout (ZONE_PRIVACY_AUTH_ENFORCE off)', () => {
+describe('authenticateWorldJoin: legacy clients without the current protocol', () => {
   beforeEach(() => {
     delete process.env.ZONE_PRIVACY_AUTH_ENFORCE;
+    verifyAuthJwtMock.mockReturnValue({ userId: 'user-real', tenantId: 'tenant-1' });
   });
 
-  it('admits a token-less legacy join with the client-supplied identity instead of rejecting', async () => {
+  it('rejects a token-less join when the legacy switch is unset', async () => {
     const options: RoomOptions = { identity: 'legacy-user', zonePrivacyVersion: 0 };
     const context = makeContext({});
 
-    const auth = await authenticateWorldJoin(options, context, prisma);
-
-    expect(auth).toEqual({ identity: 'legacy-user', isNpc: false, zonePrivacyVersion: 0 });
-    expect(validateSessionTokenMock).not.toHaveBeenCalled();
+    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({
+      code: AUTH_REJECTED_CODE,
+      message: 'unauthorized',
+    });
+    expect(validateTenantSessionFreshMock).not.toHaveBeenCalled();
   });
 
-  it('still rejects a token-less join that has no fallback identity at all', async () => {
+  it('rejects a token-less join that has no identity at all', async () => {
     const options: RoomOptions = { zonePrivacyVersion: 0 };
     const context = makeContext({});
 
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
+    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({
+      code: AUTH_REJECTED_CODE,
+      message: 'unauthorized',
+    });
   });
 
-  it('binds identity to the verified JWT even in staged mode when a token is present', async () => {
-    validateSessionTokenMock.mockResolvedValue({ userId: 'user-real', tenantId: 'tenant-1' });
+  it('binds identity to the verified JWT when the legacy switch is unset', async () => {
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-real',
+      tenantId: 'tenant-1',
+    });
     const options: RoomOptions = { identity: 'user-victim', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=jwt-abc' });
 
@@ -182,21 +234,49 @@ describe('authenticateWorldJoin: staged rollout (ZONE_PRIVACY_AUTH_ENFORCE off)'
     expect(auth.identity).toBe('user-real');
   });
 
-  it('admits an old-version but authenticated client instead of rejecting', async () => {
-    validateSessionTokenMock.mockResolvedValue({ userId: 'user-old-client' });
+  it('rejects an old-version authenticated client', async () => {
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-old-client',
+      tenantId: 'tenant-1',
+    });
     const options: RoomOptions = { zonePrivacyVersion: 0 };
     const context = makeContext({ cookie: 'auth_token=jwt-old' });
 
+    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: CLIENT_TOO_OLD_CODE });
+    expect(validateTenantSessionFreshMock).toHaveBeenCalledTimes(1);
+    expect(validateTenantSessionFreshMock).toHaveBeenCalledWith(prisma, 'jwt-old', 'tenant-1');
+  });
+
+  it('allows the current protocol when the legacy enforcement switch is set', async () => {
+    process.env.ZONE_PRIVACY_AUTH_ENFORCE = 'true';
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-real',
+      tenantId: 'tenant-1',
+    });
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const context = makeContext({ cookie: 'auth_token=jwt-current' });
+
     const auth = await authenticateWorldJoin(options, context, prisma);
 
-    expect(auth.identity).toBe('user-old-client');
-    expect(auth.isNpc).toBe(false);
+    expect(auth.identity).toBe('user-real');
   });
 });
 
 describe('authenticateWorldJoin: client zone-privacy version gate', () => {
   beforeEach(() => {
-    validateSessionTokenMock.mockResolvedValue({ userId: 'user-real' });
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-real',
+      tenantId: 'tenant-1',
+    });
   });
 
   it('rejects a join with a version below the minimum', async () => {
@@ -232,18 +312,19 @@ describe('authenticateWorldJoin: client zone-privacy version gate', () => {
 
 describe('authenticateWorldJoin: NPC identities', () => {
   beforeEach(() => {
-    process.env.NPC_SERVICE_SECRET = 'test-npc-secret';
+    process.env.NPC_SERVICE_SECRET = 'n'.repeat(40);
   });
 
-  it('accepts an npc-* join with the correct service token, exempt from the version gate', async () => {
-    const options: RoomOptions = { identity: 'npc-bob', serviceToken: 'test-npc-secret' };
+  it('accepts a registered NPC with a secure service token', async () => {
+    const options: RoomOptions = { identity: 'npc-bob', serviceToken: 'n'.repeat(40) };
     const context = makeContext({});
 
     const auth = await authenticateWorldJoin(options, context, prisma);
 
     expect(auth.identity).toBe('npc-bob');
     expect(auth.isNpc).toBe(true);
-    expect(validateSessionTokenMock).not.toHaveBeenCalled();
+    expect(auth.sessionId).toBeNull();
+    expect(validateTenantSessionFreshMock).not.toHaveBeenCalled();
   });
 
   it('rejects an npc-* join with a wrong service token', async () => {
@@ -269,8 +350,7 @@ describe('authenticateWorldJoin: NPC identities', () => {
     await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
   });
 
-  it('rejects an npc-* join in production when NPC_SERVICE_SECRET is left at the insecure default', async () => {
-    process.env.NODE_ENV = 'production';
+  it('rejects an NPC when the service secret is the insecure default', async () => {
     process.env.NPC_SERVICE_SECRET = 'dev-npc-secret';
     const options: RoomOptions = { identity: 'npc-bob', serviceToken: 'dev-npc-secret' };
     const context = makeContext({});
@@ -283,14 +363,22 @@ describe('authenticateWorldJoin: room-tenant enforcement decoupled from H4 flag 
   // Passing a prisma resolver lets onAuth resolve the tenant slug from the
   // verified tenantId (id -> slug); 'auth-a' is the authenticated tenant.
   const fakePrisma = {
-    tenant: { findUnique: vi.fn(() => Promise.resolve({ slug: 'auth-a' })) },
+    tenant: { findUnique: vi.fn(() => Promise.resolve({ id: 'tenant-a-id', slug: 'auth-a' })) },
+    membership: { findUnique: vi.fn(() => Promise.resolve({ expiresAt: null })) },
+    npc: { findUnique: vi.fn(() => Promise.resolve({ id: 'npc-id', identity: 'bob' })) },
   } as unknown as Parameters<typeof authenticateWorldJoin>[2];
 
   beforeEach(() => {
-    validateSessionTokenMock.mockResolvedValue({ userId: 'user-1', tenantId: 'tenant-a-id' });
-    // The suite default leaves ZONE_PRIVACY_AUTH_ENFORCE=true (the H4 identity
-    // gate, already ON in prod). The tenant-room match must ride on its OWN
-    // flag, so clear that one by default here.
+    verifyAuthJwtMock.mockReturnValue({ userId: 'user-1', tenantId: 'tenant-a-id' });
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-1',
+      tenantId: 'tenant-a-id',
+    });
+    // Tenant-room matching remains controlled by its dedicated setting, which
+    // is on unless explicitly off; the cases below start from its default.
     delete process.env.ZONE_PRIVACY_TENANT_ENFORCE;
   });
 
@@ -302,12 +390,8 @@ describe('authenticateWorldJoin: room-tenant enforcement decoupled from H4 flag 
   });
 
   it('DEPLOY-LOCKOUT GUARD (Finding 3): admits a tenant mismatch when only the H4 flag is ON', async () => {
-    // Reproduces the production state: ZONE_PRIVACY_AUTH_ENFORCE=true (suite
-    // default) but ZONE_PRIVACY_TENANT_ENFORCE unset. Old apex clients post
-    // options.tenant='default' for every tenant; if the tenant match rode on the
-    // already-on H4 flag they would be mass-rejected on the next deploy. The
-    // decoupling MUST admit them (identity bound, authoritative slug attached).
-    expect(process.env.ZONE_PRIVACY_AUTH_ENFORCE).toBe('true');
+    // The dedicated tenant setting is explicitly off, so the authenticated tenant remains authoritative.
+    process.env.ZONE_PRIVACY_TENANT_ENFORCE = 'false';
     const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const auth = await authenticateWorldJoin(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
     expect(auth.identity).toBe('user-1'); // admitted, not rejected
@@ -323,6 +407,7 @@ describe('authenticateWorldJoin: room-tenant enforcement decoupled from H4 flag 
   });
 
   it('admits a mismatched options.tenant during rollout (tenant-enforce OFF) but keeps the AUTH slug', async () => {
+    process.env.ZONE_PRIVACY_TENANT_ENFORCE = 'false';
     const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const auth = await authenticateWorldJoin(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
     expect(auth.tenantSlug).toBe('auth-a'); // authoritative, not the spoofed 'spoof-b'
@@ -336,9 +421,50 @@ describe('authenticateWorldJoin: room-tenant enforcement decoupled from H4 flag 
   });
 });
 
+describe('authenticateWorldJoin: unresolvable tenant slug fails closed', () => {
+  beforeEach(() => {
+    verifyAuthJwtMock.mockReturnValue({ userId: 'user-real', tenantId: 'tenant-1' });
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-real',
+      tenantId: 'tenant-1',
+    });
+  });
+
+  it('rejects with tenant_unresolved when the tenant row is gone', async () => {
+    const noTenant = {
+      ...prisma,
+      tenant: { findUnique: vi.fn(() => Promise.resolve(null)) },
+    } as unknown as WorldJoinPrisma;
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc' });
+
+    await expect(authenticateWorldJoin(options, context, noTenant)).rejects.toMatchObject({
+      code: AUTH_REJECTED_CODE,
+      message: 'tenant_unresolved',
+    });
+  });
+
+  it('rejects with tenant_unresolved when the slug lookup fails', async () => {
+    const failingTenant = {
+      ...prisma,
+      tenant: { findUnique: vi.fn(() => Promise.reject(new Error('db down'))) },
+    } as unknown as WorldJoinPrisma;
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc' });
+
+    await expect(authenticateWorldJoin(options, context, failingTenant)).rejects.toMatchObject({
+      code: AUTH_REJECTED_CODE,
+      message: 'tenant_unresolved',
+    });
+  });
+});
+
 describe('isWorldAuth / requireWorldAuth', () => {
   it('accepts a well-formed WorldAuth value', () => {
-    expect(isWorldAuth({ identity: 'a', isNpc: false, zonePrivacyVersion: 1 })).toBe(true);
+    expect(isWorldAuth({ identity: 'a', isNpc: false, zonePrivacyVersion: 1, sessionId: 'session-1' })).toBe(true);
   });
 
   it('rejects malformed or missing values', () => {
@@ -349,12 +475,89 @@ describe('isWorldAuth / requireWorldAuth', () => {
   });
 
   it('requireWorldAuth returns the auth payload when present and valid', () => {
-    const client = { auth: { identity: 'user-1', isNpc: false, zonePrivacyVersion: 1 } };
+    const client = { auth: { identity: 'user-1', isNpc: false, zonePrivacyVersion: 1, sessionId: 'session-1' } };
     expect(requireWorldAuth(client)).toEqual(client.auth);
   });
 
   it('requireWorldAuth throws fail-closed when client.auth is missing (onAuth did not run)', () => {
     const client = { auth: undefined };
     expect(() => requireWorldAuth(client)).toThrow(ServerError);
+  });
+});
+
+describe('authenticateWorldJoin: desktop asset-protocol gate', () => {
+  const TEST_CORS_ORIGIN = 'tauri://localhost, http://tauri.localhost, https://app.example.test';
+
+  beforeEach(() => {
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-real',
+      tenantId: 'tenant-1',
+    });
+    process.env.CORS_ORIGIN = TEST_CORS_ORIGIN;
+    process.env.MEMBER_ASSETS_ENFORCE = 'true';
+    process.env.NPC_SERVICE_SECRET = 'n'.repeat(40);
+  });
+
+  it('rejects an enforced desktop join without the asset protocol option', async () => {
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc', origin: 'tauri://localhost' });
+
+    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+      message: CLIENT_UPDATE_REQUIRED_CODE,
+    });
+  });
+
+  it('admits an enforced desktop join with the current asset protocol', async () => {
+    const options: RoomOptions = {
+      zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION,
+      assetProtocol: MIN_ASSET_PROTOCOL_VERSION,
+    };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc', origin: 'tauri://localhost' });
+
+    const auth = await authenticateWorldJoin(options, context, prisma);
+
+    expect(auth.identity).toBe('user-real');
+  });
+
+  it('admits an enforced web join without the asset protocol option', async () => {
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc', origin: 'https://app.example.test' });
+
+    const auth = await authenticateWorldJoin(options, context, prisma);
+
+    expect(auth.identity).toBe('user-real');
+  });
+
+  it('admits an enforced join without an origin header', async () => {
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc' });
+
+    const auth = await authenticateWorldJoin(options, context, prisma);
+
+    expect(auth.identity).toBe('user-real');
+  });
+
+  it('admits a desktop join without the option while enforcement is off', async () => {
+    delete process.env.MEMBER_ASSETS_ENFORCE;
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const context = makeContext({ cookie: 'auth_token=jwt-abc', origin: 'tauri://localhost' });
+
+    const auth = await authenticateWorldJoin(options, context, prisma);
+
+    expect(auth.identity).toBe('user-real');
+  });
+
+  it('leaves an NPC join untouched while enforced', async () => {
+    const options: RoomOptions = { identity: 'npc-bob', serviceToken: 'n'.repeat(40) };
+    const context = makeContext({ origin: 'tauri://localhost' });
+
+    const auth = await authenticateWorldJoin(options, context, prisma);
+
+    expect(auth.isNpc).toBe(true);
+    expect(auth.identity).toBe('npc-bob');
   });
 });

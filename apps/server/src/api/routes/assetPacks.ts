@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import fsp from 'fs/promises';
-import multer from 'multer';
+import { uploadGuard, uploadParser, boundedMultipart } from '../middleware/uploadPolicy.js';
 import unzipper from 'unzipper';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
@@ -19,7 +19,6 @@ import {
   validateConfigAssetReferences,
   extractAssetsToTmpDir,
   rewriteConfig,
-  moveTmpToFinal,
   persistAssetPackRecord,
   readUploadedZipBuffer,
   parseUploadedConfig,
@@ -28,13 +27,24 @@ import {
   MissingReferencedAssetError,
   ReferencedAssetConflictError,
 } from './assetPacks.processor.js';
+import {
+  createAssetPackGeneration,
+  publishAssetPackGeneration,
+  type AssetPackGenerationPaths,
+} from './assetPackGenerations.js';
 import { acquirePackAdvisoryLock } from '../utils/advisoryLocks.js';
+import {
+  cleanupPackGenerationsAfterCommit,
+  packTilesetReferenceWhere,
+  removeDeletedPackFilesAfterCommit,
+} from './assetPackFilesAfterCommit.js';
+import { checkDeclaredZipSize, createUnpackBudget, type UnpackBudget } from './assetPackZipLimits.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 type PrepareUploadResult =
-  | { ok: true; cfg: AssetPackConfig; assetEntries: ZipEntry[] }
+  | { ok: true; cfg: AssetPackConfig; assetEntries: ZipEntry[]; budget: UnpackBudget }
   | { ok: false; status: number; body: Record<string, unknown> };
 
 const archiveAssetPackSchema = z.object({ archived: z.boolean() });
@@ -47,20 +57,21 @@ function assetPackIdentityWhere(identifier: string): { id: number } | { uuid: st
 async function persistUploadedPack(params: {
   prisma: PrismaClient;
   packsDir: string;
-  tmpDir: string;
+  generation: AssetPackGenerationPaths;
   cfg: AssetPackConfig;
   rewritten: ReturnType<typeof rewriteConfig>;
   assetMap: ReadonlyMap<string, string>;
   repairMissingSnapshots: boolean;
   userId: string;
 }) {
-  const { prisma, packsDir, tmpDir, cfg, rewritten, assetMap, repairMissingSnapshots, userId } = params;
-  const finalDir = path.resolve(packsDir, cfg.uuid);
+  const { prisma, packsDir, generation, cfg, rewritten, assetMap, repairMissingSnapshots, userId } = params;
+  const tmpDir = generation.tmpDir;
+  const packDir = path.resolve(packsDir, cfg.uuid);
   const repairSources = new Map<string, string>();
   for (const [original, hashed] of assetMap) {
     repairSources.set(original.replace(/^assets\//, ''), path.resolve(tmpDir, hashed));
   }
-  return prisma.$transaction(
+  const record = await prisma.$transaction(
     async (tx) => {
       await acquirePackAdvisoryLock(tx, cfg.uuid);
       const existCheck = await checkExistingPackDimensions(tx, cfg.uuid, cfg, tmpDir);
@@ -71,17 +82,25 @@ async function persistUploadedPack(params: {
           itemId: existCheck.itemId,
         });
       }
-      await preserveReferencedPackAssets(tx, cfg.uuid, finalDir, tmpDir, {
+      await preserveReferencedPackAssets(tx, cfg.uuid, packDir, tmpDir, {
+        retainInPlace: true,
         repairMissing: repairMissingSnapshots,
         repairSources,
         onRepair: ({ url, source }) =>
           logger.warn({ event: 'asset_pack.snapshot_repaired', uuid: cfg.uuid, url, source, repairedBy: userId }),
       });
-      await moveTmpToFinal(tmpDir, finalDir);
-      return persistAssetPackRecord(tx, cfg, rewritten, existCheck.existing);
+      await publishAssetPackGeneration(generation);
+      return persistAssetPackRecord(tx, cfg, rewritten, existCheck.existing, generation.id);
     },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    // Every online writer of a pack row takes this pack lock first, so the
+    // re-reads after the lock see the latest committed state without the
+    // write conflicts a serializable snapshot taken before the lock causes.
+    { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
   );
+  await cleanupPackGenerationsAfterCommit(prisma, packsDir, cfg.uuid).catch((error: unknown) =>
+    logger.warn({ event: 'asset_pack.generation_cleanup_failed', uuid: cfg.uuid, error: String(error) }),
+  );
+  return record;
 }
 
 async function prepareUploadFromRequest(req: express.Request): Promise<PrepareUploadResult> {
@@ -95,13 +114,17 @@ async function prepareUploadFromRequest(req: express.Request): Promise<PrepareUp
     return { ok: false, status: 400, body: { error: 'invalid zip structure' } };
   }
 
+  if (!checkDeclaredZipSize(zip.files)) {
+    return { ok: false, status: 413, body: { error: 'asset_pack_too_large' } };
+  }
+  const budget = createUnpackBudget();
   const scan = scanZipEntries(zip.files);
   if (!scan.ok) {
     return { ok: false, status: scan.status, body: { error: scan.error } };
   }
   const { configEntry, assetEntries } = scan;
 
-  const cfgResult = await parseUploadedConfig(configEntry);
+  const cfgResult = await parseUploadedConfig(configEntry, budget);
   if (!cfgResult.ok) {
     return { ok: false, status: cfgResult.status, body: { error: cfgResult.error, details: cfgResult.details } };
   }
@@ -124,7 +147,7 @@ async function prepareUploadFromRequest(req: express.Request): Promise<PrepareUp
     return { ok: false, status: 400, body: validationError as unknown as Record<string, unknown> };
   }
 
-  return { ok: true, cfg, assetEntries };
+  return { ok: true, cfg, assetEntries, budget };
 }
 
 async function handleAssetPackUpload(
@@ -138,7 +161,7 @@ async function handleAssetPackUpload(
     res.status(auth.status).json({ error: auth.error });
     return;
   }
-  let tmpDir: string | undefined;
+  let generation: AssetPackGenerationPaths | undefined;
   try {
     try {
       logger.info('[AssetPacks] upload request received');
@@ -149,26 +172,26 @@ async function handleAssetPackUpload(
       res.status(prepared.status).json(prepared.body);
       return;
     }
-    const { cfg, assetEntries } = prepared;
+    const { cfg, assetEntries, budget } = prepared;
 
     const uuid = cfg.uuid;
-    tmpDir = path.resolve(packsDir, `.tmp-${uuid}-${Date.now()}`);
-    await fsp.mkdir(tmpDir, { recursive: true });
+    generation = await createAssetPackGeneration(packsDir, uuid);
+    const tmpDir = generation.tmpDir;
 
-    const extracted = await extractAssetsToTmpDir(assetEntries, tmpDir);
+    const extracted = await extractAssetsToTmpDir(assetEntries, tmpDir, budget);
     if (!extracted.ok) {
       res.status(extracted.status).json({ error: extracted.error, path: extracted.path });
       return;
     }
 
-    const rewritten = rewriteConfig(cfg, uuid, extracted.assetMap);
+    const rewritten = rewriteConfig(cfg, uuid, extracted.assetMap, generation.id);
 
     const uploadFields = req.body as { repairMissingSnapshots?: unknown } | undefined;
     const repairMissingSnapshots = uploadFields?.repairMissingSnapshots === 'true';
     const rec = await persistUploadedPack({
       prisma,
       packsDir,
-      tmpDir,
+      generation,
       cfg,
       rewritten,
       assetMap: extracted.assetMap,
@@ -200,7 +223,15 @@ async function handleAssetPackUpload(
     logger.error('[AssetPacks] upload failed', e);
     res.status(500).json({ error: 'upload failed' });
   } finally {
-    if (tmpDir) await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+    // Only our own generation tmp dir may go here — never the pack root, a
+    // published generation, or a legacy directory. After a successful publish
+    // the tmp path is already gone, so this is a no-op on the happy path. A
+    // transaction failure after publish can leave the published generation
+    // unreferenced on disk; the next successful upload of the pack removes it.
+    const ownTmp = generation?.tmpDir;
+    if (ownTmp && path.basename(ownTmp).startsWith('.tmp-')) {
+      await fsp.rm(ownTmp, { recursive: true, force: true }).catch(() => undefined);
+    }
   }
 }
 
@@ -275,16 +306,33 @@ async function handleArchiveAssetPack(
     res.status(400).json({ error: 'invalid identifier' });
     return;
   }
-  const pack = await prisma.assetPack.findFirst({ where: assetPackIdentityWhere(identifier), select: { id: true } });
+  const pack = await prisma.assetPack.findFirst({
+    where: assetPackIdentityWhere(identifier),
+    select: { id: true, uuid: true },
+  });
   if (!pack) {
     res.status(404).json({ error: 'not found' });
     return;
   }
-  const updated = await prisma.assetPack.update({
-    where: { id: pack.id },
-    data: { archived: parsed.data.archived },
-  });
-  res.json(updated);
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      await acquirePackAdvisoryLock(tx, pack.uuid);
+      const current = await tx.assetPack.findUnique({ where: { id: pack.id } });
+      if (!current) return null;
+      return tx.assetPack.update({
+        where: { id: pack.id },
+        data: { archived: parsed.data.archived },
+      });
+    });
+    if (!updated) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
+    res.json(updated);
+  } catch (e) {
+    logger.error('[AssetPacks] archive failed', e);
+    res.status(500).json({ error: 'internal error' });
+  }
 }
 
 async function handleDeleteAssetPack(
@@ -313,16 +361,16 @@ async function handleDeleteAssetPack(
     await acquirePackAdvisoryLock(tx, pack.uuid);
     const current = await tx.assetPack.findUnique({ where: { id } });
     if (!current) return { status: 'missing' as const };
-    const [autotileReferences, objectReferences] = await Promise.all([
+    const [autotileReferences, objectReferences, tilesetReferences] = await Promise.all([
       tx.mapAutotile.count({ where: { packUuid: current.uuid } }),
       tx.mapObject.count({ where: { assetPackUuid: current.uuid } }),
+      tx.mapTileset.count({ where: packTilesetReferenceWhere(current.uuid) }),
     ]);
-    if (autotileReferences > 0 || objectReferences > 0) {
-      return { status: 'referenced' as const, autotileReferences, objectReferences };
+    if (autotileReferences > 0 || objectReferences > 0 || tilesetReferences > 0) {
+      return { status: 'referenced' as const, autotileReferences, objectReferences, tilesetReferences };
     }
-    await fsp.rm(path.resolve(packsDir, current.uuid), { recursive: true, force: true });
     await tx.assetPack.delete({ where: { id } });
-    return { status: 'deleted' as const };
+    return { status: 'deleted' as const, uuid: current.uuid };
   });
   if (deletion.status === 'missing') {
     res.status(404).json({ error: 'not found' });
@@ -332,10 +380,17 @@ async function handleDeleteAssetPack(
     res.status(409).json({
       error: 'asset_pack_in_use',
       message: 'This pack is referenced by maps. Archive it instead of deleting it.',
-      references: { autotiles: deletion.autotileReferences, objects: deletion.objectReferences },
+      references: {
+        autotiles: deletion.autotileReferences,
+        objects: deletion.objectReferences,
+        tilesets: deletion.tilesetReferences,
+      },
     });
     return;
   }
+  await removeDeletedPackFilesAfterCommit(prisma, packsDir, deletion.uuid).catch((error: unknown) =>
+    logger.warn({ event: 'asset_pack.file_removal_failed', uuid: deletion.uuid, error: String(error) }),
+  );
   res.json({ ok: true, fallback: fallbackUrl });
 }
 
@@ -346,12 +401,9 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
   } catch {}
   const FALLBACK_ASSET_URL = process.env.FALLBACK_ASSET_URL || '/packs/__fallback__/missing.png';
 
-  const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 },
-  });
+  const upload = uploadParser('asset');
 
-  app.post('/asset-packs/upload', upload.single('file'), (req, res) =>
+  app.post('/asset-packs/upload', uploadGuard(prisma, 'asset'), boundedMultipart(upload.single('file')), (req, res) =>
     handleAssetPackUpload(prisma, packsDir, req, res),
   );
   app.get('/asset-packs', (req, res) => handleListAssetPacks(prisma, req, res));

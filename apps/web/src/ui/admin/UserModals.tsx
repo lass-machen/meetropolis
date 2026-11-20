@@ -22,11 +22,13 @@ export function CreateUserModal({
   const [newEmail, setNewEmail] = React.useState('');
   const [newName, setNewName] = React.useState('');
   const [newRole, setNewRole] = React.useState<'admin' | 'member'>('member');
-  const [inviteCode, setInviteCode] = React.useState<string | null>(null);
+  const [invite, setInvite] = React.useState<{ email: string; inviteUrl: string | null; emailSent: boolean } | null>(
+    null,
+  );
 
   React.useEffect(() => {
     if (open) {
-      setInviteCode(null);
+      setInvite(null);
       setNewEmail('');
       setNewName('');
     }
@@ -43,7 +45,7 @@ export function CreateUserModal({
       });
       if (!res.ok) throw new Error(translateApiError(((await res.json()) as ApiErrorBody)?.error) || t('common.error'));
       const data = (await res.json()) as InviteResponse;
-      setInviteCode(data.code || null);
+      setInvite({ email: newEmail, inviteUrl: data.inviteUrl || null, emailSent: data.emailSent ?? false });
       try {
         await (document as unknown as UserManagementWindow).__userManagementLoad?.();
       } catch (err) {
@@ -69,6 +71,7 @@ export function CreateUserModal({
           <Button onClick={() => onOpenChange(false)}>{t('admin.users.cancel')}</Button>
           <Button
             variant="brand"
+            disabled={newEmail.trim().length === 0}
             onClick={() => {
               void handleInvite();
             }}
@@ -103,12 +106,16 @@ export function CreateUserModal({
             <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('admin.users.adminInvitesHint')}</div>
           </div>
         )}
-        {inviteCode && (
+        {invite && (
           <div
             className="glass-surface"
             style={{ padding: 12, borderRadius: 'var(--radius-sm)', display: 'grid', gap: 8 }}
           >
-            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('admin.users.inviteCode')}</div>
+            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+              {invite.emailSent
+                ? t('tenant.inviteSentTo', { email: invite.email })
+                : t('tenant.inviteResendNotDelivered')}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div
                 style={{
@@ -123,11 +130,15 @@ export function CreateUserModal({
                   letterSpacing: '0.06em',
                 }}
               >
-                {inviteCode}
+                {invite.inviteUrl}
               </div>
               <Button
                 onClick={() => {
-                  void navigator.clipboard?.writeText(inviteCode);
+                  if (!invite.inviteUrl) {
+                    setError(translateApiError('public_base_url_missing'));
+                    return;
+                  }
+                  void navigator.clipboard?.writeText(invite.inviteUrl);
                 }}
               >
                 {t('admin.users.copy')}

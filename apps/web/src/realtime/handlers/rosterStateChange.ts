@@ -33,7 +33,8 @@ export function setupRosterOnStateChange(
 
       const iterateForRoster = (value: PlayerSchema, key: string) => {
         if (key === localPosRef.current.id) return;
-        const livekitIdentity = value.identity || colyseusToLivekitMap.current[key] || key;
+        const livekitIdentity = value.identity || colyseusToLivekitMap.current[key];
+        if (!livekitIdentity) return;
         const name = identityToNameMap.current[livekitIdentity] || value.name || livekitIdentity;
         online[livekitIdentity] = { name, x: value.x, y: value.y };
       };

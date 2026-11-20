@@ -1,60 +1,119 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
+import { WORLD_WALK_SPEED_PX_PER_SECOND, type MoveCorrectionMessage } from '@meetropolis/shared';
 import { logger } from '../../logger.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { isMovementBlocked } from './zoneLockHandler.js';
 import { broadcastToMap } from '../utils/broadcastHelpers.js';
 import { trackMove } from '../audioZones/runtime.js';
+import { getBoundsPxForMap } from '../utils/mapBoundsHelpers.js';
+import { countRejectedPayload } from '../validation/rejectionMetrics.js';
+import { moveSchema } from '../validation/worldPayloadSchemas.js';
+import { isWorldAuth } from '../lifecycle/onAuth.js';
+import { getMoveBaseline } from './moveBaseline.js';
 
 export interface MoveData {
   x: number;
   y: number;
-  direction: string;
+  direction: 'up' | 'down' | 'left' | 'right';
 }
 
-// Move handler with throttling (~12.5 Hz). Updates `lastSeen` on every
-// invocation, so moves act as implicit heartbeats.
+const MOVE_INTERVAL_MS = 80;
+const MOVE_SPEED_TOLERANCE = 1.1;
+// 24 px covers about 270 ms of walking arrivals compressed by network jitter.
+const MOVE_POSITION_TOLERANCE_PX = 24;
+
+// Full pixel size of the cached map. getBoundsPxForMap insets by half a tile,
+// so the closed window is [0, width] x [0, height], not that inset rectangle.
+// A map missing from mapCache is rejected here; the room-level fallback is not used.
+function isMoveInsideMap(room: WorldRoom, mapId: string, x: number, y: number): boolean {
+  if (!room.mapCache.has(mapId)) return false;
+  const bounds = getBoundsPxForMap(room, mapId);
+  const entry = room.mapCache.get(mapId);
+  if (!bounds || !entry) return false;
+  const width = entry.widthTiles * entry.tileWidthPx;
+  const height = entry.heightTiles * entry.tileHeightPx;
+  return x >= 0 && x <= width && y >= 0 && y <= height;
+}
+
+function publishMove(
+  room: WorldRoom,
+  client: Client,
+  player: {
+    x: number;
+    y: number;
+    direction: string;
+    mapId: string;
+    mapName: string;
+  },
+  move: MoveData,
+): void {
+  player.x = move.x;
+  player.y = move.y;
+  player.direction = move.direction;
+
+  // H4: recompute audio-zone island membership on every accepted move.
+  trackMove(room, client.sessionId);
+
+  broadcastToMap(
+    room,
+    player.mapId,
+    'player_moved',
+    {
+      id: client.sessionId,
+      x: move.x,
+      y: move.y,
+      direction: move.direction,
+      mapId: player.mapId,
+      mapName: player.mapName,
+    },
+    client,
+  );
+}
+
+// Move handler with throttling (~12.5 Hz). Schema and map bounds run before
+// any timestamp, throttle, or player-state write. An accepted move still
+// updates `lastSeen` before the throttle, so it acts as an implicit heartbeat.
 export function createMoveHandler(room: WorldRoom) {
-  const lastMove: Map<string, number> = new Map();
-  return (client: Client, data: MoveData): void => {
-    const now = Date.now();
-    room.lastSeen.set(client.sessionId, now);
-    const prev = lastMove.get(client.sessionId) || 0;
-    if (now - prev < 80) {
+  return (client: Client, data: unknown): void => {
+    const parsed = moveSchema.safeParse(data);
+    if (!parsed.success) {
+      countRejectedPayload('move', 'schema');
       return;
     }
-    lastMove.set(client.sessionId, now);
     const player = room.state.players.get(client.sessionId);
     if (!player) {
       logger.warn('[WorldRoom] Move from unknown player:', client.sessionId);
       return;
     }
-    const moveCheck = isMovementBlocked(room.zoneLockState, client.sessionId, player.mapId, { x: data.x, y: data.y });
+    const { x, y } = parsed.data;
+    if (!isMoveInsideMap(room, player.mapId, x, y)) {
+      countRejectedPayload('move', 'bounds');
+      return;
+    }
+    room.lastSeen.set(client.sessionId, Date.now());
+    const now = performance.now();
+    const baseline = getMoveBaseline(player, now);
+    if (now - baseline.checkedAt < MOVE_INTERVAL_MS) return;
+    baseline.checkedAt = now;
+
+    const elapsedSeconds = (now - baseline.acceptedAt) / 1000;
+    const maxDistance =
+      WORLD_WALK_SPEED_PX_PER_SECOND * MOVE_SPEED_TOLERANCE * elapsedSeconds + MOVE_POSITION_TOLERANCE_PX;
+    // Authenticated NPCs have their own commanded movement speed.
+    const auth: unknown = client.auth;
+    if (!(isWorldAuth(auth) && auth.isNpc) && Math.hypot(x - player.x, y - player.y) > maxDistance) {
+      countRejectedPayload('move', 'distance');
+      const correction: MoveCorrectionMessage = { x: player.x, y: player.y, mapId: player.mapId };
+      client.send('move_correction', correction);
+      return;
+    }
+    const moveCheck = isMovementBlocked(room.zoneLockState, client.sessionId, player.mapId, { x, y });
     if (moveCheck.blocked) {
       client.send('zone_move_blocked', { zoneName: moveCheck.zoneName });
       return;
     }
-
-    player.x = data.x;
-    player.y = data.y;
-    player.direction = data.direction;
-
-    // H4: recompute audio-zone island membership on every accepted move.
-    trackMove(room, client.sessionId);
-
-    broadcastToMap(
-      room,
-      player.mapId,
-      'player_moved',
-      {
-        id: client.sessionId,
-        x: data.x,
-        y: data.y,
-        direction: data.direction,
-        mapId: player.mapId,
-        mapName: player.mapName,
-      },
-      client,
-    );
+    baseline.acceptedAt = now;
+    publishMove(room, client, player, parsed.data);
   };
 }
 

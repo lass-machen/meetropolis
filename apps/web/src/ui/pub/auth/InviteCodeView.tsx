@@ -147,7 +147,7 @@ function InviteFooter({ onLogin, onRegister, registrationEnabled }: InviteFooter
           style={{
             all: 'unset',
             cursor: 'pointer',
-            color: 'var(--pub-accent-purple)',
+            color: 'var(--pub-accent-purple-dark)',
             textDecoration: 'none',
             fontWeight: 600,
           }}
@@ -164,7 +164,7 @@ function InviteFooter({ onLogin, onRegister, registrationEnabled }: InviteFooter
             style={{
               all: 'unset',
               cursor: 'pointer',
-              color: 'var(--pub-accent-purple)',
+              color: 'var(--pub-accent-purple-dark)',
               textDecoration: 'none',
               fontWeight: 600,
             }}
@@ -190,9 +190,20 @@ export function InviteCodeView({
   const { t } = useTranslation('public');
   const [code, setCode] = useState(initialCode);
   const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const visibleError = localError ?? error;
+
+  function updateCode(v: string) {
+    setLocalError(null);
+    setCode(v);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (code.trim() === '') {
+      setLocalError(t('auth.requiredFieldsMissing'));
+      return;
+    }
     setLoading(true);
     try {
       await onSubmit(code);
@@ -206,6 +217,7 @@ export function InviteCodeView({
       onSubmit={(e) => {
         void handleSubmit(e);
       }}
+      noValidate
       autoComplete="off"
       style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
     >
@@ -219,11 +231,11 @@ export function InviteCodeView({
         placeholder={t('auth.inviteCodePlaceholder')}
         hint={t('auth.inviteCodeHint')}
         value={code}
-        onChange={(e) => setCode(e.target.value)}
+        onChange={(e) => updateCode(e.target.value)}
         style={{ letterSpacing: '1px' }}
         required
       />
-      {error && <InviteError error={error} />}
+      {visibleError && <InviteError error={visibleError} />}
       <PubButton
         type="submit"
         variant="primary"

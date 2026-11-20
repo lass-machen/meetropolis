@@ -1,6 +1,7 @@
 import type { V2Autotile } from '../../lib/mapV2';
 import { baseUrl } from '../../lib/mapV2';
 import { logger } from '../../lib/logger';
+import { loadMemberImageElement } from '../../lib/memberImage';
 import type { AutotileDefRuntime } from './AutotileRenderer';
 
 interface AutotileDefinitionRenderer {
@@ -86,7 +87,7 @@ function createMissingTexture(scene: AutotileTextureScene, key: string, item: V2
 export class AutotileTextureLoader {
   private generation = 1;
   private active = true;
-  private readonly pending = new Set<HTMLImageElement>();
+  private readonly pending = new Set<AbortController>();
 
   constructor(
     private readonly scene: AutotileTextureScene,
@@ -123,36 +124,43 @@ export class AutotileTextureLoader {
       return;
     }
 
-    const image = new Image();
-    this.pending.add(image);
-    image.crossOrigin = 'anonymous';
-    image.onload = () => {
-      this.pending.delete(image);
-      if (!this.isCurrent(generation, scene, renderer)) return;
-      if (!scene.textures.exists(textureKey)) {
-        scene.textures.addSpriteSheet(textureKey, image, {
-          frameWidth: item.tileWidth,
-          frameHeight: item.tileHeight,
-        });
-      }
-      finish();
-    };
-    image.onerror = () => {
-      this.pending.delete(image);
-      if (!this.isCurrent(generation, scene, renderer)) return;
-      logger.error(`[Autotile] Missing snapshot texture for map "${this.mapId}", slot ${item.slot}: ${item.imageUrl}`);
-      createMissingTexture(scene, textureKey, item);
-      finish();
-    };
-    image.src = item.imageUrl.startsWith('/') ? `${baseUrl()}${item.imageUrl}` : item.imageUrl;
+    // Stored pack and npc-media references load with member auth; the
+    // release runs once the snapshot is registered (or dropped as stale).
+    const ref = item.imageUrl.startsWith('/') ? `${baseUrl()}${item.imageUrl}` : item.imageUrl;
+    const controller = new AbortController();
+    this.pending.add(controller);
+    void loadMemberImageElement(ref, { signal: controller.signal })
+      .then(({ image, release }) => {
+        this.pending.delete(controller);
+        if (!this.isCurrent(generation, scene, renderer)) {
+          release();
+          return;
+        }
+        if (!scene.textures.exists(textureKey)) {
+          scene.textures.addSpriteSheet(textureKey, image, {
+            frameWidth: item.tileWidth,
+            frameHeight: item.tileHeight,
+          });
+        }
+        release();
+        finish();
+      })
+      .catch(() => {
+        this.pending.delete(controller);
+        if (!this.isCurrent(generation, scene, renderer)) return;
+        logger.error(
+          `[Autotile] Missing snapshot texture for map "${this.mapId}", slot ${item.slot}: ${item.imageUrl}`,
+        );
+        createMissingTexture(scene, textureKey, item);
+        finish();
+      });
   }
 
   destroy(): void {
     this.active = false;
     this.generation++;
-    for (const image of this.pending) {
-      image.onload = null;
-      image.onerror = null;
+    for (const controller of this.pending) {
+      controller.abort();
     }
     this.pending.clear();
   }

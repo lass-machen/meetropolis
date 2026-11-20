@@ -90,8 +90,8 @@ async function correctCrossIslandSubscriptions(
   for (const publisher of participants) {
     if (publisher.identity === TRANSCRIBER_IDENTITY) continue;
     const publisherIsland = desired.get(publisher.identity);
-    // Untracked identity (npc-* not yet wired into audio-zone membership,
-    // or a stale LiveKit participant): do not touch, see H4 spec risk #9.
+    // Untracked identity (an npc-* bot that has not joined the world room
+    // yet, or a stale LiveKit participant): do not touch, see H4 spec risk #9.
     if (!publisherIsland) continue;
     const trackSids = publisher.tracks.map((t) => t.sid);
     if (trackSids.length === 0) continue;

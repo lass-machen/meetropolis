@@ -18,7 +18,7 @@
  * older verdict never overwrites a newer void or a newer re-check.
  */
 
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { logger } from '../../logger.js';
 import { getTranscriptionModuleSync } from '../../transcriptionLoader.js';
 

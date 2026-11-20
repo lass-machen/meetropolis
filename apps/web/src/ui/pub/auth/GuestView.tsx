@@ -73,7 +73,7 @@ export function GuestView({ loading, error, onBack }: GuestViewProps) {
             style={{
               all: 'unset',
               cursor: 'pointer',
-              color: 'var(--pub-accent-purple)',
+              color: 'var(--pub-accent-purple-dark)',
               textDecoration: 'none',
               fontWeight: 600,
             }}

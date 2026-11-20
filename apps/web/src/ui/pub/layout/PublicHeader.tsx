@@ -20,15 +20,62 @@ const NAV_ITEMS: NavItem[] = [
   { i18nKey: 'header.openSource', anchorId: 'open-source' },
 ];
 
+// Display and flex rules that media queries toggle live in this stylesheet,
+// not in inline style props — an inline display would otherwise force
+// !important on every breakpoint override.
 const HEADER_RESPONSIVE_STYLES = `
+  .pub-header__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--pub-header-padding);
+    max-width: var(--pub-max-width);
+    margin: 0 auto;
+  }
+  .pub-header__nav-desktop {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .pub-header__actions-desktop {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .pub-header__hamburger {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    color: var(--pub-text-primary);
+  }
+  .pub-header__mobile-overlay {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--pub-bg-primary);
+    border-bottom: 1px solid var(--pub-border-light);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+  }
   @media (min-width: 769px) {
-    .pub-header__hamburger { display: none !important; }
-    .pub-header__mobile-overlay { display: none !important; }
+    .pub-header__hamburger { display: none; }
+    .pub-header__mobile-overlay { display: none; }
+  }
+  /* Between the mobile breakpoint and tablet width the full nav plus actions
+     is wider than the viewport; a tighter nav gap keeps the bar inside it. */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .pub-header__nav-desktop { gap: 16px; }
   }
   @media (max-width: 768px) {
-    .pub-header__nav-desktop { display: none !important; }
-    .pub-header__actions-desktop { display: none !important; }
-    .pub-header__hamburger { display: flex !important; }
+    .pub-header__nav-desktop { display: none; }
+    .pub-header__actions-desktop { display: none; }
+    .pub-header__hamburger { display: flex; }
   }
 `;
 
@@ -95,7 +142,7 @@ function HeaderLogo() {
 
 function DesktopNav({ t }: { t: (k: string) => string }) {
   return (
-    <nav style={{ display: 'flex', alignItems: 'center', gap: 32 }} className="pub-header__nav-desktop">
+    <nav className="pub-header__nav-desktop">
       {NAV_ITEMS.map((item) => (
         <a
           key={item.anchorId}
@@ -134,7 +181,7 @@ function DesktopActions({
   registrationEnabled: boolean;
 }) {
   return (
-    <div className="pub-header__actions-desktop" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+    <div className="pub-header__actions-desktop">
       <button
         onClick={onLogin}
         style={{
@@ -173,22 +220,7 @@ function MobileOverlay({
   onClose: () => void;
 }) {
   return (
-    <div
-      className="pub-header__mobile-overlay"
-      style={{
-        position: 'absolute',
-        top: '100%',
-        left: 0,
-        right: 0,
-        background: 'var(--pub-bg-primary)',
-        borderBottom: '1px solid var(--pub-border-light)',
-        padding: '24px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-      }}
-    >
+    <div className="pub-header__mobile-overlay">
       {NAV_ITEMS.map((item) => (
         <a
           key={item.anchorId}
@@ -271,16 +303,7 @@ export function PublicHeader({ onLogin, onSignup, registrationEnabled = true }: 
         borderBottom: '1px solid var(--pub-border-light)',
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: 'var(--pub-header-padding)',
-          maxWidth: 'var(--pub-max-width)',
-          margin: '0 auto',
-        }}
-      >
+      <div className="pub-header__bar">
         <HeaderLogo />
         <DesktopNav t={t} />
         <DesktopActions t={t} onLogin={onLogin} onSignup={onSignup} registrationEnabled={registrationEnabled} />
@@ -288,14 +311,6 @@ export function PublicHeader({ onLogin, onSignup, registrationEnabled = true }: 
           className="pub-header__hamburger"
           onClick={() => setMenuOpen((prev) => !prev)}
           aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-          style={{
-            display: 'none',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: 8,
-            color: 'var(--pub-text-primary)',
-          }}
         >
           {menuOpen ? <CloseIcon /> : <MenuIcon />}
         </button>

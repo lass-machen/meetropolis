@@ -18,7 +18,8 @@ declare module 'unzipper' {
 }
 
 declare module 'multer' {
-  import type { RequestHandler } from 'express';
+  import type { Request, RequestHandler } from 'express';
+  import type { Readable } from 'node:stream';
 
   interface MulterFile {
     fieldname: string;
@@ -48,14 +49,67 @@ declare module 'multer' {
     any(): RequestHandler;
   }
 
+  // File handed to a storage engine by multer 2.4.0 (lib/make-middleware.js).
+  // The stream is only present while _handleFile runs.
+  interface StorageEngineFile {
+    fieldname: string;
+    originalname: string;
+    encoding: string;
+    mimetype: string;
+    stream: Readable;
+  }
+
+  interface StoredFileInfo {
+    buffer?: Buffer;
+    size?: number;
+  }
+
+  interface TypedStorageEngine {
+    _handleFile(
+      req: Request,
+      file: StorageEngineFile,
+      callback: (error: Error | null, info?: StoredFileInfo) => void,
+    ): void;
+    _removeFile(req: Request, file: StorageEngineFile & StoredFileInfo, callback: (error: Error | null) => void): void;
+  }
+
+  interface TypedOptions {
+    storage?: TypedStorageEngine;
+    limits?: { fileSize?: number; files?: number; fields?: number; fieldSize?: number; parts?: number };
+  }
+
+  type MulterErrorCode =
+    | 'LIMIT_PART_COUNT'
+    | 'LIMIT_FILE_SIZE'
+    | 'LIMIT_FILE_COUNT'
+    | 'LIMIT_FIELD_KEY'
+    | 'LIMIT_FIELD_VALUE'
+    | 'LIMIT_FIELD_COUNT'
+    | 'LIMIT_UNEXPECTED_FILE'
+    | 'MISSING_FIELD_NAME'
+    | 'LIMIT_FIELD_NESTING'
+    | 'LIMIT_FIELD_ARRAY_INDEX'
+    | 'STREAM_DESTROYED'
+    | 'INVALID_FIELD_NAME';
+
+  interface MulterErrorInstance extends Error {
+    code: MulterErrorCode;
+    field?: string;
+    filename?: string;
+  }
+
   interface MulterFactory {
     (options?: MulterOptions): MulterInstance;
     memoryStorage(): StorageEngine;
     diskStorage(opts: Record<string, unknown>): StorageEngine;
+    MulterError: new (code: MulterErrorCode, field?: string, filename?: string) => MulterErrorInstance;
   }
 
   namespace multer {
     type File = MulterFile;
+    type Multer = MulterInstance;
+    type StorageEngine = TypedStorageEngine;
+    type Options = TypedOptions;
   }
 
   const multer: MulterFactory;
@@ -79,6 +133,13 @@ declare module '@meetropolis/billing' {
 // Optional proprietary telemetry module (Signalyr relay). Present only in
 // enterprise builds. Callers narrow at the load site (see telemetryLoader.ts).
 declare module '@meetropolis/telemetry-node' {
+  const mod: unknown;
+  export default mod;
+}
+
+// Optional proprietary transcription module. Present only in enterprise builds.
+// Callers narrow at the load site (see transcriptionLoader.ts).
+declare module '@meetropolis/transcription' {
   const mod: unknown;
   export default mod;
 }

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "description": "Decisions of the user for packages whose license the policy lists as review required. Each approval binds exactly one record of the production graph: lockfile, consuming root, lock path, name, version, SRI and license value. No package, path or license wide exemptions; an approval without a matching record is reported as stale.",
+  "approvals": [
+    {
+      "id": "LICENSE-DECISION-001",
+      "lockfile": "package-lock.json",
+      "root": "apps/server",
+      "lockPath": "node_modules/elkjs",
+      "name": "elkjs",
+      "version": "0.11.1",
+      "integrity": "sha512-zxxR9k+rx5ktMwT/FwyLdPCrq7xN6e4VGGHH8hA01vVYKjTFik7nHOxBnAYtrgYUB1RpAiLvA1/U2YraWxyKKg==",
+      "license": "EPL-2.0",
+      "approvedBy": "user",
+      "decidedOn": "2026-11-19",
+      "reason": "Unmodified layout library of the Prisma Studio tool path (prisma, @prisma/studio-core), reached as an optional peer of @prisma/client; the server does not start Prisma Studio in operation."
+    }
+  ]
+}

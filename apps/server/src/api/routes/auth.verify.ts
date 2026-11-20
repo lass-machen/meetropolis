@@ -1,83 +1,72 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
-import crypto from 'crypto';
+import type { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
-import { logger } from '../../logger.js';
-import { requireAuth } from '../utils/authHelpers.js';
-import { resolvePublicBaseUrl } from './auth.helpers.js';
-import { sendIfAvailable } from '../../emailLoader.js';
+import { requireVerificationAuth } from '../utils/authHelpers.js';
+import { getDeniedTenant } from '../utils/tenantAccessState.js';
+import {
+  completeEmailProof,
+  EmailProofInvalid,
+  hashEmailProof,
+  issueEmailProof,
+  type EmailProofOutcome,
+} from '../utils/emailProof.js';
+import { recordAuthEvent } from '../../services/authEvents.js';
+import { pendingInviteForUser, verificationBindingRequired } from '../utils/inviteVerification.js';
+import { ADMIN_CONFIRMATION_PURPOSE } from '../utils/manualConfirmation.js';
 
-/** Cooldown between two verification mails for the same user. */
-const VERIFICATION_COOLDOWN_MS = 2 * 60 * 1000;
-/** Lifetime of a verification token. */
-const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+export type EmailVerificationOutcome = EmailProofOutcome;
 
-export type EmailVerificationOutcome =
-  | { status: 'user_not_found' }
-  | { status: 'already_verified' }
-  | { status: 'throttled' }
-  | { status: 'issued'; sent: boolean; token: string; verifyUrl: string };
-
-/**
- * Issue an e-mail verification token for a user and mail it out.
- *
- * The single place that starts a verification, shared by `POST
- * /auth/verify/request` (user clicks "resend") and by account creation, which
- * must trigger it instead of stamping `emailVerifiedAt` at birth — a stamp that
- * made the whole verification machinery unreachable. It is exported for the
- * enterprise sign-up, which has to start verification for the accounts it
- * creates through the same path.
- *
- * `sent: false` means no mail provider was configured (OSS console fallback);
- * the caller decides whether to surface the token out of band. Errors are
- * propagated, never swallowed: a caller for which verification is
- * non-blocking (account creation) catches and logs.
- */
+/** Share this entry point with enterprise signup without returning secrets. */
 export async function startEmailVerification(params: {
   prisma: PrismaClient;
   userId: string;
   req: express.Request;
 }): Promise<EmailVerificationOutcome> {
   const { prisma, userId, req } = params;
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return { status: 'user_not_found' };
-  if (user.emailVerifiedAt) return { status: 'already_verified' };
-
-  const recent = await prisma.emailVerification.findFirst({
-    where: { userId: user.id, createdAt: { gte: new Date(Date.now() - VERIFICATION_COOLDOWN_MS) } },
+  const tenantId = req.tenant?.id ?? getDeniedTenant(req)?.id;
+  const invite = await pendingInviteForUser(prisma, userId, tenantId);
+  const marked = await prisma.membership.findFirst({
+    where: { userId, inviteVerificationRequired: true, ...(tenantId ? { tenantId } : {}) },
   });
-  if (recent) return { status: 'throttled' };
+  if (marked && !invite) return { status: 'binding_required' };
+  return issueEmailProof({ prisma, userId, purpose: invite ? 'invite' : 'verify', inviteId: invite?.id });
+}
 
-  const token = crypto.randomBytes(24).toString('hex');
-  const expiresAt = new Date(Date.now() + VERIFICATION_TTL_MS);
-  await prisma.emailVerification.create({
-    data: { token, userId: user.id, email: user.email, expiresAt },
-  });
-
-  // Public base URL for the verify link. A native-client Origin
-  // (tauri://localhost) is rejected so it never lands in the emailed link;
-  // see resolvePublicBaseUrl for the full precedence.
-  const baseUrl = resolvePublicBaseUrl({
-    publicBaseUrl: process.env.PUBLIC_BASE_URL,
-    billingPublicUrl: process.env.BILLING_PUBLIC_URL,
-    origin: req.headers.origin,
-    host: req.headers.host,
-  });
-  const verifyUrl = baseUrl ? `${baseUrl}/#/verify?token=${token}` : '';
-
-  // Locale chain (Block C): user.locale (DB) → MAIL_DEFAULT_LOCALE / 'de'
-  // (resolver default). The verify endpoint has no caller-supplied
-  // locale param, so we rely on the user's persisted UI locale.
-  const userLocale = user.locale === 'en' ? 'en' : user.locale === 'de' ? 'de' : undefined;
-
-  const sent = await sendIfAvailable(
-    (mod) => mod.sendVerify({ to: user.email, name: user.name || '', verifyUrl, locale: userLocale }),
-    'auth.verify.email_failed',
-    { userId: user.id },
-  );
-
-  logger.info({ event: 'auth.verify.token_issued', userId: user.id, sent });
-  return { status: 'issued', sent, token, verifyUrl };
+export function emailProofResponse(res: express.Response, outcome: EmailProofOutcome): void {
+  switch (outcome.status) {
+    case 'user_not_found':
+      res.status(404).json({ error: 'Account not found.' });
+      return;
+    case 'already_verified':
+      res.json({ ok: true, alreadyVerified: true });
+      return;
+    case 'binding_required':
+      verificationBindingRequired(res);
+      return;
+    case 'throttled':
+      res.setHeader('Retry-After', outcome.retryAfter);
+      res.status(429).json({
+        code: 'EMAIL_VERIFICATION_COOLDOWN',
+        error: 'Please wait before requesting another confirmation email.',
+        retryAfter: outcome.retryAfter,
+      });
+      return;
+    case 'no_public_base_url':
+      res.status(500).json({
+        code: 'PUBLIC_BASE_URL_MISSING',
+        error: 'The public web address is not configured. Please contact an administrator.',
+      });
+      return;
+    case 'delivery_unavailable':
+      res.status(503).json({
+        code: 'EMAIL_DELIVERY_UNAVAILABLE',
+        error: 'Confirmation email could not be delivered. Please contact an administrator.',
+      });
+      return;
+    case 'issued':
+      res.json({ ok: true, sent: true });
+      return;
+  }
 }
 
 export async function handleVerifyRequest(
@@ -85,84 +74,51 @@ export async function handleVerifyRequest(
   req: express.Request,
   res: express.Response,
 ): Promise<void> {
-  const auth = requireAuth(req);
+  const auth = requireVerificationAuth(req);
   if (!auth) {
-    res.status(401).json({ error: 'unauthorized' });
+    res.status(401).json({ error: 'Please sign in again.' });
     return;
   }
-
   try {
-    const outcome = await startEmailVerification({ prisma, userId: auth.userId, req });
-    if (outcome.status === 'user_not_found') {
-      res.status(404).json({ error: 'user not found' });
-      return;
-    }
-    if (outcome.status === 'already_verified') {
-      res.json({ ok: true, alreadyVerified: true });
-      return;
-    }
-    if (outcome.status === 'throttled') {
-      res.status(429).json({ error: 'Please wait before requesting another verification email' });
-      return;
-    }
-
-    // When no email was sent (OSS without any mail module), return the token
-    // and link directly so the user or admin can complete verification out of
-    // band.
-    const isDev = process.env.NODE_ENV !== 'production';
-    const { sent, token, verifyUrl } = outcome;
-    res.json({ ok: true, sent, ...((!sent || isDev) && { token, verifyUrl }) });
-  } catch (e: unknown) {
-    logger.error({ event: 'auth.verify.request_failed', error: String(e) });
-    res.status(500).json({ error: 'verification request failed' });
+    emailProofResponse(res, await startEmailVerification({ prisma, userId: auth.userId, req }));
+  } catch {
+    res.status(500).json({ error: 'Verification request failed.' });
   }
 }
 
-const verifySchema = z.object({ token: z.string().min(8) });
-
+const verifySchema = z.object({ token: z.string().min(8).max(256) });
 export async function handleVerifyToken(
   prisma: PrismaClient,
   req: express.Request,
   res: express.Response,
 ): Promise<void> {
-  const parse = verifySchema.safeParse(req.body || {});
-  if (!parse.success) {
-    res.status(400).json({ error: 'token required' });
+  const parsed = verifySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ code: 'EMAIL_PROOF_INVALID', error: 'Invalid confirmation link.' });
     return;
   }
-
-  const { token } = parse.data;
-
   try {
-    const verification = await prisma.emailVerification.findUnique({ where: { token } });
-    if (!verification) {
-      res.status(400).json({ error: 'invalid token' });
+    const result = await completeEmailProof(prisma, parsed.data.token);
+    // completeEmailProof returns no user id, so resolve it from the consumed
+    // proof row: the token hash is unique and the row survives consumption.
+    // A failed lookup must not turn the completed verification into an error.
+    const proof = await prisma.emailVerification
+      .findUnique({ where: { token: hashEmailProof(parsed.data.token) }, select: { userId: true } })
+      .catch(() => null);
+    await recordAuthEvent(prisma, { type: 'email_verification', success: true, userId: proof?.userId ?? null, req });
+    res.json({ ok: true, ...result });
+  } catch (error: unknown) {
+    if (
+      error instanceof EmailProofInvalid ||
+      (error && typeof error === 'object' && 'code' in error && error.code === 'P2002')
+    ) {
+      res.status(400).json({
+        code: 'EMAIL_PROOF_INVALID',
+        error: 'This link is invalid, expired or already used. Request a new confirmation email.',
+      });
       return;
     }
-    if (verification.usedAt) {
-      res.status(400).json({ error: 'token already used' });
-      return;
-    }
-    if (verification.expiresAt < new Date()) {
-      res.status(400).json({ error: 'token expired' });
-      return;
-    }
-
-    await prisma.emailVerification.update({
-      where: { token },
-      data: { usedAt: new Date() },
-    });
-
-    await prisma.user.update({
-      where: { id: verification.userId },
-      data: { emailVerifiedAt: new Date() },
-    });
-
-    logger.info({ event: 'auth.verify.success', userId: verification.userId });
-    res.json({ ok: true, message: 'Email verified successfully' });
-  } catch (e: unknown) {
-    logger.error({ event: 'auth.verify.failed', error: String(e) });
-    res.status(500).json({ error: 'verification failed' });
+    res.status(500).json({ error: 'Verification failed.' });
   }
 }
 
@@ -171,7 +127,7 @@ export async function handleVerifyStatus(
   req: express.Request,
   res: express.Response,
 ): Promise<void> {
-  const auth = requireAuth(req);
+  const auth = requireVerificationAuth(req);
   if (!auth) {
     res.status(401).json({ error: 'unauthorized' });
     return;
@@ -187,7 +143,33 @@ export async function handleVerifyStatus(
       return;
     }
 
+    const proof = await prisma.emailVerification.findFirst({
+      where: { userId: auth.userId, usedAt: null },
+      orderBy: { createdAt: 'desc' },
+      select: { readyAt: true, expiresAt: true, purpose: true, email: true },
+    });
+    const pending = await pendingInviteForUser(prisma, auth.userId, auth.tenantId);
+    const adminPending = proof?.purpose === ADMIN_CONFIRMATION_PURPOSE && proof.expiresAt > new Date();
+    if (auth.verificationOnly) {
+      const requiresLogin = !!user.emailVerifiedAt && !pending;
+      res.json({
+        code: requiresLogin ? 'ACCOUNT_LOGIN_REQUIRED' : 'EMAIL_VERIFICATION_REQUIRED',
+        status: requiresLogin
+          ? 'login_required'
+          : adminPending
+            ? 'admin_pending'
+            : proof?.readyAt && proof.expiresAt > new Date()
+              ? 'sent'
+              : 'unavailable',
+      });
+      return;
+    }
     res.json({
+      requiresLogin: auth.verificationOnly && !!user.emailVerifiedAt && !pending,
+      ...(proof?.purpose === 'email_change' && proof.readyAt && proof.expiresAt > new Date()
+        ? { emailChangePending: true, pendingEmail: proof.email }
+        : {}),
+      pendingDelivery: adminPending ? 'admin' : proof?.readyAt && proof.expiresAt > new Date() ? 'sent' : 'unavailable',
       email: user.email,
       verified: !!user.emailVerifiedAt,
       verifiedAt: user.emailVerifiedAt?.toISOString() || null,

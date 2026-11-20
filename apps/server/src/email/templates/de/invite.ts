@@ -23,17 +23,25 @@ export function renderInviteDe(params: SendInviteParams, brand: BrandContext): S
   const buttonLabel = 'Einladung annehmen';
   const description = `${brand.brandName} ist eine Plattform für gemeinsame Arbeit.`;
   const descriptionHtml = `${brandName} ist eine Plattform für gemeinsame Arbeit.`;
+  const ignore = 'Falls du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.';
   const signoff = 'Viele Grüße,';
   const team = `Das ${brand.brandName} Team`;
 
+  const expirySentence = params.expiresAt ? `Die Einladung ist bis ${params.expiresAt} gültig.` : undefined;
+  const expiryHtml = expirySentence
+    ? `\n  <p style="color: #666; font-size: 14px;">${escapeHtml(expirySentence)}</p>`
+    : '';
+  const expiryText = expirySentence ? `\n\n${expirySentence}` : '';
+
   const html = htmlShell(`
   <h2 style="color: #1a1a1a;">${heading}</h2>
-  <p>${bodyHtml}</p>
+  <p>${bodyHtml}</p>${expiryHtml}
   ${button(params.inviteUrl, buttonLabel)}
   <p style="color: #666;">${descriptionHtml}</p>
+  <p style="color: #666; font-size: 14px;">${escapeHtml(ignore)}</p>
   ${footer(brand.brandName)}`);
 
-  const text = `${bodyText}\n\n${params.inviteUrl}\n\n${description}\n\n${signoff}\n${team}`;
+  const text = `${bodyText}${expiryText}\n\n${params.inviteUrl}\n\n${description}\n\n${ignore}\n\n${signoff}\n${team}`;
 
   return {
     to: params.to,

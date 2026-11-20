@@ -1,4 +1,4 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { logger } from '../../logger.js';
 import { createPrismaClient } from '../../db.js';
 import type { WorldRoom, Player } from '../WorldRoom.js';
@@ -7,6 +7,7 @@ import { broadcastToMap } from '../utils/broadcastHelpers.js';
 import { broadcastBubbleState } from '../utils/bubbleHelpers.js';
 import { warmZoneCatalog, trackMove } from '../audioZones/runtime.js';
 import { isWorldAuth } from '../lifecycle/onAuth.js';
+import { resetMoveBaseline } from './moveBaseline.js';
 
 interface RoomMetadata {
   tenant?: string;
@@ -176,6 +177,7 @@ export async function handleChangeMap(room: WorldRoom, client: Client, data: Cha
   const spawn = pickSpawnForNewMap(room, data, map.id, mapMeta);
   player.x = spawn.x;
   player.y = spawn.y;
+  resetMoveBaseline(player);
 
   // H4: recompute audio-zone island membership for the new map/position.
   trackMove(room, client.sessionId);

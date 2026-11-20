@@ -10,6 +10,7 @@
 
 import Phaser from 'phaser';
 import { EditorService } from '../../services/EditorService';
+import { completePendingTerrainDrag, stampPendingAsset } from '../../services/editorPendingPlacement';
 import { EditorRenderer } from './EditorRenderer';
 import { tileToRenderPosition } from './editorAnchors';
 import { logger } from '../../lib/logger';
@@ -241,32 +242,7 @@ export class EditorInputHandler {
     // Objects & structures: stamp mode (click to place, no drag)
     if (state.pendingAsset.category !== 'terrain') {
       if (phase === 'up') {
-        EditorService.dispatch({ type: 'PLACE_ASSET', tileX, tileY });
-
-        // Queue for DB persistence
-        EditorService.dispatch({
-          type: 'ADD_PENDING_OBJECT_CREATE',
-          object: {
-            id: -Date.now(),
-            assetPackUuid: state.pendingAsset.packUuid || '',
-            itemId: state.pendingAsset.itemId || '',
-            category: state.pendingAsset.category || 'objects',
-            tileX,
-            tileY,
-            width: state.pendingAsset.width || 16,
-            height: state.pendingAsset.height || 16,
-            collide: state.pendingAsset.collide || false,
-            zIndex: 0,
-            scaleFactor: state.pendingAsset.scaleFactor || 1,
-            rotation: state.pendingAsset.rotation || 0,
-            dataUrl: state.pendingAsset.dataUrl,
-            // Depth-layering (Strang B/C): inject the asset type's manifest
-            // default so editor-placed objects match the generated template.
-            collisionBaseHeight: state.pendingAsset.collisionBaseHeight ?? 0,
-            renderLayer: state.pendingAsset.renderLayer ?? 'sorted',
-            _pending: 'add',
-          },
-        });
+        stampPendingAsset(tileX, tileY, state.pendingAsset);
       }
       return;
     }
@@ -294,41 +270,7 @@ export class EditorInputHandler {
         EditorInputHandler.TOOL_COLORS['terrain'],
       ); // Asset terrain drag uses blue
     } else if (phase === 'up' && state.dragState) {
-      const drag = state.dragState;
-      EditorService.dispatch({ type: 'COMPLETE_ASSET_DRAG', tileX, tileY });
-
-      // Queue each tile in the drag rectangle for DB persistence
-      const minX = Math.min(drag.startTileX, tileX);
-      const minY = Math.min(drag.startTileY, tileY);
-      const maxX = Math.max(drag.startTileX, tileX);
-      const maxY = Math.max(drag.startTileY, tileY);
-
-      for (let ty = minY; ty <= maxY; ty++) {
-        for (let tx = minX; tx <= maxX; tx++) {
-          EditorService.dispatch({
-            type: 'ADD_PENDING_OBJECT_CREATE',
-            object: {
-              id: -(Date.now() + ty * 1000 + tx),
-              assetPackUuid: state.pendingAsset.packUuid || '',
-              itemId: state.pendingAsset.itemId || '',
-              category: state.pendingAsset.category || 'terrain',
-              tileX: tx,
-              tileY: ty,
-              width: state.pendingAsset.width || 16,
-              height: state.pendingAsset.height || 16,
-              collide: state.pendingAsset.collide || false,
-              zIndex: 0,
-              scaleFactor: state.pendingAsset.scaleFactor || 1,
-              rotation: state.pendingAsset.rotation || 0,
-              dataUrl: state.pendingAsset.dataUrl,
-              // Terrain objects render on the floor, always under actors (Strang C).
-              collisionBaseHeight: state.pendingAsset.collisionBaseHeight ?? 0,
-              renderLayer: 'floor',
-              _pending: 'add',
-            },
-          });
-        }
-      }
+      completePendingTerrainDrag(tileX, tileY, state.pendingAsset, state.dragState);
     }
   }
 

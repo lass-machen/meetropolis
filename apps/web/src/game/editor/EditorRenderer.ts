@@ -11,6 +11,7 @@
 import Phaser from 'phaser';
 import { Zone, Asset } from '../../services/EditorService';
 import { lookupDirectionalImage } from '../../lib/directionalImageRegistry';
+import { loadMemberImage } from '../services/assetLoader';
 import { PLACEMENT_ORIGIN } from './editorAnchors';
 
 export class EditorRenderer {
@@ -380,20 +381,25 @@ export class EditorRenderer {
     if (this.scene.textures.exists(newKey)) {
       place();
     } else {
-      const handler = (key: string) => {
-        if (key === newKey) {
-          this.scene.textures.off('addtexture', handler);
-          place();
-        }
-      };
-      this.scene.textures.on('addtexture', handler);
-
       if (resolvedUrl.startsWith('data:')) {
+        const handler = (key: string) => {
+          if (key === newKey) {
+            this.scene.textures.off('addtexture', handler);
+            place();
+          }
+        };
+        this.scene.textures.on('addtexture', handler);
         this.scene.textures.addBase64(newKey, resolvedUrl);
       } else {
-        this.scene.load.setCORS('anonymous');
-        this.scene.load.image(newKey, resolvedUrl);
-        this.scene.load.start();
+        // Stored pack and npc-media references load with member auth; the
+        // helper resolves only after the texture completed.
+        void loadMemberImage(this.scene, newKey, resolvedUrl)
+          .then(() => {
+            place();
+          })
+          .catch(() => {
+            // A missing ghost preview is not critical; it stays hidden.
+          });
       }
     }
   }
@@ -445,30 +451,47 @@ export class EditorRenderer {
         if (!this.scene.textures.exists(textureKey) && !this.pendingTextures.has(textureKey)) {
           this.pendingTextures.add(textureKey);
 
-          const assetHandler = (key: string) => {
-            if (key === textureKey) {
-              this.scene.textures.off('addtexture', assetHandler);
-              this.pendingTextures.delete(textureKey);
-
-              const newSprite = this.scene.add.image(asset.x, asset.y, textureKey);
-              newSprite.setOrigin(0, 0);
-              newSprite.setDepth(6);
-              newSprite.setInteractive();
-              if (!useDirectionalImage && rotation) {
-                newSprite.setRotation(Phaser.Math.DegToRad(rotation));
-              }
-              newSprite.setScale(asset.scaleFactor ?? 1);
-              this.assetSprites.set(asset.id, newSprite);
-            }
-          };
-          this.scene.textures.on('addtexture', assetHandler);
-
           if (resolvedUrl.startsWith('data:')) {
+            const assetHandler = (key: string) => {
+              if (key === textureKey) {
+                this.scene.textures.off('addtexture', assetHandler);
+                this.pendingTextures.delete(textureKey);
+
+                const newSprite = this.scene.add.image(asset.x, asset.y, textureKey);
+                newSprite.setOrigin(0, 0);
+                newSprite.setDepth(6);
+                newSprite.setInteractive();
+                if (!useDirectionalImage && rotation) {
+                  newSprite.setRotation(Phaser.Math.DegToRad(rotation));
+                }
+                newSprite.setScale(asset.scaleFactor ?? 1);
+                this.assetSprites.set(asset.id, newSprite);
+              }
+            };
+            this.scene.textures.on('addtexture', assetHandler);
             this.scene.textures.addBase64(textureKey, resolvedUrl);
           } else {
-            this.scene.load.setCORS('anonymous');
-            this.scene.load.image(textureKey, resolvedUrl);
-            this.scene.load.start();
+            // Stored pack and npc-media references load with member auth; the
+            // helper resolves only after the texture completed.
+            void loadMemberImage(this.scene, textureKey, resolvedUrl)
+              .then(() => {
+                this.pendingTextures.delete(textureKey);
+
+                const newSprite = this.scene.add.image(asset.x, asset.y, textureKey);
+                newSprite.setOrigin(0, 0);
+                newSprite.setDepth(6);
+                newSprite.setInteractive();
+                if (!useDirectionalImage && rotation) {
+                  newSprite.setRotation(Phaser.Math.DegToRad(rotation));
+                }
+                newSprite.setScale(asset.scaleFactor ?? 1);
+                this.assetSprites.set(asset.id, newSprite);
+              })
+              .catch(() => {
+                // A failed load clears the pending mark so the next render
+                // pass can retry; the sprite simply appears later.
+                this.pendingTextures.delete(textureKey);
+              });
           }
         } else if (this.scene.textures.exists(textureKey)) {
           sprite = this.scene.add.image(asset.x, asset.y, textureKey);

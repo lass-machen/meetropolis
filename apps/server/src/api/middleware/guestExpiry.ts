@@ -2,6 +2,7 @@ import type express from 'express';
 import { createPrismaClient } from '../../db.js';
 import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
 import { revokeSessionsForUser } from '../utils/sessionAuth.js';
+import { getDeniedTenant } from '../utils/tenantAccessState.js';
 
 const prisma = createPrismaClient();
 
@@ -15,7 +16,9 @@ export const guestExpiryMiddleware: express.RequestHandler = async (req, res, ne
     const auth = requireAuth(req);
     if (!auth) return next(); // Not authenticated, let other middleware handle it
 
-    const tenant = getTenantFromReq(req);
+    // The central guard removes an expired guest's tenant before this middleware runs;
+    // without the removed tenant, this expired guest would never lose its sessions here.
+    const tenant = getTenantFromReq(req) ?? getDeniedTenant(req);
     if (!tenant) return next();
 
     const membership = await prisma.membership.findUnique({

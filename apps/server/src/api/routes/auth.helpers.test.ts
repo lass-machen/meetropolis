@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type express from 'express';
-import { isNativeClientRequest, resolvePublicBaseUrl, buildSigninResponseBody } from './auth.helpers.js';
+import { isNativeClientRequest, buildSigninResponseBody } from './auth.helpers.js';
 
 function reqWithOrigin(origin?: string): express.Request {
   return { headers: origin === undefined ? {} : { origin } } as express.Request;
@@ -15,7 +15,7 @@ describe('isNativeClientRequest', () => {
     expect(isNativeClientRequest(reqWithOrigin('tauri://localhost'))).toBe(true);
   });
 
-  it('recognises the Windows/Linux tauri.localhost origin', () => {
+  it('recognises the HTTP(S) tauri.localhost origin', () => {
     expect(isNativeClientRequest(reqWithOrigin('http://tauri.localhost'))).toBe(true);
     expect(isNativeClientRequest(reqWithOrigin('https://tauri.localhost'))).toBe(true);
   });
@@ -39,7 +39,7 @@ describe('buildSigninResponseBody', () => {
     expect(body).toEqual({ id: 'user-1', email: 'a@b.test', name: 'Ada', token: 'jwt-token' });
   });
 
-  it('echoes the JWT for the Windows/Linux tauri.localhost origin', () => {
+  it('echoes the JWT for the HTTP(S) tauri.localhost origin', () => {
     const body = buildSigninResponseBody(
       user,
       'jwt-token',
@@ -67,41 +67,5 @@ describe('buildSigninResponseBody', () => {
     const body = buildSigninResponseBody({ id: 'u', email: 'e@x.test', name: null }, 'jwt-token', true);
     expect(body.name).toBeNull();
     expect(body.token).toBe('jwt-token');
-  });
-});
-
-describe('resolvePublicBaseUrl', () => {
-  it('prefers PUBLIC_BASE_URL over everything else', () => {
-    expect(
-      resolvePublicBaseUrl({
-        publicBaseUrl: 'https://public.example',
-        billingPublicUrl: 'https://billing.example',
-        origin: 'https://origin.example',
-        host: 'host.example',
-      }),
-    ).toBe('https://public.example');
-  });
-
-  it('falls back to BILLING_PUBLIC_URL when PUBLIC_BASE_URL is absent', () => {
-    expect(
-      resolvePublicBaseUrl({ billingPublicUrl: 'https://billing.example', origin: 'https://origin.example' }),
-    ).toBe('https://billing.example');
-  });
-
-  it('uses a real http(s) Origin when no explicit base URL is configured', () => {
-    expect(resolvePublicBaseUrl({ origin: 'https://origin.example', host: 'host.example' })).toBe(
-      'https://origin.example',
-    );
-  });
-
-  it('ignores a native-client Origin and falls through to the Host header', () => {
-    expect(resolvePublicBaseUrl({ origin: 'tauri://localhost', host: 'meetropolis.me' })).toBe(
-      'https://meetropolis.me',
-    );
-  });
-
-  it('returns an empty string when nothing usable is available', () => {
-    expect(resolvePublicBaseUrl({})).toBe('');
-    expect(resolvePublicBaseUrl({ origin: 'tauri://localhost' })).toBe('');
   });
 });

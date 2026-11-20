@@ -1,10 +1,10 @@
 import express, { type ErrorRequestHandler, type RequestHandler } from 'express';
-import type { IncomingHttpHeaders, IncomingMessage, RequestListener, Server } from 'http';
+import type { IncomingMessage, RequestListener, Server } from 'http';
 import { BlockList, isIP } from 'net';
-import { matchMaker } from 'colyseus';
 import { createMatchmakeRateLimiter } from '../api/middleware/rateLimit.js';
 import { AppError } from '../errors/AppError.js';
 import { logger } from '../logger.js';
+import { corsHeadersFor, resolveOriginPolicy, type OriginPolicy } from '../ops/originPolicy.js';
 import { resolveTrustProxySetting } from '../trustProxy.js';
 
 /**
@@ -173,27 +173,19 @@ class MatchmakeRejection extends Error {
   }
 }
 
-function toFetchHeaders(headers: IncomingHttpHeaders): Headers {
-  const out = new Headers();
-  for (const [name, value] of Object.entries(headers)) {
-    if (value === undefined) continue;
-    out.set(name, Array.isArray(value) ? value.join(', ') : value);
-  }
-  return out;
-}
-
 /**
  * The guard answers before Colyseus gets to set its CORS headers, so a refusal
  * must carry them itself or a browser could not read why a join was refused.
+ * The headers come from the origin policy and not from Colyseus: only an
+ * allowed origin is echoed, a request without an origin gets none at all.
  */
-const applyCorsHeaders: RequestHandler = (req, res, next) => {
-  const cors = {
-    ...matchMaker.controller.DEFAULT_CORS_HEADERS,
-    ...matchMaker.controller.getCorsHeaders(toFetchHeaders(req.headers)),
+function applyCorsHeaders(policy: OriginPolicy): RequestHandler {
+  return (req, res, next) => {
+    for (const [name, value] of Object.entries(corsHeadersFor(req.headers.origin, policy))) res.setHeader(name, value);
+    res.vary('Origin');
+    next();
   };
-  for (const [name, value] of Object.entries(cors)) res.setHeader(name, value);
-  next();
-};
+}
 
 // Refuse a body that announces itself as too large without reading any of it.
 // The streaming cap in express.json still covers chunked bodies and lying
@@ -284,6 +276,8 @@ export interface MatchmakeGuardOptions {
   rateLimiter?: RequestHandler;
   /** Callers the rate limiter leaves alone. Defaults to {@link isInProcessCaller}; tests replace it. */
   isInProcessCaller?: (req: Pick<IncomingMessage, 'socket' | 'headers'>) => boolean;
+  /** The origin policy the CORS headers come from. Defaults to the environment. */
+  originPolicy?: OriginPolicy;
 }
 
 /** Build the guard as a request listener that hands accepted requests to `forward`. */
@@ -291,7 +285,7 @@ export function createMatchmakeGuard(forward: RequestListener, options: Matchmak
   const guard = express();
   guard.disable('x-powered-by');
   guard.set('trust proxy', options.trustProxy ?? resolveTrustProxySetting());
-  guard.use(applyCorsHeaders);
+  guard.use(applyCorsHeaders(options.originPolicy ?? resolveOriginPolicy(process.env).policy));
   const rateLimiter = options.rateLimiter ?? createMatchmakeRateLimiter();
   const inProcess = options.isInProcessCaller ?? isInProcessCaller;
   guard.use((req, res, next) => {

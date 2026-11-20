@@ -75,9 +75,16 @@ function worldRoom(roomIndex: number, seats: Seat[], sendCalls: SendCall[]) {
  * tenant; `apiToken: true` swaps the session for an API token, which resolves a
  * user but never a tenant (see api/utils/authHelpers.ts requireApiToken).
  */
-function makeApp(opts: { sessionTenantId?: string; apiToken?: boolean } = {}): express.Application {
+function makeApp(
+  opts: { sessionTenantId?: string; requestTenantId?: string; apiToken?: boolean } = {},
+): express.Application {
   const app = express();
   app.use(express.json());
+  const requestTenantId = opts.requestTenantId ?? opts.sessionTenantId ?? TENANT_A;
+  app.use((req, _res, next) => {
+    Object.assign(req, { tenant: { id: requestTenantId, slug: requestTenantId, name: requestTenantId } });
+    next();
+  });
   const session = opts.apiToken
     ? null
     : { userId: CALLER, ...(opts.sessionTenantId ? { tenantId: opts.sessionTenantId } : {}) };
@@ -556,7 +563,7 @@ describe("authorization: the caller's tenant comes from the request, not from a 
   it('acts under the tenant the request authenticated with', async () => {
     apexRoomWithTwoCallerTenants();
 
-    const res = await request(makeApp({ sessionTenantId: TENANT_B }))
+    const res = await request(makeApp({ requestTenantId: TENANT_B }))
       .post('/controls/for/victim')
       .send({ mic: false });
 
@@ -567,7 +574,7 @@ describe("authorization: the caller's tenant comes from the request, not from a 
   it('does not let a seat under another tenant widen the reach of the request', async () => {
     apexRoomWithTwoCallerTenants();
 
-    const res = await request(makeApp({ sessionTenantId: TENANT_A }))
+    const res = await request(makeApp({ requestTenantId: TENANT_A }))
       .post('/controls/for/victim')
       .send({ mic: false });
 
@@ -588,7 +595,7 @@ describe("authorization: the caller's tenant comes from the request, not from a 
       ),
     );
 
-    const res = await request(makeApp({ sessionTenantId: TENANT_B }))
+    const res = await request(makeApp({ requestTenantId: TENANT_B }))
       .post('/controls/for/victim')
       .send({ mic: false });
 
@@ -597,17 +604,15 @@ describe("authorization: the caller's tenant comes from the request, not from a 
     expect(sendCalls).toHaveLength(0);
   });
 
-  it('refuses an API token whose caller sits under two tenants at once (fails closed)', async () => {
-    // A token resolves a user, never a tenant, so only the seats can answer —
-    // and two different answers are no answer.
+  it('uses the verified request tenant for an API token when the caller has seats under two tenants', async () => {
     apexRoomWithTwoCallerTenants();
 
-    const res = await request(makeApp({ apiToken: true }))
+    const res = await request(makeApp({ apiToken: true, requestTenantId: TENANT_B }))
       .post('/controls/for/victim')
       .send({ mic: false });
 
-    expect(res.status).toBe(403);
-    expect(res.body).toMatchObject({ error: 'caller_tenant_unknown' });
-    expect(sendCalls).toHaveLength(0);
+    expect(res.status).toBe(200);
+    expect(recipients(sendCalls)).toEqual(['r0s2']);
+    expect(res.body).toMatchObject({ delivered: 1 });
   });
 });

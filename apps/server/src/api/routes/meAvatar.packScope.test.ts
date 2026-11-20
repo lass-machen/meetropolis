@@ -100,7 +100,9 @@ function makePrisma() {
         Promise.resolve(where.tenantId_userId.tenantId === TENANT_ID ? { role: 'member' } : null),
       ),
     },
-  } as PrismaClient;
+    // Partial test double: the routes only use these delegates, so the
+    // remaining PrismaClient members are intentionally omitted.
+  } as unknown as PrismaClient;
   return { prisma, rows };
 }
 

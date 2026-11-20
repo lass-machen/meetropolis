@@ -174,6 +174,31 @@ describe('EditorService', () => {
 
       expect(EditorService.getState().spawn).toBeNull();
     });
+
+    it('marks a cleared spawn as a pending removal', () => {
+      EditorService.dispatch({ type: 'SET_SPAWN', x: 168, y: 168 });
+      EditorService.dispatch({ type: 'CLEAR_SPAWN' });
+
+      expect(EditorService.getState().pendingChanges.spawnRemoved).toBe(true);
+      expect(EditorService.hasPendingChanges()).toBe(true);
+    });
+
+    it('drops the pending removal when a new spawn is set', () => {
+      EditorService.dispatch({ type: 'SET_SPAWN', x: 168, y: 168 });
+      EditorService.dispatch({ type: 'CLEAR_SPAWN' });
+      EditorService.dispatch({ type: 'SET_SPAWN', x: 88, y: 88 });
+
+      expect(EditorService.getState().pendingChanges.spawnRemoved).toBe(false);
+    });
+
+    it('resets the pending removal with the other pending changes', () => {
+      EditorService.dispatch({ type: 'SET_SPAWN', x: 168, y: 168 });
+      EditorService.dispatch({ type: 'CLEAR_SPAWN' });
+      EditorService.dispatch({ type: 'CLEAR_PENDING_CHANGES' });
+
+      expect(EditorService.getState().pendingChanges.spawnRemoved).toBe(false);
+      expect(EditorService.hasPendingChanges()).toBe(false);
+    });
   });
 
   describe('Observers', () => {

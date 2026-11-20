@@ -66,6 +66,25 @@ describe('membersOfIsland / allowListFor', () => {
     expect(allowListFor('dave', snapshot)).toEqual([]);
   });
 
+  it('open island members only allow other open members of the same map', () => {
+    const openSnapshot = new Map<string, string>([
+      ['alice', 'map-1:open'],
+      ['bob', 'map-1:open'],
+      ['carol', 'map-1:zone:kitchen'],
+      ['dave', 'map-2:open'],
+    ]);
+    expect(allowListFor('alice', openSnapshot)).toEqual(['bob']);
+  });
+
+  it('the same zone name on another map is a different island', () => {
+    const crossMapSnapshot = new Map<string, string>([
+      ['alice', 'map-1:zone:kitchen'],
+      ['bob', 'map-2:zone:kitchen'],
+    ]);
+    expect(allowListFor('alice', crossMapSnapshot)).toEqual([]);
+    expect(allowListFor('bob', crossMapSnapshot)).toEqual([]);
+  });
+
   it('treats an npc-* identity exactly like any human identity sharing the zone', () => {
     const withNpc = new Map(snapshot).set('npc-receptionist', 'map-1:zone:kitchen');
     expect(allowListFor('npc-receptionist', withNpc).sort()).toEqual(['alice', 'bob']);

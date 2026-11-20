@@ -1,12 +1,13 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
-import { z } from 'zod';
+import { Prisma, PrismaClient } from '../../generated/prisma/index.js';
 import { logger } from '../../logger.js';
 import { getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate, broadcastSpawnUpdate } from '../utils/broadcast.js';
+import { countRejectedPayload } from '../../rooms/validation/rejectionMetrics.js';
 import { findMapById } from './maps.read.js';
 import { authenticateEditor, resolveEditorMemberTenant, type MapMeta } from './maps.editor.js';
+import { editorStateSchema } from './editorStateSchema.js';
 import type { MapDb } from '../utils/mapChunkMutations.js';
 import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
@@ -70,17 +71,6 @@ export async function handleEditorStateGet(
     spawn: meta.spawn && typeof meta.spawn.x === 'number' && typeof meta.spawn.y === 'number' ? meta.spawn : null,
   });
 }
-
-const editorStateSchema = z.object({
-  tilesets: z.array(z.any()).optional(),
-  zones: z.array(z.any()).optional(),
-  backgroundColor: z
-    .string()
-    .regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/)
-    .optional(),
-  replaceZones: z.boolean().optional(),
-  spawn: z.object({ x: z.number(), y: z.number() }).optional(),
-});
 
 async function ensureLobbyRoom(prisma: MapDb, mapId: string, tenantId: string) {
   const roomForZones = await prisma.room.findFirst({ where: { mapId }, orderBy: { createdAt: 'asc' } });
@@ -156,6 +146,7 @@ export async function handleEditorStatePut(
   if (!tenant) return;
   const parse = editorStateSchema.safeParse(req.body || {});
   if (!parse.success) {
+    countRejectedPayload('editor_state', 'schema');
     res.status(400).json({ error: 'invalid editor payload' });
     return;
   }
@@ -188,8 +179,9 @@ export async function handleEditorStatePut(
           ...currentMeta,
           tilesets: tilesets ?? currentMeta.tilesets ?? [],
           backgroundColor: backgroundColor ?? currentMeta.backgroundColor ?? undefined,
-          spawn: spawn ?? currentMeta.spawn ?? undefined,
-        },
+          // Null removes the saved spawn, undefined keeps it.
+          spawn: spawn === null ? undefined : (spawn ?? currentMeta.spawn ?? undefined),
+        } as Prisma.InputJsonValue,
       },
     });
     if (Array.isArray(zones) && roomForZones) {
@@ -200,6 +192,9 @@ export async function handleEditorStatePut(
   if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
     broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'spawn', pos: spawn, mapId: map.id, mapName: map.name });
     broadcastSpawnUpdate(map.id, spawn);
+  } else if (spawn === null) {
+    // Removal clears the default spawn of running rooms without an editor_update.
+    broadcastSpawnUpdate(map.id, null);
   }
 
   if (tilesets || zones || backgroundColor || replaceZones) {

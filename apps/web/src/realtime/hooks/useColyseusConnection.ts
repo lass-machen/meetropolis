@@ -262,6 +262,9 @@ export async function performConnect(
       }
     } catch {}
     refs.connectingRef.current = false;
+    // Rejected non-terminal join: AV must not run without a confirmed
+    // world; resumeAv only fires on the success path.
+    suspendAv?.();
     const delay = scheduleReconnect(disposed, onReconnect);
     return { error: err, needsReconnect: true, delay };
   }
@@ -297,6 +300,9 @@ export function performHandleError(
     if (routeTerminalConnectionError({ code, reason, text }, { apiBase, refs, colyseusRef, onReconnect, suspendAv }))
       return;
   } catch {}
+  // Non-terminal world error: leave AV before the reconnect is planned.
+  // The terminal path above already suspended via the overlay route.
+  suspendAv?.();
   colyseusRef.current = null;
   refs.connectingRef.current = false;
   resetRefsBeforeReconnect();
@@ -310,7 +316,7 @@ export function performHandleLeave(
   onReconnect: (() => void) | undefined,
   args: Omit<PerformHandleErrorArgs, 'apiBase'>,
 ): void {
-  const { refs, colyseusRef, scheduleReconnect, resetRefsBeforeReconnect } = args;
+  const { refs, colyseusRef, suspendAv, scheduleReconnect, resetRefsBeforeReconnect } = args;
   try {
     const info: { code?: number; reason?: string } = {};
     if (code !== undefined) info.code = code;
@@ -320,8 +326,11 @@ export function performHandleLeave(
   refs.connectingRef.current = false;
   resetRefsBeforeReconnect();
   // A terminal overlay (shown by performHandleError) owns the connection: its
-  // button decides whether to reconnect.
+  // button decides whether to reconnect. The terminal path already suspended
+  // AV via the overlay route, so a leave behind it must not suspend twice.
   if (refs.terminalOverlayRef.current) return;
+  // Normal world loss: leave AV before the reconnect is planned.
+  suspendAv?.();
   scheduleReconnect(disposed, onReconnect);
 }
 
@@ -415,11 +424,12 @@ export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: Co
       performHandleLeave(code, disposed, onReconnect, {
         refs: connectionRefs,
         colyseusRef,
+        suspendAv,
         scheduleReconnect,
         resetRefsBeforeReconnect,
       });
     },
-    [connectionRefs, colyseusRef, scheduleReconnect, resetRefsBeforeReconnect],
+    [connectionRefs, colyseusRef, suspendAv, scheduleReconnect, resetRefsBeforeReconnect],
   );
 
   return {

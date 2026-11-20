@@ -307,7 +307,7 @@ interface SaveAllPayload {
   zones: unknown;
   backgroundColor: string;
   replaceZones: boolean;
-  spawn?: { x: number; y: number };
+  spawn?: { x: number; y: number } | null;
 }
 
 async function saveAllToServerImpl(
@@ -324,7 +324,11 @@ async function saveAllToServerImpl(
     const mapId = useMapStore.getState().currentMapId;
     if (!mapId) return false;
     const payload: SaveAllPayload = { tilesets, zones, backgroundColor, replaceZones: true };
-    if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') payload.spawn = spawn;
+    if (currentState.pendingChanges.spawnRemoved && currentState.spawn === null) {
+      payload.spawn = null;
+    } else if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
+      payload.spawn = spawn;
+    }
     const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`, {
       method: 'PUT',
       credentials: 'include',

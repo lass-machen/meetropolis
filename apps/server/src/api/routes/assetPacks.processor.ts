@@ -1,6 +1,7 @@
 import type express from 'express';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import path from 'path';
+import { constants as fsConstants } from 'node:fs';
 import fsp from 'fs/promises';
 import { requireAuth, requireApiToken, requireInternalOwner } from '../utils/authHelpers.js';
 import type {
@@ -14,6 +15,12 @@ import type {
 } from '../../types/assetPack.js';
 import type { RequestWithMulterFile } from '../../types/multer.js';
 import type { MapDb } from '../utils/mapChunkMutations.js';
+import {
+  AssetPackTooLargeError,
+  createUnpackBudget,
+  readZipEntryBounded,
+  type UnpackBudget,
+} from './assetPackZipLimits.js';
 import {
   ConfigSchema,
   normalizeZipPath,
@@ -194,6 +201,7 @@ export function validateConfigAssetReferences(cfg: AssetPackConfig, assetSet: Se
 export async function extractAssetsToTmpDir(
   assetEntries: ZipEntry[],
   tmpDir: string,
+  budget: UnpackBudget = createUnpackBudget(),
 ): Promise<{ ok: true; assetMap: Map<string, string> } | { ok: false; status: number; error: string; path?: string }> {
   const assetMap = new Map<string, string>();
   for (const entry of assetEntries) {
@@ -202,7 +210,13 @@ export async function extractAssetsToTmpDir(
     if (!isAllowedAssetExt(p)) {
       return { ok: false, status: 400, error: 'unsupported asset extension', path: p };
     }
-    const content: Buffer = await entry.buffer();
+    let content: Buffer;
+    try {
+      content = await readZipEntryBounded(entry, budget);
+    } catch (error) {
+      if (error instanceof AssetPackTooLargeError) return { ok: false, status: 413, error: 'asset_pack_too_large' };
+      throw error;
+    }
     const hashPrefix = shortHashHex(content);
     const rel = withoutAssetsPrefix(p);
     const dirPart = path.dirname(rel);
@@ -222,20 +236,22 @@ export function rewriteConfig(
   cfg: AssetPackConfig,
   uuid: string,
   assetMap: Map<string, string>,
+  generationId?: string,
 ): AssetPackConfigRewritten {
+  const prefix = generationId ? `/packs/${uuid}/generations/${generationId}/` : `/packs/${uuid}/`;
   const rewriteItem = <T extends AssetPackItemBase>(it: T): T & { originalPath?: string } => {
     const original = normalizeZipPath(it.dataURL);
     const mapped = assetMap.get(original);
     if (!mapped) return it;
     const out: T & { originalPath?: string } = { ...it, originalPath: it.dataURL };
-    out.dataURL = `/packs/${uuid}/${mapped}`;
+    out.dataURL = `${prefix}${mapped}`;
     const directional = (it as unknown as AssetPackSpriteItem).directionalImages;
     if (Array.isArray(directional)) {
       (out as unknown as AssetPackSpriteItem).directionalImages = directional.map((di) => {
         const diOriginal = normalizeZipPath(di.dataURL);
         const diMapped = assetMap.get(diOriginal);
         if (!diMapped) return di;
-        return { ...di, dataURL: `/packs/${uuid}/${diMapped}` };
+        return { ...di, dataURL: `${prefix}${diMapped}` };
       });
     }
     return out;
@@ -301,22 +317,90 @@ function referencedRelativePath(url: string, uuid: string): string | null {
   return normalized;
 }
 
+type PreserveOptions = {
+  repairMissing?: boolean;
+  repairSources?: ReadonlyMap<string, string>;
+  onRepair?: (details: { url: string; source: string }) => void;
+  retainInPlace?: boolean;
+};
+
+// Generation uploads never replace the pack directory: referenced
+// files stay where they are and are only validated here. Nothing is copied
+// into the new generation, and no legacy or generation file is overwritten.
+async function retainReferencedAssetsInPlace(
+  urls: Set<string>,
+  uuid: string,
+  currentDir: string,
+  tmpDir: string,
+  options: PreserveOptions,
+): Promise<string[]> {
+  const preserved: string[] = [];
+  for (const url of urls) {
+    const relative = referencedRelativePath(url, uuid);
+    if (!relative) continue;
+    const inPlace = path.resolve(currentDir, relative);
+    const present = await fsp
+      .stat(inPlace)
+      .then((stat) => stat.isFile())
+      .catch(() => false);
+    if (present) continue;
+    if (!options.repairMissing) throw new MissingReferencedAssetError(url);
+    // Same precedence as the legacy path: uploaded bytes at the same
+    // relative location win over the explicit source map. Both live in the
+    // new generation tmp dir, so restoring from either never overwrites an
+    // existing legacy or generation file.
+    const uploadedCandidate = path.resolve(tmpDir, relative);
+    const uploadedPresent = await fsp
+      .stat(uploadedCandidate)
+      .then((stat) => stat.isFile())
+      .catch(() => false);
+    let repairSource = uploadedPresent ? uploadedCandidate : options.repairSources?.get(relative);
+    // Generation uploads land flat in the new tmp dir under their hashed
+    // file name, while referenced snapshots keep the generations/<id>/...
+    // path. The reference path is validated above, so only fall back to the
+    // uploaded file with the same basename: existing regular files only, no
+    // new URL, no path outside the tmp dir.
+    if (!repairSource && relative.startsWith('generations/')) {
+      const basenameCandidate = path.resolve(tmpDir, path.posix.basename(relative));
+      const basenamePresent = await fsp
+        .stat(basenameCandidate)
+        .then((stat) => stat.isFile())
+        .catch(() => false);
+      if (basenamePresent) repairSource = basenameCandidate;
+    }
+    if (!repairSource) throw new MissingReferencedAssetError(url);
+    const readable = await fsp
+      .stat(repairSource)
+      .then((stat) => stat.isFile())
+      .catch(() => false);
+    if (!readable) throw new MissingReferencedAssetError(url);
+    await fsp.mkdir(path.dirname(inPlace), { recursive: true });
+    try {
+      await fsp.copyFile(repairSource, inPlace, fsConstants.COPYFILE_EXCL);
+    } catch (error) {
+      // Only missing files are restored: an EEXIST here means the snapshot
+      // was restored concurrently, so keep those bytes instead of failing.
+      if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
+    }
+    preserved.push(relative);
+    options.onRepair?.({ url, source: repairSource });
+  }
+  return preserved;
+}
+
 export async function preserveReferencedPackAssets(
   prisma: AssetReferenceReader,
   uuid: string,
   currentDir: string,
   tmpDir: string,
-  options: {
-    repairMissing?: boolean;
-    repairSources?: ReadonlyMap<string, string>;
-    onRepair?: (details: { url: string; source: string }) => void;
-  } = {},
+  options: PreserveOptions = {},
 ): Promise<string[]> {
   const [autotiles, objects] = await Promise.all([
     prisma.mapAutotile.findMany({ where: { packUuid: uuid }, select: { imageUrl: true } }),
     prisma.mapObject.findMany({ where: { assetPackUuid: uuid }, select: { dataUrl: true } }),
   ]);
   const urls = new Set([...autotiles.map((item) => item.imageUrl), ...objects.map((item) => item.dataUrl)]);
+  if (options.retainInPlace) return retainReferencedAssetsInPlace(urls, uuid, currentDir, tmpDir, options);
   const preserved: string[] = [];
   for (const url of urls) {
     const relative = referencedRelativePath(url, uuid);
@@ -385,7 +469,12 @@ export function persistAssetPackRecord(
   cfg: AssetPackConfig,
   rewritten: AssetPackConfigRewritten,
   existing: { id: number } | null,
+  currentGeneration?: string | null,
 ) {
+  // `currentGeneration` carries the published generation id; `null`
+  // means legacy (pre-generation pack, files live directly under the pack
+  // directory). Omitted (`undefined`) = legacy path: the pointer column is
+  // left untouched so re-uploads without a generation never reset it.
   const dataRecord = {
     uuid: cfg.uuid,
     name: cfg.name,
@@ -397,11 +486,12 @@ export function persistAssetPackRecord(
     objects: rewritten.objects as unknown as object,
     autotiles: rewritten.autotiles as unknown as object,
   };
+  const data = currentGeneration !== undefined ? { ...dataRecord, currentGeneration } : dataRecord;
 
   if (existing) {
-    return prisma.assetPack.update({ where: { uuid: cfg.uuid }, data: dataRecord });
+    return prisma.assetPack.update({ where: { uuid: cfg.uuid }, data });
   }
-  return prisma.assetPack.create({ data: dataRecord });
+  return prisma.assetPack.create({ data });
 }
 
 export function readUploadedZipBuffer(
@@ -420,8 +510,15 @@ export function readUploadedZipBuffer(
 
 export async function parseUploadedConfig(
   configEntry: ZipEntry,
+  budget: UnpackBudget = createUnpackBudget(),
 ): Promise<{ ok: true; cfg: AssetPackConfig } | { ok: false; status: number; error: string; details?: unknown }> {
-  const configRaw = await configEntry.buffer();
+  let configRaw: Buffer;
+  try {
+    configRaw = await readZipEntryBounded(configEntry, budget);
+  } catch (error) {
+    if (error instanceof AssetPackTooLargeError) return { ok: false, status: 413, error: 'asset_pack_too_large' };
+    throw error;
+  }
   let configJson: unknown;
   try {
     configJson = JSON.parse(configRaw.toString('utf8'));

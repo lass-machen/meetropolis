@@ -1,16 +1,20 @@
 import { logger } from '../../logger.js';
 import type { NpcSpawnCommand } from '@meetropolis/shared';
+import { usableServiceSecret } from './serviceSecret.js';
 
 const NPC_SERVICE_URL = () => process.env.NPC_SERVICE_URL || 'http://npc-service:3100';
-const NPC_SERVICE_SECRET = () => process.env.NPC_SERVICE_SECRET || 'dev-npc-secret';
 
 async function npcFetch(path: string, method: string, body?: unknown): Promise<unknown> {
+  const secret = usableServiceSecret('NPC_SERVICE_SECRET');
+  if (secret === null) {
+    throw new Error('NPC service is not configured: NPC_SERVICE_SECRET is missing or invalid');
+  }
   const url = `${NPC_SERVICE_URL()}${path}`;
   const res = await fetch(url, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      'X-NPC-Secret': NPC_SERVICE_SECRET(),
+      'X-NPC-Secret': secret,
     },
     body: body ? JSON.stringify(body) : undefined,
   });

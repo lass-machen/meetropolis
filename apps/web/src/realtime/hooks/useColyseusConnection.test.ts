@@ -602,7 +602,9 @@ describe('AV suspension on terminal connection errors', () => {
     ['guest expired', [4006, 'guest_expired'], overlayMocks.showGuestExpiredOverlay],
     ['session taken over', [4007, 'session_taken_over'], overlayMocks.showSessionTakenOverOverlay],
     ['auth rejected', [4401, 'unauthorized'], overlayMocks.showAuthExpiredOverlay],
+    ['auth rejected over matchmake', [401, 'tenant_mismatch'], overlayMocks.showAuthExpiredOverlay],
     ['client too old', [4426, 'client_too_old'], overlayMocks.showClientTooOldOverlay],
+    ['client too old over matchmake', [426, 'version_too_old'], overlayMocks.showClientTooOldOverlay],
     ['billing', [4004], overlayMocks.showLimitErrorOverlay],
     ['limit', [4002, 'tenant_limit_reached'], overlayMocks.showLimitErrorOverlay],
   ];
@@ -622,14 +624,21 @@ describe('AV suspension on terminal connection errors', () => {
     ['the gate-unavailable code', [4503]],
     ['an abnormal close', [1006]],
     ['a bare Colyseus close code', [4002]],
-  ] as Array<[string, Parameters<typeof performHandleError>[0]]>)('keeps AV on %s', (_name, ev) => {
-    const args = makeArgs();
+  ] as Array<[string, Parameters<typeof performHandleError>[0]]>)(
+    'suspends AV before the reconnect for %s',
+    (_name, ev) => {
+      const args = makeArgs();
+      const onReconnect = vi.fn();
 
-    performHandleError(ev, false, vi.fn(), args);
+      performHandleError(ev, false, onReconnect, args);
 
-    expect(args.suspendAv).not.toHaveBeenCalled();
-    expect(args.scheduleReconnect).toHaveBeenCalledTimes(1);
-  });
+      expect(args.suspendAv).toHaveBeenCalledTimes(1);
+      expect(args.scheduleReconnect).toHaveBeenCalledWith(false, onReconnect);
+      expect(args.suspendAv.mock.invocationCallOrder[0]).toBeLessThan(
+        args.scheduleReconnect.mock.invocationCallOrder[0] ?? 0,
+      );
+    },
+  );
 
   it('leaves AV before the consent overlay of a join the server rejected', async () => {
     vi.mocked(joinWorld).mockRejectedValue(new ServerError(4008, 'transcription_consent_required'));
@@ -702,5 +711,77 @@ describe('AV suspension on terminal connection errors', () => {
     await performConnect(true, vi.fn(), args as unknown as Parameters<typeof performConnect>[2]);
 
     expect(args.resumeAv).not.toHaveBeenCalled();
+  });
+
+  it('suspends AV without resuming it when a non-terminal join fails', async () => {
+    vi.mocked(joinWorld).mockRejectedValueOnce(new Error('network down'));
+    const args = makeResumableConnectArgs();
+    const onReconnect = vi.fn();
+
+    const result = await performConnect(false, vi.fn(), {
+      ...(args as unknown as Parameters<typeof performConnect>[2]),
+      onReconnect,
+    });
+
+    expect(result).toMatchObject({ needsReconnect: true });
+    expect(args.suspendAv).toHaveBeenCalledTimes(1);
+    expect(args.resumeAv).not.toHaveBeenCalled();
+    expect(args.scheduleReconnect).toHaveBeenCalledWith(false, onReconnect);
+  });
+});
+
+describe('AV suspension on a normal world leave', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function makeLeaveArgs() {
+    return {
+      refs: makeRefs(),
+      colyseusRef: { current: null as WorldRoom | null },
+      suspendAv: vi.fn(),
+      scheduleReconnect: vi.fn(() => undefined),
+      resetRefsBeforeReconnect: vi.fn(),
+    };
+  }
+
+  it('suspends AV before scheduling the reconnect on a normal leave', () => {
+    const args = makeLeaveArgs();
+    const onReconnect = vi.fn();
+
+    performHandleLeave(1006, false, onReconnect, args);
+
+    expect(args.suspendAv).toHaveBeenCalledTimes(1);
+    expect(args.scheduleReconnect).toHaveBeenCalledWith(false, onReconnect);
+    expect(args.suspendAv.mock.invocationCallOrder[0]).toBeLessThan(
+      args.scheduleReconnect.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(args.colyseusRef.current).toBeNull();
+  });
+
+  it('does not suspend AV twice when the leave follows a terminal overlay', () => {
+    const refs = makeRefs();
+    const suspendAv = vi.fn();
+    const errorArgs = {
+      apiBase: '/api',
+      refs,
+      colyseusRef: { current: null as WorldRoom | null },
+      suspendAv,
+      scheduleReconnect: vi.fn(() => undefined),
+      resetRefsBeforeReconnect: vi.fn(),
+    };
+
+    performHandleError([4008], false, vi.fn(), errorArgs);
+    expect(suspendAv).toHaveBeenCalledTimes(1);
+
+    performHandleLeave(4008, false, vi.fn(), {
+      refs,
+      colyseusRef: errorArgs.colyseusRef,
+      suspendAv,
+      scheduleReconnect: vi.fn(() => undefined),
+      resetRefsBeforeReconnect: vi.fn(),
+    });
+
+    expect(suspendAv).toHaveBeenCalledTimes(1);
   });
 });

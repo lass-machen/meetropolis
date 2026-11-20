@@ -1,6 +1,7 @@
 import React from 'react';
 import { EditorService } from '../../services/EditorService';
 import type { AutotilePackItem } from '../../services/EditorTypes';
+import { loadMemberImageElement } from '../../lib/memberImage';
 
 export function AutotilePicker({
   autotileItems,
@@ -33,6 +34,19 @@ export function AutotilePicker({
   );
 }
 
+// Neutral fallback for an unloadable texture (401/403/404): the same
+// question-mark box the avatar previews draw instead of a broken tile.
+function drawAutotilePlaceholder(ctx: CanvasRenderingContext2D): void {
+  ctx.clearRect(0, 0, 64, 64);
+  ctx.fillStyle = '#555';
+  ctx.fillRect(0, 0, 64, 64);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 28px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('?', 32, 32);
+}
+
 function AutotileThumbnail({ item, isSelected }: { item: AutotilePackItem; isSelected: boolean }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
@@ -42,19 +56,38 @@ function AutotileThumbnail({ item, isSelected }: { item: AutotilePackItem; isSel
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      // Show the bitmask-0 tile (isolated tile) as preview
-      const variant = item.variants['0'];
-      if (variant) {
-        const srcX = variant.col * item.tileWidth;
-        const srcY = variant.row * item.tileHeight;
-        ctx.clearRect(0, 0, 64, 64);
-        ctx.drawImage(img, srcX, srcY, item.tileWidth, item.tileHeight, 0, 0, 64, 64);
-      }
+    // Stored member textures load with member auth; blob and data URLs
+    // pass through the helper untouched. No crossOrigin: the helper serves
+    // a blob URL, so a direct CORS load never happens.
+    const controller = new AbortController();
+    let cancelled = false;
+    let release: (() => void) | null = null;
+    void loadMemberImageElement(item.textureUrl, { signal: controller.signal }).then(
+      ({ image, release: releaseHandle }) => {
+        if (cancelled) {
+          releaseHandle();
+          return;
+        }
+        release = releaseHandle;
+        // Show the bitmask-0 tile (isolated tile) as preview
+        const variant = item.variants['0'];
+        if (variant) {
+          const srcX = variant.col * item.tileWidth;
+          const srcY = variant.row * item.tileHeight;
+          ctx.clearRect(0, 0, 64, 64);
+          ctx.drawImage(image, srcX, srcY, item.tileWidth, item.tileHeight, 0, 0, 64, 64);
+        }
+      },
+      () => {
+        if (cancelled) return;
+        drawAutotilePlaceholder(ctx);
+      },
+    );
+    return () => {
+      cancelled = true;
+      controller.abort();
+      release?.();
     };
-    img.src = item.textureUrl;
   }, [item]);
 
   return (

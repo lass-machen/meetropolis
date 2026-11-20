@@ -1,3 +1,4 @@
+import { readAccountError } from '../../../lib/accountActionResponses';
 import { useEffect } from 'react';
 import { logger } from '../../../lib/logger';
 import { computeBackoffDelayMs, type BackoffOptions } from '../../../lib/backoff';
@@ -68,7 +69,10 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Outcome of a single /auth/me probe. */
 export type FetchMeOutcome =
-  { status: 'ok'; user: MeResponse } | { status: 'unauthorized' } | { status: 'network-error' };
+  | { status: 'ok'; user: MeResponse }
+  | { status: 'unauthorized' }
+  | { status: 'network-error' }
+  | { status: 'verification-required' };
 
 /** Options controlling the boot-time retry policy for transient failures. */
 export interface FetchMeRetryOptions {
@@ -95,6 +99,9 @@ export async function fetchMeOnce(apiBase: string): Promise<FetchMeOutcome> {
     const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
     if (res.ok) return { status: 'ok', user: (await res.json()) as MeResponse };
     if (isTransientStatus(res.status)) return { status: 'network-error' };
+    const error = readAccountError(await res.json().catch(() => null));
+    if (error.code === 'EMAIL_VERIFICATION_REQUIRED' || error.code === 'EMAIL_VERIFICATION_BINDING_REQUIRED')
+      return { status: 'verification-required' };
     // 401/403 (and any other non-transient 4xx) are authoritative: not logged in.
     return { status: 'unauthorized' };
   } catch (e) {
@@ -251,6 +258,11 @@ export async function runFetchMe(
       return;
     }
 
+    if (outcome.status === 'verification-required') {
+      setAuthOffline(false);
+      window.location.hash = '#/verify-pending';
+      return;
+    }
     if (outcome.status === 'unauthorized') {
       setAuthOffline(false);
       setAuthTenantSlug(null);

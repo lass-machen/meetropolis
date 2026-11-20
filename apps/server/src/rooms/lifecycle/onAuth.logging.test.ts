@@ -10,9 +10,13 @@ import { MIN_ZONE_PRIVACY_CLIENT_VERSION } from '@meetropolis/shared';
 const log = vi.hoisted(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
 vi.mock('../../logger.js', () => ({ logger: log }));
 
-const validateSessionTokenMock = vi.fn();
+const validateTenantSessionFreshMock = vi.fn();
+const verifyAuthJwtMock = vi.fn();
+vi.mock('../../api/utils/authHelpers.js', () => ({
+  verifyAuthJwt: (...args: unknown[]) => verifyAuthJwtMock(...args),
+}));
 vi.mock('../../api/utils/sessionAuth.js', () => ({
-  validateSessionToken: (...args: unknown[]) => validateSessionTokenMock(...args),
+  validateTenantSessionFresh: (...args: unknown[]) => validateTenantSessionFreshMock(...args),
 }));
 
 import { authenticateWorldJoin } from './onAuth.js';
@@ -27,8 +31,11 @@ const LOG_BUDGET_CHARS = 1_000;
 const ORIGINAL_ENV = { ...process.env };
 
 const prisma = {
-  tenant: { findUnique: vi.fn(() => Promise.resolve({ slug: 'auth-a' })) },
+  tenant: { findUnique: vi.fn(() => Promise.resolve({ id: 'tenant-a-id', slug: 'auth-a' })) },
   session: { findUnique: vi.fn(), update: vi.fn() },
+  // Joins in these tests come from members; the membership gate has its own tests.
+  membership: { findUnique: vi.fn(() => Promise.resolve({ expiresAt: null })) },
+  npc: { findUnique: vi.fn(() => Promise.resolve({ id: 'npc-id', identity: 'bob' })) },
 } as unknown as WorldJoinPrisma;
 
 function context(): AuthContext {
@@ -49,10 +56,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env = { ...ORIGINAL_ENV };
   process.env.NODE_ENV = 'test';
-  process.env.NPC_SERVICE_SECRET = 'test-npc-secret';
+  process.env.NPC_SERVICE_SECRET = 'n'.repeat(40);
   delete process.env.ZONE_PRIVACY_AUTH_ENFORCE;
   delete process.env.ZONE_PRIVACY_TENANT_ENFORCE;
-  validateSessionTokenMock.mockReset();
+  validateTenantSessionFreshMock.mockReset();
+  verifyAuthJwtMock.mockReset();
+  verifyAuthJwtMock.mockReturnValue({ userId: 'user-1', tenantId: 'tenant-a-id' });
 });
 
 afterEach(() => {
@@ -69,22 +78,29 @@ describe('onAuth logs stay bounded', () => {
     expect(logged()).toContain('(900004 chars)');
   });
 
-  it('for the identity of a token-less join admitted in staged mode', async () => {
-    // The longest identity that is still admitted (see joinFields.ts) is cut in the log.
+  it('for a token-less join refused without a valid session', async () => {
+    // The refusal logs no client-supplied value at all (see onAuth.ts), so
+    // even a huge client-supplied identity stays far below the budget.
     const options: RoomOptions = { identity: 'x'.repeat(MAX_JOIN_IDENTITY_LENGTH), zonePrivacyVersion: 0 };
 
-    await authenticateWorldJoin(options, tokenless(), prisma);
+    await expect(authenticateWorldJoin(options, tokenless(), prisma)).rejects.toThrow();
 
     expect(log.warn).toHaveBeenCalled();
-    expect(logged()).toContain(`(${MAX_JOIN_IDENTITY_LENGTH} chars)`);
+    expect(logged()).not.toContain('x'.repeat(100));
     expect(logged().length).toBeLessThan(LOG_BUDGET_CHARS);
   });
 
   it.each([
     ['rejects', 'true'],
-    ['admits', undefined],
+    ['admits', 'false'],
   ])('for a mismatching options.tenant when the room match %s', async (_label, enforce) => {
-    validateSessionTokenMock.mockResolvedValue({ userId: 'user-1', tenantId: 'tenant-a-id' });
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-1',
+      tenantId: 'tenant-a-id',
+    });
     if (enforce) process.env.ZONE_PRIVACY_TENANT_ENFORCE = enforce;
     const options: RoomOptions = { tenant: HUGE, zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
 
@@ -98,7 +114,13 @@ describe('onAuth logs stay bounded', () => {
     ['enforcement on', 'true'],
     ['enforcement off', undefined],
   ])('for a zone-privacy version that is a long string, %s', async (_label, enforce) => {
-    validateSessionTokenMock.mockResolvedValue({ userId: 'user-1' });
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-1',
+      tenantId: 'tenant-a-id',
+    });
     if (enforce) process.env.ZONE_PRIVACY_AUTH_ENFORCE = enforce;
     // A client can send any JSON value; the wire type says number only in theory.
     const options = { zonePrivacyVersion: HUGE } as unknown as RoomOptions;
@@ -111,10 +133,18 @@ describe('onAuth logs stay bounded', () => {
   });
 
   it('leaves short, ordinary values readable', async () => {
-    validateSessionTokenMock.mockResolvedValue({ userId: 'user-1', tenantId: 'tenant-a-id' });
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-1',
+      tenantId: 'tenant-a-id',
+    });
+    // Both the admitted tenant mismatch and the outdated version are logged before the join is refused.
+    process.env.ZONE_PRIVACY_TENANT_ENFORCE = 'false';
     const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: 0 };
 
-    await authenticateWorldJoin(options, context(), prisma);
+    await expect(authenticateWorldJoin(options, context(), prisma)).rejects.toThrow('client_too_old');
 
     expect(logged()).toContain('spoof-b');
     expect(logged()).toContain('"zonePrivacyVersion":0');

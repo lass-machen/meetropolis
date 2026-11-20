@@ -4,7 +4,9 @@ import { logger } from '../../logger.js';
 import { requireSuperAdmin, computeOnlineUsageByTenantSlug } from '../utils/authHelpers.js';
 import { hasBillingModule } from '../../billingLoader.js';
 import { getTelemetryModule } from '../../telemetryLoader.js';
+import { getAdsPublicConfig } from '../adsPublicConfig.js';
 import { avatarEditorEnabled } from '../../services/avatarComposer.js';
+import { isMultiProcessMode } from '../../ops/redisConnection.js';
 
 /**
  * Returns true when the optional enterprise billing module is loaded. The web
@@ -48,6 +50,13 @@ export async function handleOssPublicConfig(_req: express.Request, res: express.
   // enterprise handler wins over this OSS fallback.
   const telemetry = (await getTelemetryModule())?.getPublicConfigBlock() ?? null;
   if (telemetry) body.telemetry = telemetry;
+  // Optional ads consent block, sourced from PUBLIC_* env values (see
+  // api/adsPublicConfig.ts). Absent (null) when neither the tag id nor the
+  // consent mode is configured, so the block is omitted and no tracker hint
+  // ever leaks into an open-source deployment. When present it carries only
+  // the tag id, the conversion label and the consent mode — never any secret.
+  const ads = getAdsPublicConfig();
+  if (ads) body.ads = ads;
   res.json(body);
 }
 
@@ -102,6 +111,8 @@ interface GameServerLike {
 
 async function loadRoomList(gameServer: GameServerLike): Promise<RoomLike[]> {
   const activeWorldRooms = global.activeWorldRooms;
+  // The local list only knows this process's rooms.
+  if (isMultiProcessMode() && gameServer.matchMaker) return (await gameServer.matchMaker.query({})) || [];
   // No cast needed: `activeWorldRooms` is typed against the real `WorldRoom`
   // (types/global.d.ts), and the compiler checks it against `RoomLike` here.
   if (activeWorldRooms && activeWorldRooms.size > 0) return Array.from(activeWorldRooms);
@@ -212,7 +223,9 @@ async function probeWebsocket(): Promise<ProbeResult> {
     let activeConnections = 0;
     let roomCount = 0;
 
-    if (activeWorldRooms && activeWorldRooms.size > 0) {
+    // The local list only knows this process's rooms.
+    const localRoomsFirst = !isMultiProcessMode() || !gameServer?.matchMaker;
+    if (localRoomsFirst && activeWorldRooms && activeWorldRooms.size > 0) {
       roomCount = activeWorldRooms.size;
       activeWorldRooms.forEach((room) => {
         const r = room as ActiveRoomCount;

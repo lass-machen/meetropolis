@@ -1,10 +1,14 @@
 import { pointInPolygon } from '@meetropolis/shared';
 import type { ZoneLockInfo } from '@meetropolis/shared';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import { logger } from '../../logger.js';
 import type { WorldRoom, Player } from '../WorldRoom.js';
-import { tenantKeyForClient, isPlayerVisibleToTenant } from '../lifecycle/tenantView.js';
+import { sameScope, senderScope, zoneBelongsToScope, zoneLocksForClient, type SocialScope } from './socialScope.js';
+
+// The lock view moved next to the other scope helpers; the export stays here
+// for the callers that already import it from this module.
+export { zoneLocksForClient };
 
 interface MapMetaShape {
   zones?: ZoneMetaEntry[];
@@ -114,41 +118,10 @@ function lockKey(mapId: string, zoneName: string): string {
   return `${mapId}:${zoneName}`;
 }
 
-// Tenant-scope one lock for a viewer: keep the lock envelope (zoneName, mapId,
-// lockedBy, accessList — all sessionIds, no PII) but drop pendingRequests whose
-// requester belongs to a different tenant. Each pending request carries
-// identity (userId) + name (display name, = email when no display name is set):
-// in a shared apex/'default' room that is cross-tenant PII. Filtering by the
-// requester's verified tenant (room.playerTenantKey) closes the leak in BOTH
-// directions (a foreign lock's requests, and a foreign request injected into
-// this tenant's lock) while leaving same-tenant requests fully visible so the
-// approve/deny flow keeps working. Only allocates a copy when something is
-// actually stripped. An unknown requester tenant (left the room mid-request)
-// fails closed: hidden, not leaked.
-function filterLockForTenant(room: WorldRoom, lock: ZoneLockInfo, viewerKey: string): ZoneLockInfo {
-  const pendingRequests = lock.pendingRequests.filter((r: { sessionId: string }) =>
-    isPlayerVisibleToTenant(false, room.playerTenantKey.get(r.sessionId), viewerKey),
-  );
-  if (pendingRequests.length === lock.pendingRequests.length) return lock;
-  return { ...lock, pendingRequests };
-}
-
-// Build the tenant-filtered zone_lock_state payload for one client (used by both
-// the change-broadcast and the join-seed in onJoin.completion).
-export function zoneLocksForClient(room: WorldRoom, client: Client): ZoneLockInfo[] {
-  const viewerKey = tenantKeyForClient(client);
-  const out: ZoneLockInfo[] = [];
-  for (const lock of room.zoneLockState.locks.values()) {
-    out.push(filterLockForTenant(room, lock, viewerKey));
-  }
-  return out;
-}
-
-// Broadcast the lock state to every client, tenant-scoped per recipient so a
-// shared-room foreign tenant never receives another tenant's pending-request
-// identity/name (PII). Replaces the previous room-wide broadcast. Reads the
-// locks off room.zoneLockState (the single ZoneLockState instance), so no state
-// argument is needed.
+// Broadcast the lock state to every client, scoped per recipient so a
+// shared-room foreign tenant never receives another tenant's lock or its
+// pending-request identity/name (PII). Reads the locks off room.zoneLockState
+// (the single ZoneLockState instance), so no state argument is needed.
 function broadcastLockState(room: WorldRoom): void {
   for (const client of room.clients) {
     client.send('zone_lock_state', { locks: zoneLocksForClient(room, client) });
@@ -210,82 +183,109 @@ export function getRoomTenantSlug(room: WorldRoom): string {
   return meta?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
 }
 
+// The seats of the sender's own tenant and map that stand inside the zone.
+function accessListFor(room: WorldRoom, scope: SocialScope, zones: ZonePolygon[], zoneName: string): string[] {
+  const accessList: string[] = [];
+  room.state.players.forEach((player: Player, sessionId: string) => {
+    if (player.mapId !== scope.mapId) return;
+    if (room.playerTenantKey.get(sessionId) !== scope.tenantKey) return;
+    if (getPlayerZone(zones, { x: player.x, y: player.y }) !== zoneName) return;
+    accessList.push(sessionId);
+  });
+  return accessList;
+}
+
+// Lock a zone. The zone has to belong to the tenant and the map of the
+// sender, and the sender has to stand inside it.
 async function handleZoneLock(
   room: WorldRoom,
   state: ZoneLockState,
   prisma: PrismaClient,
-  client: { sessionId: string },
+  client: Client,
   data: { zoneName?: string },
 ): Promise<void> {
-  const player = room.state.players.get(client.sessionId);
-  if (!player || !data?.zoneName) return;
+  const scope = senderScope(room, client);
+  const zoneName = data?.zoneName;
+  if (!scope || typeof zoneName !== 'string' || zoneName.length === 0) return;
 
-  const mapId = player.mapId;
-  const tenantSlug = getRoomTenantSlug(room);
-  const zones = await loadZones(state, mapId, tenantSlug, prisma);
-  const playerZone = getPlayerZone(zones, { x: player.x, y: player.y });
-
-  if (playerZone !== data.zoneName) return;
-
-  const key = lockKey(mapId, data.zoneName);
+  const key = lockKey(scope.mapId, zoneName);
   if (state.locks.has(key)) return;
 
-  const accessList: string[] = [];
-  room.state.players.forEach((p: Player, sessionId: string) => {
-    if (p.mapId !== mapId) return;
-    const zone = getPlayerZone(zones, { x: p.x, y: p.y });
-    if (zone === data.zoneName) accessList.push(sessionId);
-  });
+  // The zone has to belong to the tenant and the map of the sender. The
+  // database decides, never the client.
+  if (!(await zoneBelongsToScope(prisma, scope, zoneName))) return;
+  if (!sameScope(room, client.sessionId, scope)) return;
 
+  const zones = await loadZones(state, scope.mapId, getRoomTenantSlug(room), prisma);
+  if (!sameScope(room, client.sessionId, scope)) return;
+
+  const player = room.state.players.get(client.sessionId);
+  if (!player) return;
+  if (getPlayerZone(zones, { x: player.x, y: player.y }) !== zoneName) return;
+
+  const accessList = accessListFor(room, scope, zones, zoneName);
   state.locks.set(key, {
-    zoneName: data.zoneName,
-    mapId,
+    zoneName,
+    mapId: scope.mapId,
     lockedBy: client.sessionId,
     accessList,
     pendingRequests: [],
   });
 
   broadcastLockState(room);
-  logger.info('[ZoneLock] Zone locked:', data.zoneName, 'by', client.sessionId, 'access:', accessList.length);
+  logger.info('[ZoneLock] Zone locked:', zoneName, 'by', client.sessionId, 'access:', accessList.length);
 }
 
-function handleZoneUnlock(
+// Unlock a zone. The right stays with the seats on the access list.
+async function handleZoneUnlock(
   room: WorldRoom,
   state: ZoneLockState,
-  client: { sessionId: string },
+  prisma: PrismaClient,
+  client: Client,
   data: { zoneName?: string },
-): void {
-  if (!data?.zoneName) return;
-  const player = room.state.players.get(client.sessionId);
-  if (!player) return;
+): Promise<void> {
+  const scope = senderScope(room, client);
+  const zoneName = data?.zoneName;
+  if (!scope || typeof zoneName !== 'string' || zoneName.length === 0) return;
 
-  const key = lockKey(player.mapId, data.zoneName);
+  const key = lockKey(scope.mapId, zoneName);
   const lock = state.locks.get(key);
   if (!lock) return;
-
   if (!lock.accessList.includes(client.sessionId)) return;
+
+  if (!(await zoneBelongsToScope(prisma, scope, zoneName))) return;
+  if (!sameScope(room, client.sessionId, scope)) return;
 
   state.locks.delete(key);
   broadcastLockState(room);
-  logger.info('[ZoneLock] Zone unlocked:', data.zoneName, 'by', client.sessionId);
+  logger.info('[ZoneLock] Zone unlocked:', zoneName, 'by', client.sessionId);
 }
 
-function handleZoneAccessRequest(
+// Ask for access to a locked zone of the map the sender stands on. A named
+// map is only a checked match, never a target.
+async function handleZoneAccessRequest(
   room: WorldRoom,
   state: ZoneLockState,
-  client: { sessionId: string },
+  prisma: PrismaClient,
+  client: Client,
   data: { zoneName?: string; mapId?: string },
-): void {
-  if (!data?.zoneName || !data?.mapId) return;
-  const player = room.state.players.get(client.sessionId);
-  if (!player) return;
+): Promise<void> {
+  const scope = senderScope(room, client);
+  const zoneName = data?.zoneName;
+  if (!scope || typeof zoneName !== 'string' || zoneName.length === 0) return;
+  if (typeof data?.mapId === 'string' && data.mapId !== scope.mapId) return;
 
-  const key = lockKey(data.mapId, data.zoneName);
+  const key = lockKey(scope.mapId, zoneName);
   const lock = state.locks.get(key);
   if (!lock) return;
-
   if (lock.accessList.includes(client.sessionId)) return;
-  if (lock.pendingRequests.some((r: { sessionId: string }) => r.sessionId === client.sessionId)) return;
+  if (lock.pendingRequests.some((request: { sessionId: string }) => request.sessionId === client.sessionId)) return;
+
+  if (!(await zoneBelongsToScope(prisma, scope, zoneName))) return;
+  if (!sameScope(room, client.sessionId, scope)) return;
+
+  const player = room.state.players.get(client.sessionId);
+  if (!player) return;
 
   lock.pendingRequests.push({
     sessionId: client.sessionId,
@@ -294,36 +294,50 @@ function handleZoneAccessRequest(
   });
 
   broadcastLockState(room);
-  logger.info('[ZoneLock] Access request for', data.zoneName, 'from', client.sessionId);
+  logger.info('[ZoneLock] Access request for', zoneName, 'from', client.sessionId);
 }
 
-function handleZoneAccessResponse(
+// Answer a pending access request. Only a seat on the access list may decide,
+// and only about a request that is actually pending for a live seat of the
+// same tenant and map.
+async function handleZoneAccessResponse(
   room: WorldRoom,
   state: ZoneLockState,
-  client: { sessionId: string },
+  prisma: PrismaClient,
+  client: Client,
   data: { zoneName?: string; sessionId?: string; approved?: boolean },
-): void {
-  if (!data?.zoneName || !data?.sessionId) return;
-  const player = room.state.players.get(client.sessionId);
-  if (!player) return;
+): Promise<void> {
+  const scope = senderScope(room, client);
+  const zoneName = data?.zoneName;
+  const targetId = data?.sessionId;
+  const approved = data?.approved;
+  if (!scope || typeof zoneName !== 'string' || zoneName.length === 0) return;
+  if (typeof targetId !== 'string' || targetId.length === 0) return;
+  if (typeof approved !== 'boolean') return;
 
-  const key = lockKey(player.mapId, data.zoneName);
+  const key = lockKey(scope.mapId, zoneName);
   const lock = state.locks.get(key);
   if (!lock) return;
-
   if (!lock.accessList.includes(client.sessionId)) return;
+  if (!lock.pendingRequests.some((request: { sessionId: string }) => request.sessionId === targetId)) return;
+  if (!sameScope(room, targetId, scope)) return;
 
-  lock.pendingRequests = lock.pendingRequests.filter((r: { sessionId: string }) => r.sessionId !== data.sessionId);
+  if (!(await zoneBelongsToScope(prisma, scope, zoneName))) return;
+  if (!sameScope(room, client.sessionId, scope)) return;
 
-  if (data.approved) {
-    lock.accessList.push(data.sessionId);
-    logger.info('[ZoneLock] Access approved for', data.sessionId, 'to', data.zoneName);
+  lock.pendingRequests = lock.pendingRequests.filter(
+    (request: { sessionId: string }) => request.sessionId !== targetId,
+  );
+
+  if (approved) {
+    lock.accessList.push(targetId);
+    logger.info('[ZoneLock] Access approved for', targetId, 'to', zoneName);
   } else {
-    const requesterClient = room.clients.find((c) => c.sessionId === data.sessionId);
+    const requesterClient = room.clients.find((c) => c.sessionId === targetId);
     if (requesterClient) {
-      requesterClient.send('zone_access_denied', { zoneName: data.zoneName });
+      requesterClient.send('zone_access_denied', { zoneName });
     }
-    logger.info('[ZoneLock] Access denied for', data.sessionId, 'to', data.zoneName);
+    logger.info('[ZoneLock] Access denied for', targetId, 'to', zoneName);
   }
 
   broadcastLockState(room);
@@ -337,13 +351,15 @@ export function setupZoneLockHandlers(room: WorldRoom, state: ZoneLockState, pri
   room.onMessage<ZoneLockMsg>('zone_lock', (client, data) => {
     void handleZoneLock(room, state, prisma, client, data);
   });
-  room.onMessage<ZoneLockMsg>('zone_unlock', (client, data) => handleZoneUnlock(room, state, client, data));
-  room.onMessage<ZoneAccessRequestMsg>('zone_access_request', (client, data) =>
-    handleZoneAccessRequest(room, state, client, data),
-  );
-  room.onMessage<ZoneAccessResponseMsg>('zone_access_response', (client, data) =>
-    handleZoneAccessResponse(room, state, client, data),
-  );
+  room.onMessage<ZoneLockMsg>('zone_unlock', (client, data) => {
+    void handleZoneUnlock(room, state, prisma, client, data);
+  });
+  room.onMessage<ZoneAccessRequestMsg>('zone_access_request', (client, data) => {
+    void handleZoneAccessRequest(room, state, prisma, client, data);
+  });
+  room.onMessage<ZoneAccessResponseMsg>('zone_access_response', (client, data) => {
+    void handleZoneAccessResponse(room, state, prisma, client, data);
+  });
 }
 
 // Player leaves: remove them from every list.

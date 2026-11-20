@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { RegisterStep4View } from './RegisterStep4View';
-import type { TenantSignupSubmission } from './signupTypes';
+import { CURRENT_AGB_VERSION, type TenantSignupSubmission } from './signupTypes';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -77,7 +77,7 @@ describe('RegisterStep4View — summary + company details', () => {
       legalForm: 'GmbH',
       billingCountry: 'DE',
       b2bDeclaration: true,
-      agbVersion: '2026-07-01',
+      agbVersion: CURRENT_AGB_VERSION,
     });
   });
 });

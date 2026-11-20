@@ -4,7 +4,7 @@
  * unvalidated (or foreign) custom avatar.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import {
@@ -39,7 +39,8 @@ function makeRoom(player: Player | null, prisma: PrismaClient | null): WorldRoom
 }
 
 function makeClient(auth: unknown): Client {
-  return { sessionId: 'sess-1', auth, send: vi.fn() } as Client;
+  // Partial double: the handler reads only sessionId, auth and send.
+  return { sessionId: 'sess-1', auth, send: vi.fn() } as unknown as Client;
 }
 
 const TENANT_MINE = 'tenant-mine';
@@ -57,6 +58,8 @@ const PACKS = [
   { uuid: 'premium', tenantId: null, avatars: [{ key: 'hero' }] },
 ];
 
+type AvatarPackRow = (typeof PACKS)[number];
+
 function matchesPackWhere(pack: (typeof PACKS)[number], where: PackWhere): boolean {
   if (typeof where.uuid === 'string' && pack.uuid !== where.uuid) return false;
   if (typeof where.uuid === 'object' && where.uuid.notIn.includes(pack.uuid)) return false;
@@ -67,7 +70,16 @@ function matchesPackWhere(pack: (typeof PACKS)[number], where: PackWhere): boole
 }
 
 /** Custom avatars keyed by uuid, each with the tenant it was composed in. */
-function prismaWithCustom(existing: Record<string, string | null>): PrismaClient {
+function avatarPackFindFirstMock() {
+  return vi.fn(({ where }: { where: PackWhere }) =>
+    Promise.resolve(PACKS.find((pack) => matchesPackWhere(pack, where)) ?? null),
+  );
+}
+
+function prismaWithCustom(
+  existing: Record<string, string | null>,
+  avatarPackFindFirst: ReturnType<typeof avatarPackFindFirstMock> = avatarPackFindFirstMock(),
+): PrismaClient {
   return {
     customAvatar: {
       findFirst: vi.fn(({ where }: { where: { uuid: string; tenantId?: string } }) => {
@@ -78,9 +90,7 @@ function prismaWithCustom(existing: Record<string, string | null>): PrismaClient
       }),
     },
     avatarPack: {
-      findFirst: vi.fn(({ where }: { where: PackWhere }) =>
-        Promise.resolve(PACKS.find((pack) => matchesPackWhere(pack, where)) ?? null),
-      ),
+      findFirst: avatarPackFindFirst,
     },
     map: { findUnique: vi.fn(() => Promise.resolve({ tenantId: TENANT_MINE })) },
   } as unknown as PrismaClient;
@@ -234,9 +244,12 @@ describe('handleAvatarChange', () => {
   });
 
   it('does not apply an older validation after a newer change was confirmed', async () => {
-    const prisma = prismaWithCustom({});
-    const resolvers: Array<(value: { avatars: Array<{ key: string }> }) => void> = [];
-    vi.mocked(prisma.avatarPack.findFirst).mockImplementation(() => new Promise((resolve) => resolvers.push(resolve)));
+    const avatarPackFindFirst = avatarPackFindFirstMock();
+    const prisma = prismaWithCustom({}, avatarPackFindFirst);
+    const resolvers: Array<(value: AvatarPackRow | null) => void> = [];
+    avatarPackFindFirst.mockImplementation(
+      () => new Promise<AvatarPackRow | null>((resolve) => resolvers.push(resolve)),
+    );
     const player = { avatarId: 'a', mapId: 'm' };
     const client = makeClient(user);
     const room = makeRoom(player, prisma);
@@ -244,9 +257,9 @@ describe('handleAvatarChange', () => {
     handleAvatarChange(room, client, { avatarId: 'default-characters:suit_man' });
     handleAvatarChange(room, client, { avatarId: 'default-characters:business_man' });
     await flush();
-    resolvers[1]?.({ avatars: [{ key: 'business_man' }] });
+    resolvers[1]?.({ uuid: 'default-characters', tenantId: null, avatars: [{ key: 'business_man' }] });
     await flush();
-    resolvers[0]?.({ avatars: [{ key: 'suit_man' }] });
+    resolvers[0]?.({ uuid: 'default-characters', tenantId: null, avatars: [{ key: 'suit_man' }] });
     await flush();
 
     expect(player.avatarId).toBe('default-characters:business_man');

@@ -25,7 +25,7 @@ type RemoteZone = {
 /**
  * Reload zones after map change: clears stale portal-zone state and refetches
  * editor-state for the new map. Also listens for `server_zones_loaded` for
- * play-mode zone updates.
+ * play-mode zone updates; an empty list clears the zones.
  */
 export function useMapZonesSync({ me, apiBase, zoneRef, setEditor }: Params) {
   React.useEffect(() => {
@@ -74,11 +74,12 @@ export function useMapZonesSync({ me, apiBase, zoneRef, setEditor }: Params) {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ zones?: Zone[] }>).detail;
       const zones = detail?.zones;
-      if (Array.isArray(zones) && zones.length > 0) {
+      if (Array.isArray(zones)) {
+        setEditor((s) => ({ ...s, zones }));
         zoneRef.current?.setZones?.(zones);
       }
     };
     window.addEventListener('server_zones_loaded', handler);
     return () => window.removeEventListener('server_zones_loaded', handler);
-  }, [zoneRef]);
+  }, [zoneRef, setEditor]);
 }

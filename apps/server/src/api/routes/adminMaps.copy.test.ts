@@ -193,7 +193,9 @@ function makePrisma({
   );
   const prisma = {
     $transaction: transaction,
-  } as PrismaClient;
+    // Partial test double: the copier only uses $transaction here, so the
+    // remaining PrismaClient members are intentionally omitted.
+  } as unknown as PrismaClient;
   return {
     prisma,
     mapObjectCreate,
@@ -406,6 +408,7 @@ describe('copyMapToTenant — object fidelity', () => {
 
     await expect(copyMapToTenant(prisma, SOURCE_MAP_ID, TARGET_TENANT_ID, 'office')).rejects.toEqual(
       expect.objectContaining<TargetPackAccessError>({
+        name: 'TargetPackAccessError',
         message: 'target_tenant_cannot_access_asset_packs:foreign-private',
         packUuids: ['foreign-private'],
       }),
@@ -455,6 +458,7 @@ describe('copyMapToTenant — object fidelity', () => {
     const copy = copyMapToTenant(prisma, SOURCE_MAP_ID, TARGET_TENANT_ID, 'office');
     await expect(copy).rejects.toEqual(
       expect.objectContaining<TargetPackAccessError>({
+        name: 'TargetPackAccessError',
         message: 'target_tenant_cannot_access_asset_packs:pixel-agents-furniture',
         packUuids: ['pixel-agents-furniture'],
       }),

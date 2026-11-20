@@ -155,7 +155,7 @@ interface RoomMetadata {
   tenant?: string;
 }
 
-function broadcastPresenceUpdate(
+export function broadcastPresenceUpdate(
   tenantSlug: string,
   userId: string,
   data: { x: number; y: number; direction: string },
@@ -165,7 +165,7 @@ function broadcastPresenceUpdate(
     if (!activeWorldRooms) return;
     for (const r of activeWorldRooms) {
       const meta = (r.metadata as RoomMetadata | undefined) || {};
-      if (meta.tenant && meta.tenant !== tenantSlug) continue;
+      if (meta.tenant !== tenantSlug) continue;
       try {
         r.broadcast('presence_update', {
           userId,

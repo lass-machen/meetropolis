@@ -1,7 +1,37 @@
 import type { Application, Request, Response } from 'express';
-import type { PrismaClient } from './generated/prisma/index.js';
+import type { Prisma, PrismaClient } from './generated/prisma/index.js';
+import type {
+  TenantDeletionContext,
+  TenantDeletionOptions,
+  TenantDeletionPlanInput,
+  TenantDeletionPreparationContext,
+  TenantDeletionTaskPlan,
+} from './services/tenantDeletionContract.js';
+import type { EnterpriseExportResult, TenantExportSink } from './services/tenantExport/types.js';
+import type { AuthEventInput } from './services/authEvents.js';
+import type { PublicAdsConfig } from './api/adsPublicConfig.js';
+import {
+  TENANT_DELETION_PROTOCOL,
+  TenantDeletionContractError,
+  TenantDeletionJournalUnavailableError,
+  assertTenantDeletionProtocol,
+} from './services/tenantDeletionContract.js';
 import { z } from 'zod';
 import { logger } from './logger.js';
+
+export {
+  TENANT_DELETION_PROTOCOL,
+  TenantDeletionContractError,
+  TenantDeletionJournalUnavailableError,
+  assertTenantDeletionProtocol,
+};
+export type {
+  TenantDeletionContext,
+  TenantDeletionOptions,
+  TenantDeletionPlanInput,
+  TenantDeletionPreparationContext,
+  TenantDeletionTaskPlan,
+};
 
 /**
  * Expected `version` of the shared `@meetropolis/billing` module.
@@ -9,9 +39,9 @@ import { logger } from './logger.js';
  * The enterprise admin routes ship inside the SAME closed-source
  * `@meetropolis/billing` package as the billing routes (see `billingLoader.ts`).
  * That package exposes a single `version` const, so this literal MUST equal
- * `EXPECTED_BILLING_MODULE_VERSION` and evolve in lockstep. Bumping one loader
- * without the other makes `adminEnterpriseSchema.parse()` throw, which silently
- * drops every admin route on a full enterprise deployment.
+ * `EXPECTED_BILLING_MODULE_VERSION` and evolve in lockstep. A version mismatch
+ * no longer drops every admin route silently: the loader aborts startup with a
+ * clear error naming the broken package and the expected loader contract.
  *
  * Raised from 1 to 2 together with the package, when the billing loader
  * interface lost the Stripe-typed config slot and gained
@@ -92,6 +122,10 @@ export interface AdminEnterpriseModule {
         userId: string;
         tenantId: string;
       }) => Promise<{ token: string; sessionId: string; expiresAt: Date }>;
+      // Optional: records one authentication event (see AuthEventInput) on the
+      // host, so the signup can log its login without importing OSS internals.
+      // When absent, no event is recorded.
+      recordAuthEvent?: (input: AuthEventInput) => Promise<void>;
       // Optional: kicks off e-mail verification for a freshly created account.
       // The verification machinery is OSS-internal and cannot be imported from
       // the closed-source package, so the host injects it. Called detached by
@@ -104,6 +138,17 @@ export interface AdminEnterpriseModule {
       // optional config field does not change the module's function surface, so
       // it stays within schema version 2 (no version bump required).
       isNativeClientRequest?: (req: Request) => boolean;
+      // Optional: resolves the managed tenant-deletion plan for one tenant,
+      // persisting the intent to the file journal first. The host wires a
+      // cached resolver only when a journal directory is configured; without
+      // it the field stays undefined and the route answers 409. Optional
+      // field, no version bump.
+      resolveTenantDeletionPlan?: (
+        tx: Prisma.TransactionClient,
+        input: { tenantId: string; transactionTime: Date },
+      ) => Promise<TenantDeletionPlanInput | undefined>;
+      /** Optional: true while the NPC media folder of a deleted tenant with this slug is not cleared yet. */
+      isTenantSlugReserved?: (slug: string) => Promise<boolean>;
       // Optional: host-callback returning the telemetry activation block for
       // GET /public/config ({ enabled, environment }) or null when telemetry is
       // off. The enterprise /public/config handler wins over the OSS fallback
@@ -113,6 +158,19 @@ export interface AdminEnterpriseModule {
       // an optional config field keeps the function surface unchanged, so no
       // schema version bump is required.
       getTelemetryPublicConfig?: () => { enabled: boolean; environment: string } | null;
+      // Optional: host-callback returning the ads consent block for
+      // GET /public/config ({ googleAdsId, signupConversionLabel, consentMode })
+      // or null when ads tracking is off. The enterprise /public/config handler
+      // wins over the OSS fallback (handleOssPublicConfig), so the host injects
+      // this to keep the ads consent block reaching the wire in enterprise
+      // deployments. Undefined (inert) in OSS-only builds; adding an optional
+      // config field keeps the function surface unchanged, so no schema version
+      // bump is required.
+      getAdsPublicConfig?: () => PublicAdsConfig | null;
+      deleteTenantWithMembers: (
+        tenantId: string,
+        options?: TenantDeletionOptions,
+      ) => Promise<{ deletedAccounts: number }>;
     },
   ): void;
 
@@ -140,6 +198,7 @@ export interface AdminEnterpriseModule {
       };
       requireSuperAdmin: (req: Request, prisma: PrismaClient) => Promise<{ userId: string } | null>;
       normalizeEmail: (email: string) => string;
+      removeMemberFromTenant: (params: { userId: string; tenantId: string }) => Promise<{ accountDeleted: boolean }>;
     },
   ): void;
 
@@ -177,6 +236,50 @@ export interface AdminEnterpriseModule {
       cacheTtlMs?: number;
     },
   ): void;
+
+  /**
+   * Managed deletion of one tenant outside the HTTP route, with the same
+   * guards and journal path as DELETE /admin/tenants/:id. Used by the restore
+   * replay tool. Optional: older enterprise builds do not export it.
+   */
+  deleteManagedTenant?(
+    config: {
+      prisma: PrismaClient;
+      logger: {
+        info(obj: object): void;
+        error(obj: object): void;
+        warn(obj: object): void;
+      };
+      deleteTenantWithMembers: (
+        tenantId: string,
+        options?: TenantDeletionOptions,
+      ) => Promise<{ deletedAccounts: number }>;
+      resolveTenantDeletionPlan?: (
+        tx: Prisma.TransactionClient,
+        input: { tenantId: string; transactionTime: Date },
+      ) => Promise<TenantDeletionPlanInput | undefined>;
+    },
+    id: string,
+    options: { actor: string },
+  ): Promise<{ ok: true } | { ok: false; status: number; error: string }>;
+
+  /**
+   * Codes of preconditions that must hold before a restored database may
+   * serve again; empty when none is open. Optional like deleteManagedTenant.
+   */
+  pendingRestorePreconditions?(): string[];
+
+  /**
+   * Exports the enterprise-owned tables of one tenant into the sink. Used by
+   * the operator tenant export. Optional: older enterprise builds do not
+   * export it, and then the export aborts with `enterprise_export_unavailable`.
+   * Declared as a property so passing it on never loses its receiver.
+   */
+  exportManagedTenant?: (
+    config: { prisma: PrismaClient },
+    tenantId: string,
+    sink: TenantExportSink,
+  ) => Promise<EnterpriseExportResult>;
 }
 
 export const adminEnterpriseSchema = z.object({
@@ -190,6 +293,11 @@ export const adminEnterpriseSchema = z.object({
   setupPackMarketplaceRoutes: z.function(),
   // Optional: older enterprise builds may not ship the desktop update routes.
   setupDesktopUpdateRoutes: z.function().optional(),
+  // Optional: restore replay hooks, absent in older enterprise builds.
+  deleteManagedTenant: z.function().optional(),
+  pendingRestorePreconditions: z.function().optional(),
+  // Optional: tenant export hook, absent in older enterprise builds.
+  exportManagedTenant: z.function().optional(),
 });
 
 let cached: AdminEnterpriseModule | null = null;
@@ -216,19 +324,25 @@ export async function hasAdminEnterpriseModule(): Promise<boolean> {
   }
 }
 
-/**
- * Loads the optional enterprise admin module if present.
- * Returns null for OSS builds without enterprise features.
- */
-export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule | null> {
-  if (loadAttempted) return cached;
-  loadAttempted = true;
+function isAbsentBillingPackage(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? error.code : undefined;
+  const message = 'message' in error ? error.message : undefined;
+  if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') return false;
+  return typeof message === 'string' && /Cannot find (?:package|module) ['"]@meetropolis\/billing['"]/.test(message);
+}
 
+const importBillingPackage = (): Promise<unknown> => import('@meetropolis/billing');
+
+/** Load and validate the optional module, distinguishing absence from breakage. */
+export async function loadAdminEnterpriseModule(
+  importModule: () => Promise<unknown> = importBillingPackage,
+): Promise<AdminEnterpriseModule | null> {
   try {
-    const modUnknown: unknown = await import('@meetropolis/billing');
+    const modUnknown: unknown = await importModule();
     const mod = adminEnterpriseSchema.parse(unwrapDefaultExport(modUnknown));
 
-    cached = {
+    const loaded: AdminEnterpriseModule = {
       version: EXPECTED_ADMIN_MODULE_VERSION,
       setupAdminRoutes: mod.setupAdminRoutes as AdminEnterpriseModule['setupAdminRoutes'],
       setupTenantAdminRoutes: mod.setupTenantAdminRoutes as AdminEnterpriseModule['setupTenantAdminRoutes'],
@@ -236,15 +350,42 @@ export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule 
       setupTenantUserRoutes: mod.setupTenantUserRoutes as AdminEnterpriseModule['setupTenantUserRoutes'],
       setupPackMarketplaceRoutes: mod.setupPackMarketplaceRoutes as AdminEnterpriseModule['setupPackMarketplaceRoutes'],
       setupDesktopUpdateRoutes: mod.setupDesktopUpdateRoutes as AdminEnterpriseModule['setupDesktopUpdateRoutes'],
+      deleteManagedTenant: mod.deleteManagedTenant as AdminEnterpriseModule['deleteManagedTenant'],
+      pendingRestorePreconditions:
+        mod.pendingRestorePreconditions as AdminEnterpriseModule['pendingRestorePreconditions'],
+      exportManagedTenant: mod.exportManagedTenant as AdminEnterpriseModule['exportManagedTenant'],
     };
 
     logger.info({ event: 'admin.enterprise_loaded', version: EXPECTED_ADMIN_MODULE_VERSION });
-    return cached;
-  } catch {
-    logger.debug({ event: 'admin.enterprise_not_available', message: 'Enterprise admin routes not loaded (OSS mode)' });
-    cached = null;
-    return null;
+    return loaded;
+  } catch (error) {
+    if (isAbsentBillingPackage(error)) {
+      logger.debug({
+        event: 'admin.enterprise_not_available',
+        message: 'Enterprise admin routes not loaded (OSS mode)',
+      });
+      return null;
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      'Failed to load @meetropolis/billing. Remove the broken package for OSS mode or install a module ' +
+        `matching the admin loader contract (expected version ${EXPECTED_ADMIN_MODULE_VERSION}). Cause: ${detail}`,
+    );
   }
+}
+
+/**
+ * Loads the optional enterprise admin module if present.
+ * Returns null for OSS builds without enterprise features.
+ * Only the exact absence of the package selects OSS mode; import and contract
+ * failures abort startup, and a failed load is never cached.
+ */
+export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule | null> {
+  if (loadAttempted) return cached;
+  const loaded = await loadAdminEnterpriseModule();
+  loadAttempted = true;
+  cached = loaded;
+  return cached;
 }
 
 /**

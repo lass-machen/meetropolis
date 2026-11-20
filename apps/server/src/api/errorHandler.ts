@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../logger.js';
+import { getRequestRouteTemplate } from './utils/requestRoute.js';
 import { AppError } from '../errors/AppError.js';
 import { randomUUID } from 'crypto';
 
@@ -105,15 +106,17 @@ function normalizeError(err: unknown): NormalizedError {
 }
 
 function logErrorWithContext(err: unknown, req: Request, normalized: NormalizedError, correlationId: string) {
+  const route = getRequestRouteTemplate(req);
   const logContext = {
     event: 'http.error',
     correlationId,
     statusCode: normalized.statusCode,
     code: normalized.code,
+    errorClass: err instanceof Error ? err.name : 'NonError',
     isOperational: normalized.isOperational,
     method: req.method,
-    path: req.path,
-    url: req.url,
+    path: route,
+    url: route,
     ip: req.ip,
     userAgent: req.headers['user-agent'],
     ...getTenantContext(req),

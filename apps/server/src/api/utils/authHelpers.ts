@@ -1,8 +1,11 @@
 import type express from 'express';
-import type { PrismaClient, Tenant } from '../../generated/prisma/index.js';
+import type { ApiTokenScope, PrismaClient, Tenant } from '../../generated/prisma/index.js';
 import jwt from 'jsonwebtoken';
+import { isTenantAccessDenied } from './tenantAccessState.js';
+import { isInternalOwner } from './tenantMembership.js';
 import crypto from 'crypto';
 import { logger } from '../../logger.js';
+import { getRequestRouteTemplate } from './requestRoute.js';
 import { type AuthTokenPayload } from '../../types/authShapes.js';
 import { getAuthResolution } from './authState.js';
 
@@ -81,12 +84,17 @@ export function setAuthCookie(res: express.Response, token: string) {
  * payload shape — see AGENTS.md "no swallowed errors" / avoid drift between
  * auth paths.
  */
-export function verifyAuthJwt(raw: string): { userId: string; tenantId?: string } | null {
+export function verifyAuthJwt(raw: string): { userId: string; tenantId?: string; verificationOnly?: true } | null {
   try {
     const payload = jwt.verify(raw, getJwtSecret()) as AuthTokenPayload;
     if (typeof payload.sub !== 'string') return null;
     const tenantId = typeof payload.tid === 'string' ? payload.tid : undefined;
-    return { userId: payload.sub, tenantId };
+    if (payload.scope !== undefined && payload.scope !== 'email_verification') return null;
+    return {
+      userId: payload.sub,
+      tenantId,
+      ...(payload.scope === 'email_verification' ? { verificationOnly: true as const } : {}),
+    };
   } catch {
     return null;
   }
@@ -113,16 +121,60 @@ export function requireAuth(req: express.Request): { userId: string; tenantId?: 
   if (!resolution) {
     logger.error({
       event: 'auth.session_middleware_missing',
-      path: typeof req.path === 'string' ? req.path : undefined,
+      path: getRequestRouteTemplate(req),
     });
     return null;
   }
   const { auth } = resolution;
-  if (!auth) return null;
+  if (!auth || auth.verificationOnly) return null;
   return { userId: auth.userId, tenantId: auth.tenantId };
 }
 
-export async function requireApiToken(req: express.Request, prisma: PrismaClient): Promise<{ userId: string } | null> {
+/** Explicit opt-in for the proof/acceptance endpoints only. */
+export function requireVerificationAuth(req: express.Request) {
+  const auth = getAuthResolution(req)?.auth;
+  if (!auth) return null;
+  return { userId: auth.userId, tenantId: auth.tenantId, verificationOnly: auth.verificationOnly === true };
+}
+
+/** Methods a read-scoped API token may use; none of them may change server state. */
+const READ_SCOPE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * Path prefixes no API token reaches, whatever its scope: account credentials
+ * and sessions, the token management itself, and platform administration.
+ * Matched per path segment and case-insensitively (Express routes ignore case),
+ * so `/me` covers `/me/avatar` but not `/mediaplan`. Most of these routes
+ * already demand a session; the list keeps that guarantee in one place.
+ */
+const API_TOKEN_BLOCKED_PATHS = ['/admin', '/debug', '/api-tokens', '/auth', '/me', '/users/me'];
+
+/** Requests authenticated by an API token, so platform rights can be refused later. */
+const apiTokenRequests = new WeakSet<express.Request>();
+
+function isApiTokenBlockedPath(path: string): boolean {
+  const normalized = path.toLowerCase();
+  return API_TOKEN_BLOCKED_PATHS.some((prefix) => normalized === prefix || normalized.startsWith(`${prefix}/`));
+}
+
+function hasSession(req: express.Request): boolean {
+  const auth = getAuthResolution(req)?.auth;
+  return !!auth && !auth.verificationOnly;
+}
+
+/**
+ * The user behind a personal API token, or null.
+ *
+ * This is the single place where API tokens are accepted, so their limits are
+ * enforced here: a token never reaches the blocked paths above, and a read
+ * token only passes on safe methods. A refused request does not count as use
+ * and leaves `lastUsedAt` untouched. Platform administration is refused on top
+ * of that in `requireSuperAdmin` and `requireInternalOwner`.
+ */
+export async function requireApiToken(
+  req: express.Request,
+  prisma: PrismaClient,
+): Promise<{ userId: string; scope: ApiTokenScope } | null> {
   const authz = req.headers['authorization']?.toString();
   if (!authz || !authz.startsWith('Bearer ')) return null;
   const token = authz.slice('Bearer '.length).trim();
@@ -130,14 +182,18 @@ export async function requireApiToken(req: express.Request, prisma: PrismaClient
     // Looks like a JWT -> do not treat as an API token
     return null;
   }
+  if (isApiTokenBlockedPath(req.path ?? '')) return null;
   const hash = crypto
     .createHash('sha256')
     .update(getApiTokenPepper() + token)
     .digest('hex');
   const found = await prisma.apiToken.findUnique({ where: { hash } });
   if (!found) return null;
+  // Anything but an explicit write scope is treated as read.
+  if (found.scope !== 'write' && !READ_SCOPE_METHODS.has((req.method ?? '').toUpperCase())) return null;
   await prisma.apiToken.update({ where: { hash }, data: { lastUsedAt: new Date() } });
-  return { userId: found.userId };
+  apiTokenRequests.add(req);
+  return { userId: found.userId, scope: found.scope };
 }
 
 /**
@@ -166,41 +222,34 @@ export async function requireMembership(
   req: express.Request,
   userId: string,
   prisma: PrismaClient,
-): Promise<{ role: string } | null> {
+): Promise<{ role: string; expiresAt: Date | null } | null> {
   const tenant = getTenantFromReq(req);
   if (!tenant) return null;
   const m = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId } } });
-  if (!m) return null;
-  return { role: m.role };
+  if (!m || m.inviteVerificationRequired || (m.expiresAt && m.expiresAt <= new Date())) return null;
+  return { role: m.role, expiresAt: m.expiresAt };
 }
 
+/** Platform super-admin behind a session; API tokens never carry this right. */
 export async function requireSuperAdmin(
   req: express.Request,
   prisma: PrismaClient,
 ): Promise<{ userId: string } | null> {
-  const auth = requireAuth(req) || (await requireApiToken(req, prisma));
+  const auth = requireAuth(req);
   if (!auth) return null;
   const ok = await requireInternalOwner(req, auth.userId, prisma);
   if (!ok) return null;
   return auth;
 }
 
+/** Platform ownership check; refused for requests authenticated only by an API token. */
 export async function requireInternalOwner(
-  _req: express.Request,
+  req: express.Request,
   userId: string,
   prisma: PrismaClient,
 ): Promise<boolean> {
-  try {
-    const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
-    if (!internal) return false;
-    const member = await prisma.membership.findUnique({
-      where: { tenantId_userId: { tenantId: internal.id, userId } },
-    });
-    if (!member) return false;
-    return member.role === 'owner';
-  } catch {
-    return false;
-  }
+  if (apiTokenRequests.has(req) && !hasSession(req)) return false;
+  return isInternalOwner(prisma, userId);
 }
 
 /**
@@ -259,6 +308,10 @@ export function createRequireTenantAdmin(
           return;
         }
         const tenant = getTenantFromReq(req);
+        if (!tenant && isTenantAccessDenied(req)) {
+          res.status(403).json({ error: 'forbidden' });
+          return;
+        }
         if (!tenant) {
           res.status(400).json({ error: 'tenant_required' });
           return;

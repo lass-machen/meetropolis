@@ -15,6 +15,38 @@
 import * as React from 'react';
 import type { ComponentType } from 'react';
 
+/** Consent mode for the ads consent block in GET /public/config. */
+export type AdsConsentMode = 'banner' | 'bypass';
+
+/**
+ * Public ads consent configuration. Defined structurally in the OSS web app
+ * (never imported from the closed-source brand module); the brand module
+ * declares the same shape on its side.
+ */
+export interface PublicAdsConfig {
+  /** Google ads account id (e.g. "AW-123456789"); null means no Google tag. */
+  googleAdsId: string | null;
+  /** Conversion label for sign-up; null means no conversion event. */
+  signupConversionLabel: string | null;
+  /** Unknown or missing values normalize to 'banner' on the providing side. */
+  consentMode: AdsConsentMode;
+}
+
+/**
+ * Signup attribution captured from the landing URL. Only defined when at
+ * least one field is present; never sent as an empty object.
+ */
+export interface SignupAttribution {
+  gclid?: string;
+  gbraid?: string;
+  wbraid?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmTerm?: string;
+  utmContent?: string;
+}
+
 export interface BrandModule {
   // Marketing landing sections
   HeroSection: ComponentType<{ onSignup: () => void; onLogin: () => void; registrationEnabled: boolean }>;
@@ -26,8 +58,20 @@ export interface BrandModule {
 
   // Legal
   TermsOfServicePage: ComponentType<{ onBack: () => void; registrationEnabled?: boolean }>;
-  PrivacyPolicyPage: ComponentType<{ onBack: () => void; registrationEnabled?: boolean }>;
+  PrivacyPolicyPage: ComponentType<{
+    onBack: () => void;
+    registrationEnabled?: boolean;
+    adsConfig?: PublicAdsConfig | null;
+  }>;
   ImpressumPage: ComponentType<{ onBack: () => void; registrationEnabled?: boolean }>;
+
+  // Ads consent and attribution. All members below are optional so that
+  // older brand builds without ads support keep working: the OSS web app
+  // null-checks each member before use and skips the feature when absent.
+  AdsConsent?: ComponentType<{ config: PublicAdsConfig | null }>;
+  AdsConsentSettingsLink?: ComponentType<{ config: PublicAdsConfig | null }>;
+  getSignupAttribution?: (config: PublicAdsConfig | null) => SignupAttribution | undefined;
+  reportSignupConversion?: (config: PublicAdsConfig | null) => void;
 
   // Branding primitives
   BrandLogo: ComponentType<{ size?: number; className?: string; alt?: string; src?: string }>;

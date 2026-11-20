@@ -201,6 +201,8 @@ export interface GameBridge {
   // Navigation helpers
   findFreeSpotNear: (id: string, opts?: { radius?: number; step?: number }) => { x: number; y: number } | null;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
+  /** Places the local hero at a server-chosen position; held until the scene runs. */
+  setHeroPosition: (pos: { x: number; y: number }) => void;
   recenterCamera: () => void;
 }
 

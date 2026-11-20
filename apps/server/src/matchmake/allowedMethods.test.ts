@@ -5,7 +5,7 @@
  * working. The transport guard is left out on purpose: the allow-list has to
  * hold on its own.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -14,7 +14,7 @@ vi.mock('../logger.js', () => ({
 const createPrismaClientMock = vi.hoisted(() => vi.fn());
 vi.mock('../db.js', () => ({ createPrismaClient: createPrismaClientMock }));
 
-import { ServerError } from 'colyseus';
+import { ServerError, type AuthContext } from '@colyseus/core';
 import {
   disposeAllRooms,
   makeFakePrisma,
@@ -24,6 +24,7 @@ import {
   worldRooms,
   type MatchmakeTestServer,
 } from '../testUtils/matchmakeHarness.js';
+import { stubWorldAuth } from '../testUtils/worldAuthStub.js';
 import { ALLOWED_MATCHMAKE_METHODS, assertAllowedMatchmakeMethod } from './allowedMethods.js';
 import { installPartitionKeyValidation, type TenantExists } from './tenantPartition.js';
 
@@ -64,19 +65,20 @@ describe('assertAllowedMatchmakeMethod', () => {
 
 describe('the allow-list in front of Colyseus', () => {
   it('never reaches Colyseus, and looks no tenant up, for a method that is not allowed', async () => {
+    const authContext: AuthContext = { headers: new Headers(), ip: '127.0.0.1' };
     const reached = vi.fn((..._args: unknown[]) => Promise.resolve({ room: { roomId: 'r1' } }));
     const controller = { invokeMethod: reached } as unknown as NonNullable<
       Parameters<typeof installPartitionKeyValidation>[1]
     >;
     const lookup = vi.fn<TenantExists>().mockResolvedValue(true);
     installPartitionKeyValidation(lookup, controller);
-    await expect(controller.invokeMethod('create', 'world', { tenant: 'acme' }, {})).rejects.toMatchObject({
+    await expect(controller.invokeMethod('create', 'world', { tenant: 'acme' }, authContext)).rejects.toMatchObject({
       code: 400,
       message: 'invalid_method',
     });
     expect(reached).not.toHaveBeenCalled();
     expect(lookup).not.toHaveBeenCalled();
-    await controller.invokeMethod('joinOrCreate', 'world', { tenant: 'acme' }, {});
+    await controller.invokeMethod('joinOrCreate', 'world', { tenant: 'acme' }, authContext);
     expect(reached).toHaveBeenCalledTimes(1);
   });
 });
@@ -84,6 +86,7 @@ describe('the allow-list in front of Colyseus', () => {
 describe('matchmake methods against a real Colyseus server', () => {
   let server: MatchmakeTestServer;
   const tenantExists = vi.fn<TenantExists>((slug) => Promise.resolve(slug === 'acme'));
+  let authSpy: ReturnType<typeof stubWorldAuth>;
 
   beforeAll(async () => {
     createPrismaClientMock.mockImplementation(makeFakePrisma);
@@ -98,6 +101,11 @@ describe('matchmake methods against a real Colyseus server', () => {
     await disposeAllRooms();
     createPrismaClientMock.mockClear();
     tenantExists.mockClear();
+    authSpy = stubWorldAuth();
+  });
+
+  afterEach(() => {
+    authSpy.mockRestore();
   });
 
   it.each([

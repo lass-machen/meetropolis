@@ -304,54 +304,6 @@ describe('AVManager', () => {
   // Note: Test for 'Audio-Unlock-Handler' removed after refactor
   // The audioUnlockHandlersAttached flag no longer exists - logic moved to ConnectionManager
 
-  describe('DND audio ducking suppression', () => {
-    const originalAudioSession = (navigator as any).audioSession;
-
-    beforeEach(async () => {
-      (navigator as any).audioSession = { type: 'auto' };
-      const { resetAudioDucking } = await import('./audio/audioSessionDucking');
-      resetAudioDucking();
-    });
-
-    afterEach(() => {
-      if (originalAudioSession === undefined) {
-        delete (navigator as any).audioSession;
-      } else {
-        (navigator as any).audioSession = originalAudioSession;
-      }
-    });
-
-    it('setDoNotDisturb(true) releases ducking, setDoNotDisturb(false) restores it', async () => {
-      const mgr = makeManager() as any;
-
-      await mgr.setDoNotDisturb(true);
-      expect((navigator as any).audioSession.type).toBe('playback');
-
-      await mgr.setDoNotDisturb(false);
-      expect((navigator as any).audioSession.type).toBe('auto');
-    });
-
-    it('dispose releases the DND ducking suppression', async () => {
-      const mgr = makeManager() as any;
-
-      await mgr.setDoNotDisturb(true);
-      expect((navigator as any).audioSession.type).toBe('playback');
-
-      mgr.dispose();
-      expect((navigator as any).audioSession.type).toBe('auto');
-    });
-
-    it('keeps ducking released after DND exit when the desktop preference disables it', async () => {
-      const { setAudioDuckingPreference } = await import('./audio/audioSessionDucking');
-      const mgr = makeManager() as any;
-
-      setAudioDuckingPreference(false);
-      await mgr.setDoNotDisturb(true);
-      await mgr.setDoNotDisturb(false);
-      expect((navigator as any).audioSession.type).toBe('playback');
-    });
-  });
-
   describe('avSettings live-apply (FIX 2a + republish)', () => {
     afterEach(() => {
       useAvSettingsStore.getState().reset();

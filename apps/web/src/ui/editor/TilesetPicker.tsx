@@ -3,6 +3,8 @@ import { EditorService } from '../../services/EditorService';
 import { makeTileRefId } from '../../lib/mapV2';
 import type { V2Tileset } from '../../lib/mapV2';
 import { baseUrl } from '../../lib/mapV2';
+import { loadMemberImageElement } from '../../lib/memberImage';
+import { isMemberAssetRef } from '../../lib/memberAssets';
 
 type TilesetPickerProps = {
   tileset: V2Tileset;
@@ -23,18 +25,34 @@ function useLoadImage(imageUrl: string) {
   const [loaded, setLoaded] = React.useState(false);
 
   useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    const url = imageUrl.startsWith('/') ? `${baseUrl()}${imageUrl}` : imageUrl;
-    img.onload = () => {
-      imgRef.current = img;
-      setLoaded(true);
-    };
-    img.onerror = () => setLoaded(false);
-    img.src = url;
+    // Stored member images load with member auth; other refs keep the
+    // previous resolution (absolute, data:, blob:). No crossOrigin: the
+    // helper serves a blob URL, so a direct CORS load never happens.
+    // A late result after a prop change or unmount is released at once and
+    // never stored.
+    const raw = imageUrl;
+    const ref = isMemberAssetRef(raw) ? raw : raw.startsWith('/') ? `${baseUrl()}${raw}` : raw;
+    const controller = new AbortController();
+    let cancelled = false;
+    let release: (() => void) | null = null;
+    void loadMemberImageElement(ref, { signal: controller.signal }).then(
+      ({ image, release: releaseHandle }) => {
+        if (cancelled) {
+          releaseHandle();
+          return;
+        }
+        release = releaseHandle;
+        imgRef.current = image;
+        setLoaded(true);
+      },
+      () => {
+        if (!cancelled) setLoaded(false);
+      },
+    );
     return () => {
-      img.onload = null;
-      img.onerror = null;
+      cancelled = true;
+      controller.abort();
+      release?.();
     };
   }, [imageUrl]);
 

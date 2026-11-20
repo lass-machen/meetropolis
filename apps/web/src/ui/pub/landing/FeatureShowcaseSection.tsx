@@ -131,17 +131,7 @@ function FeatureRowImage({ row }: { row: FeatureRowData }) {
   // against that; without a real path the placeholder background is rendered.
   const src = rawSrc && rawSrc !== row.imageKey ? rawSrc : '';
   return (
-    <div
-      style={{
-        flex: 1,
-        minWidth: 0,
-        maxWidth: 520,
-        aspectRatio: '520 / 360',
-        borderRadius: 20,
-        overflow: 'hidden',
-        background: row.imageBg,
-      }}
-    >
+    <div className="pub-feature-row__media" style={{ background: row.imageBg }}>
       {!src ? null : row.isVideo ? (
         <video
           src={src}
@@ -201,6 +191,8 @@ function FeatureRow({ row }: { row: FeatureRowData }) {
   );
 }
 
+// max-width for the media tile lives here so the tablet media query can
+// override it without !important.
 const FEATURE_SHOWCASE_STYLES = `
   .pub-feature-row {
     display: flex;
@@ -217,9 +209,17 @@ const FEATURE_SHOWCASE_STYLES = `
     display: flex;
     justify-content: center;
   }
+  .pub-feature-row__media {
+    flex: 1;
+    min-width: 0;
+    max-width: 520px;
+    aspect-ratio: 520 / 360;
+    border-radius: 20px;
+    overflow: hidden;
+  }
   @media (max-width: 1024px) {
     .pub-feature-row {
-      flex-direction: column !important;
+      flex-direction: column;
       gap: 32px;
     }
     .pub-feature-row__text {
@@ -229,8 +229,8 @@ const FEATURE_SHOWCASE_STYLES = `
       order: 2;
       width: 100%;
     }
-    .pub-feature-row__image > div {
-      max-width: 100% !important;
+    .pub-feature-row__media {
+      max-width: 100%;
       width: 100%;
     }
   }

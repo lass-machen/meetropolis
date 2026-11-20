@@ -42,6 +42,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createPrismaClient } from '../db.js';
+import { acquirePackAdvisoryLock } from '../api/utils/advisoryLocks.js';
 import type { Prisma } from '../generated/prisma/index.js';
 
 const PACK_UUID = 'pixel-agents-furniture';
@@ -249,11 +250,21 @@ async function main(): Promise<void> {
       return;
     }
 
-    await prisma.assetPack.update({
-      where: { uuid: PACK_UUID },
-      // Prisma types the Json column as InputJsonValue; a Record<string,unknown>[]
-      // needs the widening cast to satisfy the InputJsonObject index signature.
-      data: { objects: result as unknown as Prisma.InputJsonValue },
+    await prisma.$transaction(async (tx) => {
+      await acquirePackAdvisoryLock(tx, PACK_UUID);
+      const fresh = await tx.assetPack.findUnique({ where: { uuid: PACK_UUID } });
+      const freshObjects = (Array.isArray(fresh?.objects) ? fresh.objects : []) as Array<Record<string, unknown>>;
+      if (JSON.stringify(freshObjects) !== JSON.stringify(existing)) {
+        throw new Error(
+          `AssetPack '${PACK_UUID}' changed since the preview. Re-run without --apply to review, then re-apply.`,
+        );
+      }
+      await tx.assetPack.update({
+        where: { uuid: PACK_UUID },
+        // Prisma types the Json column as InputJsonValue; a Record<string,unknown>[]
+        // needs the widening cast to satisfy the InputJsonObject index signature.
+        data: { objects: result as unknown as Prisma.InputJsonValue },
+      });
     });
     console.log(`APPLIED: AssetPack '${PACK_UUID}'.objects updated (${result.length} objects).`);
   } finally {

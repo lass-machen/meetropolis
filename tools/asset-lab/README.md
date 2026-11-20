@@ -4,8 +4,6 @@ Drei begehbare Bürovorlagen mit eigenständig gesetzten Pixeln, drei Farb- und 
 
 Das Atelier läuft als eigenständiges Entwicklungswerkzeug aus diesem öffentlichen Repository. Der Startbefehl bindet an `127.0.0.1`; ein Backend, Zugangsdaten oder private Zusatzmodule sind dafür nicht erforderlich. Die Anwendung bietet einen lokalen Export und verändert keine produktiven Räume.
 
-![Kompakte Figuren, Zubehör und Bürobausteine](docs/kollektion.png)
-
 ## Starten und prüfen
 
 Voraussetzungen: ein Clone dieses Repositorys, Node.js 24 und npm 11.7 oder neuer. Der gemeinsame Sprite-Composer und sein Katalog liegen bereits unter `packages/shared/`. Die Abhängigkeiten des Ateliers werden separat installiert; eine Installation der Server- oder Webclient-Pakete ist zum Starten nicht nötig.

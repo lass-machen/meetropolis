@@ -21,7 +21,10 @@ interface UseTenantSettingsReturn {
   fetchData: () => Promise<void>;
   handleChangeRole: (userId: string, newRole: 'admin' | 'member') => Promise<void>;
   handleRemoveMember: (userId: string) => Promise<void>;
-  handleInvite: (email: string, role: 'admin' | 'member') => Promise<string | null>;
+  handleInvite: (
+    email: string,
+    role: 'admin' | 'member',
+  ) => Promise<{ email: string; inviteUrl: string | null; emailSent: boolean; expiresAt: string | null } | null>;
   handleCreateGuest: (email: string, name: string, expiresAt: string) => Promise<{ magicLink: string } | null>;
   handleRevokeGuest: (membershipId: string) => Promise<void>;
   handleResetPassword: (email: string) => Promise<string | null>;
@@ -112,6 +115,9 @@ interface ApiErrorBody {
 
 interface InviteResponse {
   code?: string;
+  inviteUrl?: string;
+  emailSent: boolean;
+  expiresAt: string | null;
 }
 
 interface GuestCreateResponse {
@@ -243,7 +249,10 @@ function useMemberHandlers(state: TenantState, apiBase: string, t: (k: string) =
   );
 
   const handleInvite = React.useCallback(
-    async (email: string, role: 'admin' | 'member'): Promise<string | null> => {
+    async (
+      email: string,
+      role: 'admin' | 'member',
+    ): Promise<{ email: string; inviteUrl: string | null; emailSent: boolean; expiresAt: string | null } | null> => {
       setSaving(true);
       setError(null);
       try {
@@ -251,12 +260,16 @@ function useMemberHandlers(state: TenantState, apiBase: string, t: (k: string) =
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email || undefined, role }),
+          body: JSON.stringify({ email, role }),
         });
         if (res.ok) {
           const data = (await res.json()) as InviteResponse;
-          setSuccess(t('tenant.inviteCreated'));
-          return data.code ?? null;
+          return {
+            email,
+            inviteUrl: data.inviteUrl || null,
+            emailSent: data.emailSent,
+            expiresAt: data.expiresAt,
+          };
         } else {
           const err = (await res.json().catch(() => ({}))) as ApiErrorBody;
           setError(translateApiError(err.error) || t('tenant.inviteFailed'));
@@ -269,7 +282,7 @@ function useMemberHandlers(state: TenantState, apiBase: string, t: (k: string) =
         setSaving(false);
       }
     },
-    [apiBase, t, setSaving, setError, setSuccess],
+    [apiBase, t, setSaving, setError],
   );
 
   return { handleChangeRole, handleRemoveMember, handleInvite };

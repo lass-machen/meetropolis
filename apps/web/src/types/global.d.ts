@@ -4,16 +4,7 @@ import type { Room as LiveKitRoom, LocalParticipant, RemoteParticipant, Track } 
 import type { Room as ColyseusRoom } from '@colyseus/sdk';
 import type { V2State } from '../lib/mapV2';
 
-// W3C Audio Session API (Safari 16.4+ / WKWebView)
-// https://w3c.github.io/audio-session/
-interface AudioSession {
-  type: 'auto' | 'playback' | 'play-and-record' | 'transient' | 'ambient';
-}
-
 declare global {
-  interface Navigator {
-    audioSession?: AudioSession;
-  }
   interface Window {
     // Phaser Scene Reference
     currentPhaserScene?:

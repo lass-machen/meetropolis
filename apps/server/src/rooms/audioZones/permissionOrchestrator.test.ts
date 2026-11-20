@@ -1,4 +1,4 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import type { TranscriptionModule } from '../../transcriptionLoader.js';
 import type { WorldRoom } from '../WorldRoom.js';
@@ -132,7 +132,7 @@ function addMember(room: FakeRoom, identity: string, island: string, auth: FakeA
 }
 
 function lastAllow(send: ReturnType<typeof vi.fn>): string[] {
-  const call = send.mock.calls.at(-1);
+  const call = send.mock.calls[send.mock.calls.length - 1];
   if (!call) throw new Error('Expected an av_zone_permissions push');
   expect(call[0]).toBe('av_zone_permissions');
   return (call[1] as { allow: string[] }).allow;

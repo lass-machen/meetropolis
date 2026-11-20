@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { logger } from '../../../lib/logger';
 import { clearDesktopAuthToken } from '../../../lib/desktopAuth';
+import { resetMemberAssets } from '../../../lib/memberAssets';
 import { EditorService } from '../../../services/EditorService';
 import type { WorldRoom } from '../../../types/colyseus';
 import type { AVManager } from '../../../av/avManager';
@@ -103,6 +104,13 @@ async function reconcileMicState(
 function useAvHandlers(params: UseWorldEventHandlersParams) {
   const { avRef, avState, setAvState, setSelectedMicId, setSelectedCamId, gameBridge } = params;
 
+  // i18n key of the last failed capture attempt (mic/cam/share enable or
+  // share start). A deliberate disable/stop never sets this. Success of a
+  // capture attempt or an explicit dismiss clears it. No raw error or
+  // device names are stored here; texts live in the locales (av.*).
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const dismissCaptureError = useCallback(() => setCaptureError(null), []);
+
   const handleToggleMic = useCallback(async () => {
     const enabled = !avState.mic;
     await ensureMicAudioContext(avRef);
@@ -111,8 +119,10 @@ function useAvHandlers(params: UseWorldEventHandlersParams) {
       await avRef.current?.setMicrophoneEnabled(enabled);
     } catch {
       setAvState((s) => ({ ...s, mic: !enabled }));
+      if (enabled) setCaptureError('av.microphoneCaptureFailed');
       return;
     }
+    if (enabled) setCaptureError(null);
     await reconcileMicState(avRef, enabled, setAvState);
   }, [avState.mic, avRef, setAvState]);
 
@@ -131,7 +141,10 @@ function useAvHandlers(params: UseWorldEventHandlersParams) {
       await avRef.current?.setCameraEnabled(enabled);
     } catch (_e) {
       setAvState((s) => ({ ...s, cam: !enabled }));
+      if (enabled) setCaptureError('av.cameraCaptureFailed');
+      return;
     }
+    if (enabled) setCaptureError(null);
   }, [avState.cam, avRef, setAvState]);
 
   const handleSelectCam = useCallback(
@@ -146,12 +159,18 @@ function useAvHandlers(params: UseWorldEventHandlersParams) {
     try {
       if (!avState.share) {
         const ok = await avRef.current?.startScreenshare();
-        if (ok) setAvState((s) => ({ ...s, share: true }));
+        if (ok) {
+          setAvState((s) => ({ ...s, share: true }));
+          setCaptureError(null);
+        } else {
+          setCaptureError('av.screenshareCaptureFailed');
+        }
       } else {
         await avRef.current?.stopScreenshare();
         setAvState((s) => ({ ...s, share: false }));
       }
     } catch (e) {
+      if (!avState.share) setCaptureError('av.screenshareCaptureFailed');
       logger.warn('[WorldApp] Failed to toggle screenshare', e);
     }
   }, [avState.share, avRef, setAvState]);
@@ -187,6 +206,8 @@ function useAvHandlers(params: UseWorldEventHandlersParams) {
     handleToggleShare,
     handleToggleDnd,
     handleRecenter,
+    captureError,
+    dismissCaptureError,
   };
 }
 
@@ -322,6 +343,9 @@ function useResetAndLogoutHandlers(params: UseWorldEventHandlersParams) {
     // also drops it, but this lets the desktop module tear down any storage it
     // owns and keeps the reset path symmetric with login/logout).
     await clearDesktopAuthToken();
+    // Drop every cached member asset before leaving this context so no file
+    // from the old session, tenant or account survives the reset.
+    resetMemberAssets();
     try {
       localStorage.clear();
     } catch (e) {
@@ -360,6 +384,8 @@ function useResetAndLogoutHandlers(params: UseWorldEventHandlersParams) {
       // Drop the persisted desktop Bearer token so the native client does not
       // silently re-authenticate with a stale token after logout.
       await clearDesktopAuthToken();
+      // Drop every cached member asset before leaving this account context.
+      resetMemberAssets();
       setMe(null);
       setMenuOpen(false);
       setPage('world');

@@ -2,9 +2,11 @@
  * Skeptic follow-up (zone_lock_state, MAJOR): the zone-lock roster is another
  * room-state channel. Each lock's pendingRequests carries identity (userId) +
  * name (display name, = email when unset) — cross-tenant PII in a shared apex/
- * 'default' room. zoneLocksForClient must strip pendingRequests that belong to
- * other tenants (by the requester's verified room.playerTenantKey) while leaving
- * the lock envelope (sessionIds only) and same-tenant requests fully intact.
+ * 'default' room. zoneLocksForClient must scope the whole lock state to the
+ * viewer: a lock of another tenant is not shown at all, and pendingRequests of
+ * other tenants are stripped (by the requester's verified room.playerTenantKey).
+ * Same-tenant requests stay fully visible so the approve/deny flow keeps
+ * working.
  */
 import { describe, it, expect, vi } from 'vitest';
 
@@ -14,7 +16,7 @@ vi.mock('../../logger.js', () => ({
 
 import { zoneLocksForClient } from './zoneLockHandler.js';
 import type { WorldRoom } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 
 type Lock = {
   zoneName: string;
@@ -33,8 +35,8 @@ function client(tenantId?: string): Client {
   } as unknown as Client;
 }
 
-describe('zoneLocksForClient: pendingRequests are tenant-scoped (PII channel)', () => {
-  it('a viewer only sees same-tenant pendingRequests; the envelope stays intact', () => {
+describe('zoneLocksForClient: the lock state is tenant-scoped (PII channel)', () => {
+  it('a viewer only sees same-tenant pendingRequests; a foreign tenant sees no lock', () => {
     const lock: Lock = {
       zoneName: 'meeting',
       mapId: 'map-a',
@@ -60,9 +62,10 @@ describe('zoneLocksForClient: pendingRequests are tenant-scoped (PII channel)', 
     // Tenant A viewer: only the tenant-A requester, never tenant B's PII.
     expect(aView[0].pendingRequests.map((r) => r.identity)).toEqual(['userA']);
     expect(aView[0].pendingRequests.some((r) => r.name.includes('tenant-b'))).toBe(false);
-    // Tenant B viewer: only the tenant-B requester.
-    expect(bView[0].pendingRequests.map((r) => r.identity)).toEqual(['userB']);
-    // Envelope preserved (sessionIds only, no PII).
+    // Tenant B viewer: the lock of tenant A stays hidden, envelope included.
+    expect(bView).toEqual([]);
+    // The owning tenant keeps the envelope (sessionIds only, no PII).
+    expect(aView).toHaveLength(1);
     expect(aView[0].zoneName).toBe('meeting');
     expect(aView[0].mapId).toBe('map-a');
     expect(aView[0].lockedBy).toBe('sidOwnerA');

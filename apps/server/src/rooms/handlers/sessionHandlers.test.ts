@@ -23,7 +23,7 @@ import { takeOverExistingSessions } from './sessionHandlers.js';
 import { colyseusPlayers } from '../../metrics.js';
 import { broadcastToMap } from '../utils/broadcastHelpers.js';
 import type { WorldRoom } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 
 interface StatePlayer {
   identity: string;

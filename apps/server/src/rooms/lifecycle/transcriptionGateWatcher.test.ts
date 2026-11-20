@@ -1,4 +1,4 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TranscriptionGateChange, TranscriptionModule } from '../../transcriptionLoader.js';
 
@@ -46,6 +46,7 @@ import {
   stopMatchmakeServer,
   type MatchmakeTestServer,
 } from '../../testUtils/matchmakeHarness.js';
+import { stubWorldAuth } from '../../testUtils/worldAuthStub.js';
 
 const listeners = new Set<(change: TranscriptionGateChange) => void>();
 const getJoinRequirementMock = vi.fn<TranscriptionModule['getJoinRequirement']>(() => Promise.resolve(null));
@@ -67,13 +68,15 @@ const moduleImplementation = {
 } satisfies TranscriptionModule;
 
 let server: MatchmakeTestServer;
+let authSpy: ReturnType<typeof stubWorldAuth>;
 
 function makeClient(identity: string, tenantId: string, isNpc = false): Client {
+  // Partial Client double: only auth/error/leave are exercised here.
   return {
     auth: { identity, tenantId, isNpc, zonePrivacyVersion: 2 },
     error: vi.fn(),
     leave: vi.fn(),
-  } as Client;
+  } as unknown as Client;
 }
 
 async function createWorldRoom() {
@@ -110,6 +113,11 @@ beforeEach(async () => {
   mocks.unsubscribe.mockReset();
   mocks.loggerWarn.mockReset();
   mocks.loggerError.mockReset();
+  authSpy = stubWorldAuth();
+});
+
+afterEach(() => {
+  authSpy.mockRestore();
 });
 
 describe('watchTranscriptionGate', () => {
@@ -336,7 +344,8 @@ describe('watchTranscriptionGate transcription clearance', () => {
     await vi.waitFor(() => expect(client.leave).toHaveBeenCalledWith(4008));
 
     expect(pushedAllows(client)).toEqual([[TRANSCRIBER_IDENTITY], []]);
-    const lastPushOrder = client.send.mock.invocationCallOrder.at(-1) ?? Infinity;
+    const orders = client.send.mock.invocationCallOrder;
+    const lastPushOrder = orders[orders.length - 1] ?? Infinity;
     expect(lastPushOrder).toBeLessThan(vi.mocked(client.error).mock.invocationCallOrder[0] ?? -Infinity);
   });
 
@@ -455,7 +464,8 @@ describe('watchTranscriptionGate transcription clearance', () => {
 
       await vi.advanceTimersByTimeAsync(allDelaysMs);
       expect(evaluateJoinMock).toHaveBeenCalledTimes(3);
-      expect(pushedAllows(client).at(-1)).toEqual([TRANSCRIBER_IDENTITY]);
+      const allows = pushedAllows(client);
+      expect(allows[allows.length - 1]).toEqual([TRANSCRIBER_IDENTITY]);
       expect(client.leave).not.toHaveBeenCalled();
     });
 

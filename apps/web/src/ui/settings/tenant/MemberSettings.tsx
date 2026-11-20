@@ -25,8 +25,12 @@ interface MemberSettingsProps {
   saving: boolean;
   onChangeRole: (userId: string, newRole: 'admin' | 'member') => void;
   onRemoveMember: (userId: string) => void;
-  onInvite: (email: string, role: 'admin' | 'member') => Promise<string | null>;
+  onInvite: (
+    email: string,
+    role: 'admin' | 'member',
+  ) => Promise<{ email: string; inviteUrl: string | null; emailSent: boolean; expiresAt: string | null } | null>;
   onSuccess: (message: string) => void;
+  onError: (message: string) => void;
   onResetPassword: (email: string) => Promise<string | null>;
   onEditMember: (userId: string, data: { email?: string; name?: string }) => Promise<boolean>;
 }
@@ -139,6 +143,7 @@ function MemberRow({
         <Select
           value={member.role}
           onChange={(val) => onChangeRole(member.id, val as 'admin' | 'member')}
+          aria-label={t('tenant.roleSelectLabel', { name: member.name || member.email })}
           disabled={member.role === 'owner' || member.role === 'guest' || saving}
           options={[
             { value: 'owner', label: t('tenant.roleOwner'), disabled: true },
@@ -330,7 +335,7 @@ function useMemberSettingsState(props: MemberSettingsProps) {
 
 export function MemberSettings(props: MemberSettingsProps) {
   const { t } = useTranslation();
-  const { members, saving, onChangeRole, onRemoveMember, onInvite, onSuccess } = props;
+  const { members, saving, onChangeRole, onRemoveMember, onInvite, onSuccess, onError } = props;
   const state = useMemberSettingsState(props);
   const {
     screen,
@@ -362,6 +367,7 @@ export function MemberSettings(props: MemberSettingsProps) {
           onInvite={onInvite}
           onClose={() => setScreen({ type: 'list' })}
           onSuccess={onSuccess}
+          onError={onError}
         />
       </>
     );

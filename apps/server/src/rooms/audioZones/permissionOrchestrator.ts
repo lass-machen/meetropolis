@@ -16,7 +16,7 @@
  * most one push per identity instead of a push storm.
  */
 
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import type { WorldRoom } from '../WorldRoom.js';
 import { allowListFor, isIsolatedIsland, type IslandSnapshot } from './islandModel.js';
 import { TRANSCRIBER_IDENTITY } from './islandAttributes.js';
@@ -70,12 +70,12 @@ function findClientByIdentity(room: WorldRoom, identity: string): Client | undef
   return undefined;
 }
 
-// Identities without a matching Colyseus client in this room (e.g. an
-// npc-* identity, which does not hold a Colyseus session, or a
+// Identities without a matching Colyseus client in this room (e.g. a
 // same-tenant peer connected to a different WorldRoom shard) are silently
-// skipped: there is nothing to push to here. See H4 spec risk #9 — NPC
-// audio-zone enforcement beyond the reconciler's forced unsubscribe is a
-// documented follow-up.
+// skipped: there is nothing to push to here. NPC bots do join the world
+// room and receive the push, but their LiveKit SDK cannot apply sender
+// permissions, so NPC audio is only limited by the reconciler's forced
+// unsubscribe. See H4 spec risk #9.
 function sendZonePermissions(room: WorldRoom, payload: ZonePermissionPayload): void {
   const client = findClientByIdentity(room, payload.identity);
   if (!client) return;

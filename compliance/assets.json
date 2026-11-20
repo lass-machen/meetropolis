@@ -1,0 +1,3413 @@
+{
+  "schemaVersion": 1,
+  "snapshot": {
+    "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70"
+  },
+  "entries": [
+    {
+      "path": "THIRD_PARTY_LICENSES/MIT-pixel-agents.txt",
+      "sha256": "20729e3cb9d06d64cdf78d43070ead3eae96e67a5b35b1aa35b5520906cb8ab5",
+      "type": ".txt",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "License text is byte-identical with the upstream license text"
+      },
+      "verification": "verified",
+      "note": "License evidence, no asset"
+    },
+    {
+      "path": "THIRD_PARTY_LICENSES/README.md",
+      "sha256": "eb311eb7fd1b6cf49e8448117c51f491ccfba7a446c6ae9cfa447f4950fbf3e5",
+      "type": ".md",
+      "license": "AGPL-3.0-only",
+      "copyright": "Tiamat UG (Root-Default)",
+      "origin": {
+        "kind": "repository",
+        "source": "In-repo documentation",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "In-repo authorship without an exception record, so the root default license applies"
+      },
+      "verification": "documented",
+      "note": "Signpost text, no SPDX expression needed"
+    },
+    {
+      "path": "apps/server/prisma/seed-data/default-avatars/atelier-v1.json",
+      "sha256": "f243565ffeecf4eb0479a27b4badc86f3a6b479c01924844ca63eded810ee807",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab/scripts/product-assets.ts",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of the generated seed file with the repository state"
+      },
+      "verification": "verified",
+      "note": "Seed file"
+    },
+    {
+      "path": "apps/web/apps/web/src-tauri/icons/128x128.png",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "no content (0 bytes)",
+      "origin": {
+        "kind": "empty-placeholder",
+        "source": "Empty 0-byte placeholder in the repository, without image content",
+        "revision": "f270a3686c5330287cac759fd98704f416d2b9db",
+        "evidence": "File content has 0 bytes and contains no third-party content"
+      },
+      "verification": "verified",
+      "note": "Empty placeholder file kept; any future content requires its own provenance record."
+    },
+    {
+      "path": "apps/web/apps/web/src-tauri/icons/128x128@2x.png",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "no content (0 bytes)",
+      "origin": {
+        "kind": "empty-placeholder",
+        "source": "Empty 0-byte placeholder in the repository, without image content",
+        "revision": "f270a3686c5330287cac759fd98704f416d2b9db",
+        "evidence": "File content has 0 bytes and contains no third-party content"
+      },
+      "verification": "verified",
+      "note": "Empty placeholder file kept; any future content requires its own provenance record."
+    },
+    {
+      "path": "apps/web/apps/web/src-tauri/icons/32x32.png",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "no content (0 bytes)",
+      "origin": {
+        "kind": "empty-placeholder",
+        "source": "Empty 0-byte placeholder in the repository, without image content",
+        "revision": "f270a3686c5330287cac759fd98704f416d2b9db",
+        "evidence": "File content has 0 bytes and contains no third-party content"
+      },
+      "verification": "verified",
+      "note": "Empty placeholder file kept; any future content requires its own provenance record."
+    },
+    {
+      "path": "apps/web/apps/web/src-tauri/icons/icon.icns",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "type": ".icns",
+      "license": "MIT",
+      "copyright": "no content (0 bytes)",
+      "origin": {
+        "kind": "empty-placeholder",
+        "source": "Empty 0-byte placeholder in the repository, without image content",
+        "revision": "f270a3686c5330287cac759fd98704f416d2b9db",
+        "evidence": "File content has 0 bytes and contains no third-party content"
+      },
+      "verification": "verified",
+      "note": "Empty placeholder file kept; any future content requires its own provenance record."
+    },
+    {
+      "path": "apps/web/apps/web/src-tauri/icons/icon.ico",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "type": ".ico",
+      "license": "MIT",
+      "copyright": "no content (0 bytes)",
+      "origin": {
+        "kind": "empty-placeholder",
+        "source": "Empty 0-byte placeholder in the repository, without image content",
+        "revision": "f270a3686c5330287cac759fd98704f416d2b9db",
+        "evidence": "File content has 0 bytes and contains no third-party content"
+      },
+      "verification": "verified",
+      "note": "Empty placeholder file kept; any future content requires its own provenance record."
+    },
+    {
+      "path": "apps/web/public/apple-touch-icon.png",
+      "sha256": "b1f25a9779f499e2be25f8c1ca0a212c7883f50eaf30a82b73b5e4d2b7b0ddfa",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "lass machen",
+      "origin": {
+        "kind": "owner-confirmed",
+        "source": "Own project file by lass machen",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Copyright confirmed by the project owner on 2026-11-06"
+      },
+      "verification": "owner-confirmed",
+      "note": "Earlier provenance question closed by an owner confirmation dated 2026-11-06."
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/LICENSE.txt",
+      "sha256": "e226430ff897d3d4d5d0c528af73fe35c4117a7402aea3783b3f9b09e1f689d9",
+      "type": ".txt",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/SHA256SUMS",
+      "sha256": "367660317654604b50530fb994a699c6bee899903daebf0372bf750c6e805aef",
+      "type": "json",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/catalog.json",
+      "sha256": "22ec43f6a1a635765b8c0197b766388ef8ebdaf24660f436f6eaae32337a4e70",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/armchair.a0b4416e7ed1.png",
+      "sha256": "a0b4416e7ed109a4cfcaed9366ddb98080bd63cc61703c4f5faf8b8ebbca8633",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/bench.ed6667cc2cd5.png",
+      "sha256": "ed6667cc2cd5116e9ff2f8bd45333c4dba11cf7386bf94433591f4bb05034989",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/cabinet.fde503e0ca71.png",
+      "sha256": "fde503e0ca7177cc5c13dc32f21d889d21586006585d13adb89e94952ad8f2e4",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/carpet.40eccd10b959.png",
+      "sha256": "40eccd10b959b59fee4b08319bb896c49c6a7c445ba32541d39404b45b45ebb6",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/chair.e07d2efa2205.png",
+      "sha256": "e07d2efa2205daf2374361501591d3fcf2740373692beee3859cdfe8aff96b1c",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/chair_east.a36cbb847ad1.png",
+      "sha256": "a36cbb847ad16f5eb33f0d2d24bf93a250c39ee24aeff941fe794d760b459fcf",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/chair_north.a0edfa404d8d.png",
+      "sha256": "a0edfa404d8dff1673e0f1ef0c188d7d1d363917b047deed376bbb59bcb3755e",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/chair_west.4ca2096cc1e0.png",
+      "sha256": "4ca2096cc1e00a6034e96ebf93d49133c3278f410d1419d0840bd5a4601d4315",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/coat_stand.495d2965416b.png",
+      "sha256": "495d2965416b7f4d1e424ab173a792a0ad0b8c99d2a4b9dab5e844b28e4a44e3",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_bench.4e84424a1c61.png",
+      "sha256": "4e84424a1c6182ac42cce80e4e8ab9cc330242f66d66bf9babee87d37652d98f",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_chair.f8ede554c2ad.png",
+      "sha256": "f8ede554c2adbe9720caf164dd1f71ec58cdb68db545c40e9b299599f1a74687",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_chair_east.793491a6d249.png",
+      "sha256": "793491a6d249bbd88a42edc0593dd928f793c0bf0d888eeda00988f415852d5a",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_chair_north.d95d06d73833.png",
+      "sha256": "d95d06d738337ecb1e8fb459096bf02c13b182d2779f7efe68ec17934deb4cb5",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_chair_west.ca58867ac9fb.png",
+      "sha256": "ca58867ac9fb045b72991ce1109bbb8009db0a98573950bf688988f99627c7c7",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_counter.ce469bf1c3c3.png",
+      "sha256": "ce469bf1c3c32cbddcc9d6375915e8dd58aaf3eb279aece8ef783a5d187ba06e",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_desk.32b22f759ce6.png",
+      "sha256": "32b22f759ce684bb3f18dd1e14e5151c9c7fd7b8a0f6005e1398eb9dac26e722",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_desk_east.aa3be5737366.png",
+      "sha256": "aa3be5737366c9be5d93d583dc15fde5c73160d68693c749749afe20fb06e21f",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_desk_north.5371dc26e679.png",
+      "sha256": "5371dc26e6796f78885fdeaae2820f08c6444e47d76a07db4aceb4908340c00e",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_desk_west.c376fda4c134.png",
+      "sha256": "c376fda4c1349e981f1fef22c5bf27a0b334218a38b3c1b7fa43768987c75505",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_divider.d873c5d27039.png",
+      "sha256": "d873c5d270396b0c797fcf23b05c4e5d46f8254e5fabb3791b72f144f46edad5",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_floor_lamp.b1d55d504d6b.png",
+      "sha256": "b1d55d504d6b32ae3715250177e8c8a4ab22cfada51bb54a49c9972bd3132e1c",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_meeting_table.1dff3c30152a.png",
+      "sha256": "1dff3c30152a41b6aa15262302f31f9493a152620b27bd488d1760f45c227921",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_plant.d49c047a4e1b.png",
+      "sha256": "d49c047a4e1b24f4b481c2bd9c974a8ecde40788c6bb869a604cf00ad04be714",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_shelf.39dfaeca49b4.png",
+      "sha256": "39dfaeca49b4da42ed2caa48a60d7af8b1989fdc15e8dfc03d0a7e384d90625a",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_sofa.8b2f5b095297.png",
+      "sha256": "8b2f5b0952973fca3002fecce1b27d8bb4fcc18ae50ea61ef8d4010cd688e0d0",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_sofa_east.865f263040c1.png",
+      "sha256": "865f263040c18d475d464d19f3272bb2911a00627a276a3f2af19fef8629758a",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_sofa_north.8002418f41c9.png",
+      "sha256": "8002418f41c9e305c8b91e0081d918c73b05cafe645b39e064bcf3ecb8d2aece",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_sofa_west.48e40f5ad74f.png",
+      "sha256": "48e40f5ad74fe8606e91c578048e4ea8aafb0ee5e12977360f7eacd2c2d262f0",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_table.b4f082d43509.png",
+      "sha256": "b4f082d43509bd136911fa0359086e356cc8984a409477692483b665586a2ae4",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/compact_whiteboard.b867a387de22.png",
+      "sha256": "b867a387de22f9548ec90ff1b2c6944bd8b1bd7b6e48fcd85268cc79fcb757b3",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/counter.2c7c7e409c79.png",
+      "sha256": "2c7c7e409c79881c8c63a57c7a06e5ff937f5416b2d0225fca30ca97ebb87cdb",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/desk.405fa7401cfd.png",
+      "sha256": "405fa7401cfd1aa88617ccd3acf24772f821b79711e8e0406ac8c91b5caff71e",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/desk_east.ba57075bf48a.png",
+      "sha256": "ba57075bf48ac55f63907f8ff16ccb70ca14fd1a6ceabe08968da3afba336a4a",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/desk_north.6cd0663d5499.png",
+      "sha256": "6cd0663d54998ffeb5112c2cbcd379c646f587ef3703efffb726388a76f10944",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/desk_west.b4cf023a9713.png",
+      "sha256": "b4cf023a97130b7f1fad0e6f7df804270bb7ee003b38568ca170127a427a70ea",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/divider.ab2394fbb3e9.png",
+      "sha256": "ab2394fbb3e9dabd78c3976cdaaa6e0d8ad9285e584c4b69524ceecdee25aed5",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/door.d567e4b8a8e1.png",
+      "sha256": "d567e4b8a8e1cada4be6fc6176463fb39231ba4a1e1ebc769fd2d7172071a7b2",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/door_open.7259d1d0c0e5.png",
+      "sha256": "7259d1d0c0e5fc0d2c6706d537fc1d397a421e9738c8d2fa176af16da421d8c3",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/drawer.7526cf457f40.png",
+      "sha256": "7526cf457f407d77e23437567bfa7acd5867d726fe86e174b3baee79cad78c00",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/floor.d852d719b15f.png",
+      "sha256": "d852d719b15fd5c4acfbabdb66cb7b283653ede82cf7c9a65f48735d861b2892",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/floor_lamp.eea220e75896.png",
+      "sha256": "eea220e75896875e3f832e01f1ccfe4fdc6c0fdb84cdc7cbbbabf8d550feb4ec",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/meeting_table.3996459c714a.png",
+      "sha256": "3996459c714a015c8d9f4e711e8b5544b70dd8d3c2ae95c09fda6b3407e4e6cd",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/pinboard.77527915aee4.png",
+      "sha256": "77527915aee4939253af71d5951724c33b34209d1f55a75b01a954d71591c5a6",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/plant.1a0a2ef0fa61.png",
+      "sha256": "1a0a2ef0fa6104509db38b217d63d35e6a7f1472aaea67ab6b631ae0614af9d7",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/plant_small.17206f19a33f.png",
+      "sha256": "17206f19a33f3f6f438263433c7da7d9d086d024a92251b7f2077e52cae8a52b",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/planter.c385f28d7bdc.png",
+      "sha256": "c385f28d7bdc5c654efadaca5e48ae57605d645b9908c05eac5c510bd1be16cb",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/printer.f2963f852942.png",
+      "sha256": "f2963f852942a0be7a651b9588835584ab3431fb0581c6bf30f9175f481fe04c",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/round_table.df7d65e73510.png",
+      "sha256": "df7d65e73510cf260f9faf44ec30582f814b0b8337e12120e50bcb29df900d84",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/shelf.5877a0eaa4bc.png",
+      "sha256": "5877a0eaa4bc14b7ff13b1592a2fcfeb725830174aebdc739665fd9375813f7f",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/sofa.96ba5ca02ef5.png",
+      "sha256": "96ba5ca02ef58dff42501481bc93c6ca92bd0abdb2d431b5c4b1155856c4e3ff",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/sofa_east.c47c65c8f2ef.png",
+      "sha256": "c47c65c8f2ef5674c4ed9535cb1b4c4cb1058a0f05ae3329cfb85c0cd2934327",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/sofa_north.7e5b705a821e.png",
+      "sha256": "7e5b705a821e5ce950596bcbcfdc96c3b8ee6d019bf5f1052dc626791e3caaed",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/sofa_west.06b1c6c5bc18.png",
+      "sha256": "06b1c6c5bc18222c31f06e4199dc5b7075e33f946512eb2c0bd01624df510634",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/table.cfff66e7d45a.png",
+      "sha256": "cfff66e7d45a917478e84cd1e14647372de898a1736a864c39456faad93e43bc",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/wall.e1b52a6a81df.png",
+      "sha256": "e1b52a6a81dfacfc26fa6fcb77a3dea226f0c936f7ffe4334e232b7d72ab936b",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/wall_set.5be5bde2dc68.png",
+      "sha256": "5be5bde2dc68ca95c0a86608d2d1b6b0b43bffe3c5c138b8dfef3e444813b141",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/water_cooler.032097fa5170.png",
+      "sha256": "032097fa5170a7ae2e4b4cd195db2cf2105f7e426e1e58541177d9bce5682638",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/whiteboard.85ad9bf2215b.png",
+      "sha256": "85ad9bf2215b530f535f4555ba5161f16a41528f7c16ffdb08712258c0ba2891",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/atelier/v1/holz/window.2c54953c4ce8.png",
+      "sha256": "2c54953c4ce8f14f92b69bf899ab0ac5ad725d654b4ac12ab9040e6f79aaad69",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/floors/floor_0.png",
+      "sha256": "7ac83e6dafab1d73c2ee346880929718920123a7057b0cd9ee34dec6543eacc2",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/floors/floor_1.png",
+      "sha256": "6199f7135d3f5e233e0f33a925a20e348fcc17e396347799ac7573241c1416b8",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/floors/floor_2.png",
+      "sha256": "ac112a1f1b2bc0068649e7cfd8be47f9c794f343388fb2e4437f140eb2ed0dee",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/floors/floor_3.png",
+      "sha256": "8befc77b71238aa01d19cc73d5fe747831e0e85b1a986838c02df2f76cdf2690",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/floors/floor_4.png",
+      "sha256": "fdf610ffa4583c688ed72cc3b8c8b9496c4843b341c201ead62ba769804a9cbb",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/floors/floor_5.png",
+      "sha256": "b935a21804f12c18e0b0cc4db2ba873e4e39c2c6cf80c59cc9dfa01c00e497bb",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/floors/floor_6.png",
+      "sha256": "dc7dc8722e3a03b28385400b76079c168a5d93d50e7b06f6a40ebd1dd8f178b4",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/floors/floor_7.png",
+      "sha256": "aa44b7de3ced5e0bb2ef3fbd8bd27e9993a83bf8b901c37da2a97c162d7e6dad",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/floors/floor_8.png",
+      "sha256": "653e4534e66844d72ea78fef499c5052ed337f7c10ada4d818d21255ad27bdfe",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/BIN/BIN.png",
+      "sha256": "738129d621fabc15b100f7129b854d1fe36201dbe92c0800bb1e80cb06793284",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/BIN/manifest.json",
+      "sha256": "6d3c3d075e3f77bcf4bc2bbd6809bb8b747c34dcc557be881146ca0122dd7e35",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/BOOKSHELF/BOOKSHELF.png",
+      "sha256": "bd05119962080fd4cff6697fec0c3730c5a9c3def01b31ca0fa929971144322e",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/BOOKSHELF/manifest.json",
+      "sha256": "f162c5c78a8e7e3357d99ac8dc9f9e5ebda30e5756474aa8891888eeb39bda7e",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/CACTUS/CACTUS.png",
+      "sha256": "830dbba8ac4912858e22eed1e89d4290202113363a934389e54fffb794ad893b",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/CACTUS/manifest.json",
+      "sha256": "1f3c66794343f83e30753f843568cf9e23235e4b4d32bb31f9d9066c33bdaa4e",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca (+ Tiamat UG: collisionBaseHeight)",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Key comparison with webview-ui/public/assets/furniture/CACTUS/manifest.json at the pinned revision: the only delta is the local addition collisionBaseHeight"
+      },
+      "verification": "verified",
+      "note": "Upstream manifest plus one local key"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/CLOCK/CLOCK.png",
+      "sha256": "f1ff567d71508dfdba37f2ff94ffde734940b56b3999e29b213ab6774e67b20f",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/CLOCK/manifest.json",
+      "sha256": "10a2596fda4958c436bdc7fbae18bc2bd8fe72d58e1dd7a98b5392e6a9568944",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/COFFEE/COFFEE.png",
+      "sha256": "6bed27c8de5a4ce98b3646d233803b3192cc5980c8f4caf779eb1344a87f8e0d",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/COFFEE/manifest.json",
+      "sha256": "8f671ece319b7ee5b462bc2afe7bf072538ad71f08370ebede83ae926c67ccb8",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png",
+      "sha256": "0b0fd17c95b29e3b86da00031452166a1400a534c8adff1dc98bb4e5ce72aad3",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/COFFEE_TABLE/manifest.json",
+      "sha256": "acca0880e88e6ada927eddef632559ed7941ce3c5bc2d8a576f4a33dd98034cb",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/CUSHIONED_BENCH/CUSHIONED_BENCH.png",
+      "sha256": "b66ba12ce7921b3ab34515c319bc72775c49351d75ad146c6b29adf46459eaa0",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/CUSHIONED_BENCH/manifest.json",
+      "sha256": "854d701f00f9dec17141f266edf12868c1faa396ca88596cb1c2c9dd0fc28a27",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png",
+      "sha256": "7eba17a7c86115caba0246599988e3169dc766af7814e51c7afa566e0fe40846",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_FRONT.png",
+      "sha256": "30a021a8356125a743be8352da9756ec6d0832e232aca1ae2dd76a5e038a2208",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_SIDE.png",
+      "sha256": "ac2d90e87ce198271f50fd3e9161c4c9b8ea4befd3befdb0c5c9720256febb70",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/CUSHIONED_CHAIR/manifest.json",
+      "sha256": "a8a1a949ca45f9b0c65ac2ff2726004ec1a3a60db842f448a6de31a1be9cd8ec",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/DESK/DESK_FRONT.png",
+      "sha256": "4df9ed2b04efb98dbd901d400d65fa5a1729e4508787ad70eb93e747017220ca",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/DESK/DESK_SIDE.png",
+      "sha256": "b5421b3b3fc30b4a295c67c67d4a138877a1d179b532ffe25973200277107ff9",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/DESK/manifest.json",
+      "sha256": "2f68f60b61f6ee5aaa40b526af7dcf8581072d936b38ae3a0a25e5caa61cf3db",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png",
+      "sha256": "b27bd0cc4c73dab38eebbf6b8ed68257acb8264d23a8e87c2cf5026138842cda",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/DOUBLE_BOOKSHELF/manifest.json",
+      "sha256": "e3af4890e8f9e140a58b3db79c1718c6bf742ae4dca21aa17b2dcf235465db91",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/HANGING_PLANT/HANGING_PLANT.png",
+      "sha256": "a6e9c025d0a84e960d3c84d55f18d01585eb8e079cd84f9970de08d636877de2",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/HANGING_PLANT/manifest.json",
+      "sha256": "200ca5deaef21d2b135dd8d894a4445f96ecf43d325321b904e35c0088c3aed1",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/LARGE_PAINTING/LARGE_PAINTING.png",
+      "sha256": "f6355392631f0004ccd49c3d9ddf4df8ef60c59ec8b23d0b3fb1d0dce6c01c2b",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/LARGE_PAINTING/manifest.json",
+      "sha256": "906af931475def2450e40d553e2e900b2b2068f5d990b1301433e622942046bf",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/LARGE_PLANT/LARGE_PLANT.png",
+      "sha256": "196a4f1748160cdbf69400e370b1d7d1254b49902b8c091bcabd7676934f3149",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/LARGE_PLANT/manifest.json",
+      "sha256": "3659bacb034c6a4481ba937a38654a5c0d5de6877725c3d1f9a4dec5e2ae15b3",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca (+ Tiamat UG: collisionBaseHeight)",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Key comparison with webview-ui/public/assets/furniture/LARGE_PLANT/manifest.json at the pinned revision: the only delta is the local addition collisionBaseHeight"
+      },
+      "verification": "verified",
+      "note": "Upstream manifest plus one local key"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/PC/PC_BACK.png",
+      "sha256": "48f3d9aa7f571cc0ce1e5d702977987432bca292995ff67e36d47361d4b6f9a0",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/PC/PC_FRONT_OFF.png",
+      "sha256": "a5d6f40f500f14f440cf981950630f5433521faa7578ae0f83684b9ededdc2bf",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/PC/PC_FRONT_ON_1.png",
+      "sha256": "d00d95a9c4718f770dee1a93240be8b7dc6d2e8abab4071179dd79c2d73a9337",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/PC/PC_FRONT_ON_2.png",
+      "sha256": "dc083d31848be3661b4ea571ee8d8d7e5dcd34cdbcef48d4dd6c444166eb7a69",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/PC/PC_FRONT_ON_3.png",
+      "sha256": "773c5e0cfee45ad12669c082ff26c0041f12a6369e4622db3eab35685aeabc0f",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/PC/PC_SIDE.png",
+      "sha256": "c327f64a39cc84d3a2c4e97b7165e5a07e355003d0f1a9bca27fc8f8deef9603",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/PC/manifest.json",
+      "sha256": "4f33a91b789e22c4e3f5aa05b53eb903581612ef3aa004330143646b8c830f82",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/PLANT/PLANT.png",
+      "sha256": "b9f845e7930e685161a21ac0f1743c2906cb7cbb0bd6b79ef1e4fb5aafff98c6",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/PLANT/manifest.json",
+      "sha256": "c788e1363529f53beef2f5d68fd3ac8d50368e0722b220ce855e32552c976af3",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca (+ Tiamat UG: collisionBaseHeight)",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Key comparison with webview-ui/public/assets/furniture/PLANT/manifest.json at the pinned revision: the only delta is the local addition collisionBaseHeight"
+      },
+      "verification": "verified",
+      "note": "Upstream manifest plus one local key"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/PLANT_2/PLANT_2.png",
+      "sha256": "b0d2e82fefd1f7ebada9656260571aa3e810db55975495e72a62d9ce8a878b42",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/PLANT_2/manifest.json",
+      "sha256": "b99409a01a26b42b1a555373987acf5fdc06f78f043489e75d5ef80f77843ef7",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca (+ Tiamat UG: collisionBaseHeight)",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Key comparison with webview-ui/public/assets/furniture/PLANT_2/manifest.json at the pinned revision: the only delta is the local addition collisionBaseHeight"
+      },
+      "verification": "verified",
+      "note": "Upstream manifest plus one local key"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/POT/POT.png",
+      "sha256": "cc2889e6fe22350bbeba94d55157f5bb2a38fe40f3a85ef96429f1af88506585",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/POT/manifest.json",
+      "sha256": "1e6106dd6e888adae7701597f565e0a9c1741d72918708b6421dafcfb7cb7d5e",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/SMALL_PAINTING/SMALL_PAINTING.png",
+      "sha256": "15f370af43455d303b5ccb21429e298f7a603c3b6db10d6ed9270aa62caa71a3",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/SMALL_PAINTING/manifest.json",
+      "sha256": "02f09ec0d22404f102f609f8aabc0ca41f3e4d9af4274206167088db95cd13f6",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/SMALL_PAINTING_2/SMALL_PAINTING_2.png",
+      "sha256": "148d161726fb08dc7887e75e91f0332bf69d1aadfc649dce6fbc4b2678f5d0f0",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/SMALL_PAINTING_2/manifest.json",
+      "sha256": "b023f4e593a868efb5dc98ac283e9a15d923848514849ed6e836944d6605867a",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/SMALL_TABLE/SMALL_TABLE_FRONT.png",
+      "sha256": "dc224670ea2c5752830143337fd8b3a080f93980287706d4efd614aaabd4882f",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/SMALL_TABLE/SMALL_TABLE_SIDE.png",
+      "sha256": "5568526f6393ad643606b0095eceee5b7674b5588d7105144adc3fb99f0a3f42",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/SMALL_TABLE/manifest.json",
+      "sha256": "cfd626759f52304db591b28caab63832813e846a02bd974e4cee43950005e854",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/SOFA/SOFA_BACK.png",
+      "sha256": "62a40318fce1d3166f1ea3811ca2081b39ad3161974c6bcd2edb0bdaf9b06d08",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/SOFA/SOFA_FRONT.png",
+      "sha256": "7e4c7e98e46d32daa2776651f6f413f68a84252b357b01d722fce6bb2a0ca52f",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/SOFA/SOFA_SIDE.png",
+      "sha256": "b583fa6261dbbc4c4020c0a887023d3f707a70b7e5524535d541b453b22f9e94",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/SOFA/manifest.json",
+      "sha256": "aa3615e2e2b9de9766d1936d06f630c0a4053030cef7f9f054f16cba6661b8d6",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/TABLE_FRONT/TABLE_FRONT.png",
+      "sha256": "fef9638fd372f081f4c80cc52f9bcb4be8db9db194fa46f88968ec08e5463b4a",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/TABLE_FRONT/manifest.json",
+      "sha256": "d7868924b6edd92f0b6f135e254fe7c291fe1134c56f84fc3b98b2ca1bc72373",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/WHITEBOARD/WHITEBOARD.png",
+      "sha256": "42fb63a8d8041f602c6cd0e7491be3ea95c3f4699b6a5ba6e47851ba8a473059",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/WHITEBOARD/manifest.json",
+      "sha256": "70c1924a08f76f042a8bcaf0d56e7fd3724e717ea207f5ab31e0ec9c3ea1dd67",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/WOODEN_BENCH/WOODEN_BENCH.png",
+      "sha256": "b2a889a7e67dd1bd59ce1035daffeda8c0b34e696f07658ee0bc8ae514e1af49",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/WOODEN_BENCH/manifest.json",
+      "sha256": "cc37d68a0cd451d4329b8efc43e6b01ac157df69f928751b2eca27c96c07407a",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/WOODEN_CHAIR/WOODEN_CHAIR_BACK.png",
+      "sha256": "244fd28f4650e469d836f4287613e834805d3a00b7e14f68ae8415dd30411d5c",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/WOODEN_CHAIR/WOODEN_CHAIR_FRONT.png",
+      "sha256": "fb4c4bf7def68c98e4eedffe1d9ee0cbeaa054fc5bc4aa6785f37cc83b1cd44d",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/WOODEN_CHAIR/WOODEN_CHAIR_SIDE.png",
+      "sha256": "b57e3fd470a60e9f9800e9cdfe629b2a187cc0f936ed81314522a17fc7bb2198",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/assets/furniture/WOODEN_CHAIR/manifest.json",
+      "sha256": "ba184e498776b354b5642f579499c1a60a0b4e5a4fdbe452009d4cca2cc5cc9b",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Comparison: all 21 manifests taken over unchanged from upstream"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream snapshot"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/business_man.36311df39e9f.png",
+      "sha256": "36311df39e9f900d23b046476073b66d8d22cf64fe045c420f69c44da78a0956",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "a8034abe7affeec240967a04f1c51c831bfee1e7",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state (asset-lab assets:check)"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/business_man.ce44bce4c558.png",
+      "sha256": "ce44bce4c5582aa3ac4ea0b2cc820f7a645a55eab4154cd882041d06a3904462",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "Historical product set from an earlier own revision (tools/asset-lab)",
+        "revision": "ad848ecc71feefff0d1fa40bb6d24e9f89f0a0af",
+        "evidence": "Byte-identical reproduction from an earlier own revision, evidenced by a checksum list"
+      },
+      "verification": "verified",
+      "note": "Superseded, but reproduced from an own revision"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/business_man.d1d7a78d7e68.png",
+      "sha256": "d1d7a78d7e68bd3c34e9cee921a6ba6d1d21ab220572ba30148c3bc6372c8d0b",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/business_woman.45dca8a84981.png",
+      "sha256": "45dca8a84981c71422488e8bee680388ac497139af607471de111ecb831fd4a7",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "a8034abe7affeec240967a04f1c51c831bfee1e7",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state (asset-lab assets:check)"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/business_woman.f01546e80735.png",
+      "sha256": "f01546e80735e2cfd1996e59dc21bc866373ab3221078e392c6f62054a0b2013",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/casual_woman.348f4f49cbd0.png",
+      "sha256": "348f4f49cbd02ae4b9671bc3453f83cc9d79aa217d8651624da3068f88951068",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/casual_woman.ab39c8c31f0c.png",
+      "sha256": "ab39c8c31f0c3785d2489b99baca1b46a76493ddae7875afa76a518729eeaf3d",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "a8034abe7affeec240967a04f1c51c831bfee1e7",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state (asset-lab assets:check)"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/casual_woman.da6bc1426c30.png",
+      "sha256": "da6bc1426c301b89a80143bb7a0bfd21f57b6c8dfdf5d54342fddcdadf2b5d72",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "Historical product set from an earlier own revision (tools/asset-lab)",
+        "revision": "ad848ecc71feefff0d1fa40bb6d24e9f89f0a0af",
+        "evidence": "Byte-identical reproduction from an earlier own revision, evidenced by a checksum list"
+      },
+      "verification": "verified",
+      "note": "Superseded, but reproduced from an own revision"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/dev_hoodie.3f6d689b3610.png",
+      "sha256": "3f6d689b36105a231c0246ec39ecff1b3b215efbd71d66d4c21acfe622081f3e",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "Historical product set from an earlier own revision (tools/asset-lab)",
+        "revision": "ad848ecc71feefff0d1fa40bb6d24e9f89f0a0af",
+        "evidence": "Byte-identical reproduction from an earlier own revision, evidenced by a checksum list"
+      },
+      "verification": "verified",
+      "note": "Superseded, but reproduced from an own revision"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/dev_hoodie.8b424e037c79.png",
+      "sha256": "8b424e037c79d1072fd650ce2fec7771068f69dd7ecdbf0668312de16a8b5579",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/dev_hoodie.d4774f6a8b1a.png",
+      "sha256": "d4774f6a8b1a73a0775023dadc20b06173085b304904504ef8784f7710866114",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "a8034abe7affeec240967a04f1c51c831bfee1e7",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state (asset-lab assets:check)"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/manager_woman.0c1b5c205010.png",
+      "sha256": "0c1b5c2050106187e24835341fc5759f8cf73c3d61b1ece2bd305e57e8e9cbcb",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "Historical product set from an earlier own revision (tools/asset-lab)",
+        "revision": "ad848ecc71feefff0d1fa40bb6d24e9f89f0a0af",
+        "evidence": "Byte-identical reproduction from an earlier own revision, evidenced by a checksum list"
+      },
+      "verification": "verified",
+      "note": "Superseded, but reproduced from an own revision"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/manager_woman.af80ed75d4ab.png",
+      "sha256": "af80ed75d4abf5fd56a4718f1001dc578a69ca6b9ab8c89caf9d4ea463541aa0",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/manager_woman.df14c70aed86.png",
+      "sha256": "df14c70aed863a9c675aef1f5b3af288634eefad8d4b681b3b1dd9fbab1b68c2",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "a8034abe7affeec240967a04f1c51c831bfee1e7",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state (asset-lab assets:check)"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/suit_man.4dc2fcec15cd.png",
+      "sha256": "4dc2fcec15cd6bdee06b7c8e7708dd93b6c1c00816487360c72e1ce198bbbe8a",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/atelier-v1/suit_man.6594b26689d8.png",
+      "sha256": "6594b26689d8de3f1ea86597905e9dce1632e55dafae35a6cfc19b1d9d2373e1",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab (product/atelier-v1.json)",
+        "revision": "a8034abe7affeec240967a04f1c51c831bfee1e7",
+        "evidence": "Byte comparison of 70 generated artifacts with the repository state (asset-lab assets:check)"
+      },
+      "verification": "verified",
+      "note": "Current product set, evidenced individually"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/business_man.png",
+      "sha256": "bafef6de7a1be22c8601d93c236f0bf17afb1a3bf4686cec2fc376f45702074b",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/sprite-generator/generate.py",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Image comparison: all 6 sprites pixel-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "No third-party pixel data (NOTICE + catalogs)"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/business_woman.png",
+      "sha256": "61bf9a5796e07aa1de39a3d292232504976cd82ffdb2b6eacf1eef4982968957",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/sprite-generator/generate.py",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Image comparison: all 6 sprites pixel-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "No third-party pixel data (NOTICE + catalogs)"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/casual_woman.png",
+      "sha256": "612b17af4c3fada33c36bc8949c1acc32bb75aaba8f83fa0b80c61c564a37e07",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/sprite-generator/generate.py",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Image comparison: all 6 sprites pixel-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "No third-party pixel data (NOTICE + catalogs)"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/dev_hoodie.png",
+      "sha256": "132ddb2bf1f0e8a2a7eec4e86fcf17607342bb6975fb90bb6ed4638c23b0bf01",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/sprite-generator/generate.py",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Image comparison: all 6 sprites pixel-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "No third-party pixel data (NOTICE + catalogs)"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/manager_woman.png",
+      "sha256": "41418f53455a3219fe1d66f7c77b2b15e930719288b65c4452f2570eb460b08d",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/sprite-generator/generate.py",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Image comparison: all 6 sprites pixel-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "No third-party pixel data (NOTICE + catalogs)"
+    },
+    {
+      "path": "apps/web/public/assets/sprites/suit_man.png",
+      "sha256": "780dbfd1f569599af050b915879a1d5562b669b5cd9e63f41f93a4951046429b",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/sprite-generator/generate.py",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Image comparison: all 6 sprites pixel-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "No third-party pixel data (NOTICE + catalogs)"
+    },
+    {
+      "path": "apps/web/public/assets/tilesets/collision.png",
+      "sha256": "ef2d93590d372d285b3d21028eccbb48be76babf498bf09d456ad5195cfa8294",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/map-builder/build_office_map.py",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Map comparison: all 4 files byte-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "Generator writes repo paths, therefore overlay repro"
+    },
+    {
+      "path": "apps/web/public/assets/tilesets/office_floor.png",
+      "sha256": "863ee5b03bbdc41915a8d5ac98f6fcb12293344acff78f37aa540cc7b73d8a02",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG (aus MIT-Quellen generiert)",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/map-builder/build_office_map.py",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Map comparison: all 4 files byte-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "Generator writes repo paths, therefore overlay repro"
+    },
+    {
+      "path": "apps/web/public/assets/tilesets/office_wall.png",
+      "sha256": "469daa232284fe57bd1647ca235c1150e64d58e094848be8d909298ba7d188b1",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG (aus MIT-Quellen generiert)",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/map-builder/build_office_map.py",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Map comparison: all 4 files byte-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "Generator writes repo paths, therefore overlay repro"
+    },
+    {
+      "path": "apps/web/public/assets/walls/wall_0.png",
+      "sha256": "f2afc6dacc44986a388695a720839ed00da03e9b308d6c727f5292740a62adfa",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Pablo De Lucca",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/pablodelucca/pixel-agents",
+        "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104",
+        "evidence": "Git blob comparison: all 48 PNG files byte-identical with upstream"
+      },
+      "verification": "verified",
+      "note": "Snapshot without a network round trip"
+    },
+    {
+      "path": "apps/web/public/favicon-16.png",
+      "sha256": "9738a6356903f49f4b81de847bccba8120f4cce1d931dc36d6963f4142266285",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "lass machen",
+      "origin": {
+        "kind": "owner-confirmed",
+        "source": "Own project file by lass machen",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Copyright confirmed by the project owner on 2026-11-06"
+      },
+      "verification": "owner-confirmed",
+      "note": "Earlier provenance question closed by an owner confirmation dated 2026-11-06."
+    },
+    {
+      "path": "apps/web/public/favicon-32.png",
+      "sha256": "acc452031a67b6e670f624a24672381483ba50d478a445aceff94d662d134023",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "lass machen",
+      "origin": {
+        "kind": "owner-confirmed",
+        "source": "Own project file by lass machen",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Copyright confirmed by the project owner on 2026-11-06"
+      },
+      "verification": "owner-confirmed",
+      "note": "Earlier provenance question closed by an owner confirmation dated 2026-11-06."
+    },
+    {
+      "path": "apps/web/public/favicon.ico",
+      "sha256": "4a78c2b065c90c25236a3af071980d6463d357866b684c5e67a8063020f92b5b",
+      "type": ".ico",
+      "license": "MIT",
+      "copyright": "lass machen",
+      "origin": {
+        "kind": "owner-confirmed",
+        "source": "Own project file by lass machen",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Copyright confirmed by the project owner on 2026-11-06"
+      },
+      "verification": "owner-confirmed",
+      "note": "Earlier provenance question closed by an owner confirmation dated 2026-11-06."
+    },
+    {
+      "path": "apps/web/public/favicon.svg",
+      "sha256": "549a841c2b34d9c9b858ac8cadba40371fdf50c69f104d248e87fcab8b1571b4",
+      "type": ".svg",
+      "license": "MIT",
+      "copyright": "lass machen",
+      "origin": {
+        "kind": "owner-confirmed",
+        "source": "Own project file by lass machen",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Copyright confirmed by the project owner on 2026-11-06"
+      },
+      "verification": "owner-confirmed",
+      "note": "Earlier provenance question closed by an owner confirmation dated 2026-11-06."
+    },
+    {
+      "path": "apps/web/public/fonts/Inter-Medium.woff2",
+      "sha256": "0ff3e94614e1493eb556314fd247ae6c4a85a7783b4cc86be539940cf83f2a48",
+      "type": ".woff2",
+      "license": "OFL-1.1",
+      "copyright": "The Inter Project Authors",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/rsms/inter",
+        "revision": "e3a3d4c57d5ecc01453a575621882a384c1995a3",
+        "evidence": "Byte-identical with web/Inter-Medium.woff2 in the release archive Inter-4.1.zip of release v4.1 (archive sha256 9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e)"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream web font, license text in apps/web/public/fonts/Inter-OFL.txt"
+    },
+    {
+      "path": "apps/web/public/fonts/Inter-Regular.woff2",
+      "sha256": "e06f6b1bc553aaea4e4668023ed0ab0a147129c3107f511bc7d03d361b0ae085",
+      "type": ".woff2",
+      "license": "OFL-1.1",
+      "copyright": "The Inter Project Authors",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/rsms/inter",
+        "revision": "e3a3d4c57d5ecc01453a575621882a384c1995a3",
+        "evidence": "Byte-identical with web/Inter-Regular.woff2 in the release archive Inter-4.1.zip of release v4.1 (archive sha256 9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e)"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream web font, license text in apps/web/public/fonts/Inter-OFL.txt"
+    },
+    {
+      "path": "apps/web/public/fonts/Inter-SemiBold.woff2",
+      "sha256": "5cb7103e4e605989afebc03d989c79201e54b21b5183db33981f70db9178a301",
+      "type": ".woff2",
+      "license": "OFL-1.1",
+      "copyright": "The Inter Project Authors",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/rsms/inter",
+        "revision": "e3a3d4c57d5ecc01453a575621882a384c1995a3",
+        "evidence": "Byte-identical with web/Inter-SemiBold.woff2 in the release archive Inter-4.1.zip of release v4.1 (archive sha256 9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e)"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream web font, license text in apps/web/public/fonts/Inter-OFL.txt"
+    },
+    {
+      "path": "apps/web/public/fonts/InterVariable.woff2",
+      "sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
+      "type": ".woff2",
+      "license": "OFL-1.1",
+      "copyright": "The Inter Project Authors",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/rsms/inter",
+        "revision": "e3a3d4c57d5ecc01453a575621882a384c1995a3",
+        "evidence": "Byte-identical with web/InterVariable.woff2 in the release archive Inter-4.1.zip of release v4.1 (archive sha256 9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e)"
+      },
+      "verification": "verified",
+      "note": "Unchanged upstream variable web font, license text in apps/web/public/fonts/Inter-OFL.txt"
+    },
+    {
+      "path": "apps/web/public/fonts/PlusJakartaSans-Bold.woff2",
+      "sha256": "2050755bf475817c96ac7d914c7f07cc3c2d11ff4b3fb4747b8d41de584aad17",
+      "type": ".woff2",
+      "license": "OFL-1.1",
+      "copyright": "The Plus Jakarta Sans Project Authors",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/fontsource/font-files",
+        "revision": "02b28c06b126c852a5b966b44aef777ca923f6f6",
+        "evidence": "Byte-identical with package/files/plus-jakarta-sans-latin-700-normal.woff2 in the npm package @fontsource/plus-jakarta-sans 5.3.0 (registry tarball integrity sha512-9WRw3G74Ve4cyPApAZSXLPY5DiLOZXDn7Q7dIBjFBpA0Pj56ljDItEdy2UUajjJxRuTg2HkMLO5C3K2nAQORWg==, revision is the package gitHead)"
+      },
+      "verification": "verified",
+      "note": "Unchanged Fontsource latin subset as published, license text in apps/web/public/fonts/PlusJakartaSans-OFL.txt"
+    },
+    {
+      "path": "apps/web/public/fonts/PlusJakartaSans-ExtraBold.woff2",
+      "sha256": "5f301a8ef9c266c8b596e6793d3cc826daeff9849c5af035f5386439137955ad",
+      "type": ".woff2",
+      "license": "OFL-1.1",
+      "copyright": "The Plus Jakarta Sans Project Authors",
+      "origin": {
+        "kind": "upstream",
+        "source": "https://github.com/fontsource/font-files",
+        "revision": "02b28c06b126c852a5b966b44aef777ca923f6f6",
+        "evidence": "Byte-identical with package/files/plus-jakarta-sans-latin-800-normal.woff2 in the npm package @fontsource/plus-jakarta-sans 5.3.0 (registry tarball integrity sha512-9WRw3G74Ve4cyPApAZSXLPY5DiLOZXDn7Q7dIBjFBpA0Pj56ljDItEdy2UUajjJxRuTg2HkMLO5C3K2nAQORWg==, revision is the package gitHead)"
+      },
+      "verification": "verified",
+      "note": "Unchanged Fontsource latin subset as published, license text in apps/web/public/fonts/PlusJakartaSans-OFL.txt"
+    },
+    {
+      "path": "apps/web/public/fonts/PressStart2P-OFL.txt",
+      "sha256": "705960c3281a5765ecc0b59bd4ed7ca59eed165748076bc2fc3e8fdbfeb944b0",
+      "type": ".txt",
+      "license": "OFL-1.1",
+      "copyright": "The Press Start 2P Project Authors (cody@zone38.net)",
+      "origin": {
+        "kind": "repository",
+        "source": "Repository copy of the SIL-OFL-1.1 license text under apps/web/public/fonts/PressStart2P-OFL.txt",
+        "revision": "f270a3686c5330287cac759fd98704f416d2b9db",
+        "evidence": "License text present, copyright line matches the upstream font metadata"
+      },
+      "verification": "documented",
+      "note": "Text evidence present; no missing license text to be invented"
+    },
+    {
+      "path": "apps/web/public/fonts/PressStart2P-Regular.ttf",
+      "sha256": "034c77f1f05ec89421e4a63f0e3a4ca1ecf852cc6d2bf611f126f275728e017d",
+      "type": ".ttf",
+      "license": "OFL-1.1",
+      "copyright": "The Press Start 2P Project Authors (cody@zone38.net)",
+      "origin": {
+        "kind": "upstream",
+        "source": "Font 'Press Start 2P' from the public google/fonts archive, ofl/pressstart2p/PressStart2P-Regular.ttf, version 3.000",
+        "revision": "dbd72d6ef9ebea750d33c02c7189633e972d6a40",
+        "evidence": "sha256 matches the pinned upstream file, license text included"
+      },
+      "verification": "verified",
+      "note": "Unchanged full upstream TTF, version 3.000"
+    },
+    {
+      "path": "apps/web/public/icon-192.png",
+      "sha256": "d8ac95ccd71d42277a803de6a5c460d9a8313f41dad9e261647c60a5acf0026e",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "lass machen",
+      "origin": {
+        "kind": "owner-confirmed",
+        "source": "Own project file by lass machen",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Copyright confirmed by the project owner on 2026-11-06"
+      },
+      "verification": "owner-confirmed",
+      "note": "Earlier provenance question closed by an owner confirmation dated 2026-11-06."
+    },
+    {
+      "path": "apps/web/public/icon-512-maskable.png",
+      "sha256": "4ea1719b25876fac23994878ff3ca96126f5f632b6ff4548fb0bd0790f490a49",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "lass machen",
+      "origin": {
+        "kind": "owner-confirmed",
+        "source": "Own project file by lass machen",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Copyright confirmed by the project owner on 2026-11-06"
+      },
+      "verification": "owner-confirmed",
+      "note": "Earlier provenance question closed by an owner confirmation dated 2026-11-06."
+    },
+    {
+      "path": "apps/web/public/icon-512.png",
+      "sha256": "3730cf27f859483b0c0035319f841510db05949be665323e2e0b52243833c582",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "lass machen",
+      "origin": {
+        "kind": "owner-confirmed",
+        "source": "Own project file by lass machen",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Copyright confirmed by the project owner on 2026-11-06"
+      },
+      "verification": "owner-confirmed",
+      "note": "Earlier provenance question closed by an owner confirmation dated 2026-11-06."
+    },
+    {
+      "path": "apps/web/public/images/pub/open-source-teaser-ide.png",
+      "sha256": "801d79055d78183182c0bde4dbaeda44240cbd4e79767d04e83a4299b16ca45e",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "lass machen",
+      "origin": {
+        "kind": "owner-confirmed",
+        "source": "Own project file by lass machen",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Copyright confirmed by the project owner on 2026-11-06"
+      },
+      "verification": "owner-confirmed",
+      "note": "Earlier provenance question closed by an owner confirmation dated 2026-11-06."
+    },
+    {
+      "path": "apps/web/public/logo.png",
+      "sha256": "2376b1edff58c986ba7f40feefcc94a0ea17918548293e48c4393f934b94504c",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "lass machen",
+      "origin": {
+        "kind": "owner-confirmed",
+        "source": "Own project file by lass machen",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Copyright confirmed by the project owner on 2026-11-06"
+      },
+      "verification": "owner-confirmed",
+      "note": "Earlier provenance question closed by an owner confirmation dated 2026-11-06."
+    },
+    {
+      "path": "apps/web/public/maps/office-atelier-v1.json",
+      "sha256": "b7b711a0033e3a3a9fe8bc2eea43f17fa68b5404648f623b82e0e91b75fdba1e",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/map-builder/build_atelier_map.ts",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Map comparison: Asset Lab map byte-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "Reads Asset Lab catalog + Office presets"
+    },
+    {
+      "path": "apps/web/public/maps/office.json",
+      "sha256": "615fd4feb44a9c14db4433bdff9f78a8a5a1cfae9ea9233498eff3daba005a1a",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Tiamat UG (aus MIT-Quellen generiert)",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/map-builder/build_office_map.py",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Map comparison: all 4 files byte-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "Generator writes repo paths, therefore overlay repro"
+    },
+    {
+      "path": "packages/shared/sprite/catalog.json",
+      "sha256": "ca7866a97fcbd76124bf8f9ea8a62ba7326e35c7d7b667bbd6cace89c687d3f7",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "tools/asset-lab/scripts/sprite-catalog.ts <- src/avatar-catalog.ts",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Catalog check successful, file byte-identical with the generator output"
+      },
+      "verification": "verified",
+      "note": "NOTICE names an older export; the catalog is generated by Asset Lab."
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fixtures.json",
+      "sha256": "7cb441f8ad0f6618c5e807554ae5a60a3102cf3d564314d3d8c6c19546599329",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_base_accessory.png",
+      "sha256": "8815151207b0dad62651c18db5e27b8c86d71eeeb7f2afedf737822b245fdfee",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_base_bald.png",
+      "sha256": "a560a5b812dab2941da945d5f3dd2cba5b5fc5c201ea7912f60306f5857d8482",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_base_hair.png",
+      "sha256": "341da6f30bb498ac95fae14128a6db115239315b22a03c07f06540bc847bdd90",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_base_hat_misc.png",
+      "sha256": "53c477e7b7ecf2a6659976927cd4fded3403f1ef9c97a521d4e34b1290d7611e",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_beard_grey_prof.png",
+      "sha256": "24c1e3c6f030ea4c3a10242bc2ac7fb38e17bd0b222ca20e23707d9cebf012c8",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_beard_schnauzer.png",
+      "sha256": "61149595aefeeed27edb452f0ba9fb5d716a24a430f82aed4f78cbbc6f5aa87c",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_beard_vollbart.png",
+      "sha256": "6001040c78f6b91bedc50b156973442c15748bd3686e7f0851e8a11684e011c4",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_beard_ziegenbart.png",
+      "sha256": "929671cd803f3c03f0021bca4a5773d04a18160c38a40e1e6f7e827260840e6d",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_combo_all.png",
+      "sha256": "3a544087977ade60340e1f96cc25b54808d0b10227b5192d400a63e4d7ce14ab",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_dress_hat.png",
+      "sha256": "41f584051b4db7fcfaea49f61b006fcc0bbee7f5381a05c4d7dafc7eb0ebe4a4",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_dress_navy.png",
+      "sha256": "d6fc0f1b11783eacf794140ba1d8dfce8a6f3ca51e42724b0153b890cfd145c5",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_dress_red.png",
+      "sha256": "0687afe906ba4dbd7e859818708a75a49858d039e83cc938a60115130da194dc",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hair_bald.png",
+      "sha256": "3cd95f44700227389511cd45499a3c001b5134ac01c2ac7bf0d45dee9c785315",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hair_bob.png",
+      "sha256": "9cc8884ff3d7e7faa0ad59052afc93518258272b8f1ebc35c0acf7adbfac8640",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hair_braids.png",
+      "sha256": "653f9a291c2159f91bd8169c00829eefbf54fae9c0e1ad5485e7415b51df86c8",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hair_bun.png",
+      "sha256": "7b02771ad80eaccd99ef8faac119dfa5a131821c1955f7ee2946204395ef080c",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hair_buzz.png",
+      "sha256": "7d06a1d6fbc11c00694d45e84a1411fde2736b354a1999707421f5aa59bb9a9a",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hair_curly.png",
+      "sha256": "b84476da718a4b81d3a6c53bbf5d1ce4b096ca927e68f411e4f35d72cbf85e20",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hair_long.png",
+      "sha256": "4aef72c4e2e3f3b0fb804f6d76a3d8d56200db1aa0edcc03b4909f3e3b09e771",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hair_messy.png",
+      "sha256": "7603b8209a0779c58f3eef03e3952bcd5c8fac7e16bfe41e89ed7000943e4554",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hair_ponytail.png",
+      "sha256": "7b5d6a465df9e6625a67d1c598f2c6e5c4e722e4b51c587d068b404fa1b9c706",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hair_side_part.png",
+      "sha256": "98bff79b8f7868086a39f2f270ec05d874af69c958aa49b8d6e6be0c4d18f1ee",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hair_spiky.png",
+      "sha256": "d04009352f6964d31288d29d2bb07e4605c7d3772014c2012473c3894b8c394f",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hat_bierhelm.png",
+      "sha256": "5804f2bace7276027c21e7f574c51188f7ad837852bee25c3380b34e6ea2e181",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hat_cap.png",
+      "sha256": "b9ea29f0c7baab380b03b5c9d572a4f74d4f71189a5cd9915deb79774e1f220c",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hat_cowboy.png",
+      "sha256": "d1b86867cba433a63d6f3d4c3cb66171c47a48a8cc1652970a445c1315184b2a",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hat_diadem.png",
+      "sha256": "35fc098d7a6f0f78f74848b484248acd1d1a3ab069fa1b0292d7cea501cce547",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hat_krone.png",
+      "sha256": "0eef540265756636e237687369ee1f36f937b8cb4e15a0981ec7fc2017ce38ee",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hat_zylinder.png",
+      "sha256": "6ff1c3f55cadd8d91f6360444be98a226b1e354be45009440061f4833758359e",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hood_combo.png",
+      "sha256": "ae521650e0d2835f675ff79b2582011e678b848e5c4b942f9eccadfe16297ad7",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hood_dress.png",
+      "sha256": "bfa4bb99f0af6028c66bdd191479cc8b1e5689a66fb91ce0d380900b18a630f6",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_hood_trousers.png",
+      "sha256": "120b33dc416be221803b7631e8627e9a22fe18c9eb601fb5096193b75b170ceb",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_misc_kette.png",
+      "sha256": "a006512e408722f9f4958146a0c00fd5c85e5fbb267000aeac94433ecaf75e67",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_misc_schnuller.png",
+      "sha256": "988dbdb586d78388479da8bf0d6cd3d7137d87c67e9346bf527c52e05b78b76b",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "packages/shared/src/sprite/__fixtures__/fx_misc_zigarette.png",
+      "sha256": "4089f3d9de21a7f6130aeda37549d174e58ce173ba4a5a8d7cad560407e0be3a",
+      "type": ".png",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "v6 catalog + TS composer (composer.golden.test.ts)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "Test log: 36 of 36 comparisons pixel-identical"
+      },
+      "verification": "verified",
+      "note": "The v6 pipeline is authoritative"
+    },
+    {
+      "path": "tools/asset-lab/product/atelier-v1.json",
+      "sha256": "a931daf703531430bc5c1d17999caaf0d4f5e9e7d369eecce096acce14db18fc",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "Generator input specification (no asset)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "In-repo authorship"
+      },
+      "verification": "verified",
+      "note": "Input, no third-party share"
+    },
+    {
+      "path": "tools/og-banner/copy.en.json",
+      "sha256": "69bd811c3ed63d148d6cb1631a11251822bb4d6c3f22c336502724c7f1abf4ad",
+      "type": ".json",
+      "license": "MIT",
+      "copyright": "Tiamat UG",
+      "origin": {
+        "kind": "repository",
+        "source": "Generator input specification (no asset)",
+        "revision": "1402ee52db98d16348c5ebdc96b6d33f1fd60e70",
+        "evidence": "In-repo authorship"
+      },
+      "verification": "verified",
+      "note": "Input, no third-party share"
+    }
+  ]
+}

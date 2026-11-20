@@ -2,22 +2,58 @@ import React from 'react';
 import type { Room, RemoteTrack, RemoteTrackPublication, RemoteParticipant } from 'livekit-client';
 import { emitAudioTracksChanged, onAudioTracksChanged } from '../lib/avEvents';
 import type { AVManager } from './avManager';
-import { listPublications, readPubKind, readPubSource, type TrackLike } from '../types/livekit';
+import { listPublications, readPubKind, type TrackLike } from '../types/livekit';
 
 type AttachableTrack = TrackLike & {
   attach?: (element?: HTMLMediaElement) => HTMLMediaElement;
+  detach?: (element?: HTMLMediaElement) => HTMLMediaElement | HTMLMediaElement[];
 };
 
+interface AudioEntry {
+  audio: HTMLAudioElement;
+  track?: AttachableTrack;
+}
+
+// Autoplay-block fallback entries that point at a removed element must not
+// linger: the element they would late-attach to no longer exists.
+function dropPendingAudio(audio: HTMLAudioElement): void {
+  try {
+    const pending = window.pendingAudioTracks;
+    if (Array.isArray(pending)) {
+      window.pendingAudioTracks = pending.filter((entry) => entry?.audio !== audio);
+    }
+  } catch {}
+}
+
+// One audio element per remote audio track: the SDK evicts same-kind tracks
+// already attached to a shared element, so mic and screen-share audio of one
+// participant must never share a node. The key keeps the participant id (and
+// the data-av-remote attribute below) for existing consumers.
+function trackAudioKey(participantId: string, track: AttachableTrack): string {
+  const trackId =
+    (typeof track?.sid === 'string' && track.sid) ||
+    (typeof track?.mediaStreamTrack?.id === 'string' && track.mediaStreamTrack.id) ||
+    'default';
+  return `${participantId}::${trackId}`;
+}
+
 function buildAttachAudioTrack(
-  audioElements: Map<string, HTMLAudioElement>,
+  audioElements: Map<string, AudioEntry>,
   avRef: React.MutableRefObject<AVManager | null>,
 ) {
   return (track: AttachableTrack, participantId: string) => {
     try {
-      // Prevent duplicate audio elements per participant across tests/renders.
-      const existing: HTMLAudioElement | null =
-        typeof document !== 'undefined' ? document.querySelector(`audio[data-av-remote="${participantId}"]`) : null;
-      const audio = existing || document.createElement('audio');
+      // Reuse this track's own element when it already exists: re-subscribing
+      // the same track must not create a duplicate element.
+      const key = trackAudioKey(participantId, track);
+      const existing = audioElements.get(key);
+      if (existing) {
+        try {
+          track.attach?.(existing.audio);
+        } catch {}
+        return;
+      }
+      const audio = document.createElement('audio');
       audio.autoplay = true;
       (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
       // Honour DND at attach time to avoid brief audio leaks during transitions.
@@ -33,8 +69,11 @@ function buildAttachAudioTrack(
       audio.style.display = 'none';
       try {
         audio.dataset.avRemote = participantId;
+        // Publishing participant's sid for tooling that maps a rendered track
+        // back to its sender; no visible effect.
+        audio.dataset.participantSid = participantId;
       } catch {}
-      if (!existing) document.body.appendChild(audio);
+      document.body.appendChild(audio);
       try {
         track.attach?.(audio);
       } catch (_err) {
@@ -42,47 +81,37 @@ function buildAttachAudioTrack(
         window.pendingAudioTracks = window.pendingAudioTracks || [];
         window.pendingAudioTracks.push({ track, audio, participantId });
       }
-      audioElements.set(participantId, audio);
+      audioElements.set(key, { audio, track });
     } catch {}
   };
 }
 
-function buildDetachAudioTrack(audioElements: Map<string, HTMLAudioElement>) {
-  return (participantId: string) => {
-    const audio = audioElements.get(participantId);
-    if (audio) {
+function buildDetachAudioTrack(audioElements: Map<string, AudioEntry>) {
+  return (track: AttachableTrack, participantId: string) => {
+    const key = trackAudioKey(participantId, track);
+    const entry = audioElements.get(key);
+    if (entry) {
       try {
-        audio.pause();
+        entry.track?.detach?.(entry.audio);
       } catch {}
       try {
-        (audio as HTMLAudioElement & { srcObject?: MediaStream | null }).srcObject = null;
+        entry.audio.pause();
       } catch {}
       try {
-        audio.parentNode?.removeChild(audio);
+        (entry.audio as HTMLAudioElement & { srcObject?: MediaStream | null }).srcObject = null;
       } catch {}
-      audioElements.delete(participantId);
+      try {
+        entry.audio.parentNode?.removeChild(entry.audio);
+      } catch {}
+      dropPendingAudio(entry.audio);
+      audioElements.delete(key);
     }
   };
 }
 
-function shouldDetachOnUnsubscribe(track: TrackLike, participant: RemoteParticipant | undefined): boolean {
-  // Check whether the participant still has another microphone audio track
-  // (for example, when only screen-share audio is unsubscribed while the mic
-  // is still active).
-  const otherAudioTracks = listPublications(participant).filter((pub) => {
-    const pubTrack = pub.track;
-    if (!pubTrack || pubTrack === track) return false;
-    const kind = readPubKind(pub);
-    const source = readPubSource(pub);
-    // Count only microphone tracks, not screen_share_audio.
-    return kind === 'audio' && source !== 'screen_share_audio';
-  });
-  return otherAudioTracks.length === 0;
-}
-
 function attachInitialAudioTracks(
   room: Room,
-  audioElements: Map<string, HTMLAudioElement>,
+  audioElements: Map<string, AudioEntry>,
   attachAudioTrack: (track: AttachableTrack, participantId: string) => void,
 ): void {
   // `remoteParticipants` is the only participant map livekit-client 2.x has;
@@ -112,7 +141,7 @@ function attachInitialAudioTracks(
       dummy.volume = 0;
       dummy.style.display = 'none';
       document.body.appendChild(dummy);
-      audioElements.set('__dummy__', dummy);
+      audioElements.set('__dummy__', { audio: dummy });
     }
   } catch {}
 }
@@ -140,7 +169,7 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
   const room = avRef.current?.room;
   if (!room) return undefined;
 
-  const audioElements = new Map<string, HTMLAudioElement>();
+  const audioElements = new Map<string, AudioEntry>();
   const attachAudioTrack = buildAttachAudioTrack(audioElements, avRef);
   const detachAudioTrack = buildDetachAudioTrack(audioElements);
 
@@ -160,11 +189,10 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
     const track = args[0] as (RemoteTrack & TrackLike) | undefined;
     const participant = args[2] as RemoteParticipant | undefined;
     // Only handle audio tracks: screen-share video tracks must not remove
-    // a participant's microphone audio.
+    // a participant's microphone audio. Detaching is per track, so removing
+    // one track never affects the participant's other audio tracks.
     if (String(track?.kind) !== 'audio') return;
-    if (track && shouldDetachOnUnsubscribe(track, participant)) {
-      if (participant?.sid) detachAudioTrack(participant.sid);
-    }
+    if (track && participant?.sid) detachAudioTrack(track, participant.sid);
     try {
       emitAudioTracksChanged();
     } catch {}
@@ -183,9 +211,9 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
     try {
       const dndOn = !!avRef.current?.dndEnabled;
       if (dndOn) return;
-      audioElements.forEach((audio) => {
+      audioElements.forEach((entry) => {
         try {
-          audio.muted = false;
+          entry.audio.muted = false;
         } catch {}
       });
     } catch {}
@@ -195,16 +223,20 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
     try {
       unsubscribeAudioChanged();
     } catch {}
-    audioElements.forEach((audio) => {
+    audioElements.forEach((entry) => {
       try {
-        audio.pause();
+        entry.track?.detach?.(entry.audio);
       } catch {}
       try {
-        (audio as HTMLAudioElement & { srcObject?: MediaStream | null }).srcObject = null;
+        entry.audio.pause();
       } catch {}
       try {
-        audio.parentNode?.removeChild(audio);
+        (entry.audio as HTMLAudioElement & { srcObject?: MediaStream | null }).srcObject = null;
       } catch {}
+      try {
+        entry.audio.parentNode?.removeChild(entry.audio);
+      } catch {}
+      dropPendingAudio(entry.audio);
     });
     audioElements.clear();
   };

@@ -1,7 +1,10 @@
 import type { Router, Request, Response, NextFunction, Express } from 'express';
 import type { PrismaClient } from './generated/prisma/index.js';
+import type { EmailSendResult } from './billingEmailService.js';
 import { z } from 'zod';
 import { logger } from './logger.js';
+import type { deleteTenantWithMembers } from './services/accountDeletion.js';
+import type { createJournalPlanResolver } from './services/tenantDeletionPlanning.js';
 
 /**
  * Expected `version` of the `@meetropolis/billing` module. Single source of
@@ -40,7 +43,7 @@ export interface BillingModule {
     config: {
       prisma: PrismaClient;
       emailService: {
-        send(email: { to: string; subject: string; text: string; html: string }): Promise<void>;
+        send(email: { to: string; subject: string; text: string; html: string }): Promise<void | EmailSendResult>;
       };
       logger: {
         info(obj: object): void;
@@ -82,6 +85,21 @@ export interface BillingModule {
        * validates the module's exports, not this config object).
        */
       captureServerEvent?: (event: { name: string; tenant?: string; properties?: Record<string, unknown> }) => void;
+      /**
+       * Optional dependencies of the scheduled tenant deletion in the hourly
+       * billing pass: journal directory, deletion path and the shared plan
+       * resolver. Optional, so this is a backward-compatible config-shape addition.
+       */
+      tenantDeletion?: {
+        journalDir: string | undefined;
+        deleteTenantWithMembers: (
+          tenantId: string,
+          options?: Parameters<typeof deleteTenantWithMembers>[2],
+        ) => Promise<{ deletedAccounts: number }>;
+        createPlanResolver: (
+          journalDir: string,
+        ) => Promise<Awaited<ReturnType<typeof createJournalPlanResolver>> | undefined>;
+      };
     },
   ): void;
 
@@ -162,21 +180,27 @@ export async function hasBillingModule(): Promise<boolean> {
   }
 }
 
-/**
- * Loads the optional enterprise billing module if present.
- * Returns null for OSS builds without enterprise features.
- */
-export async function getBillingModule(): Promise<BillingModule | null> {
-  if (loadAttempted) return cached;
-  loadAttempted = true;
+function isAbsentBillingPackage(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? error.code : undefined;
+  const message = 'message' in error ? error.message : undefined;
+  if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') return false;
+  return typeof message === 'string' && /Cannot find (?:package|module) ['"]@meetropolis\/billing['"]/.test(message);
+}
 
+const importBillingPackage = (): Promise<unknown> => import('@meetropolis/billing');
+
+/** Load and validate the optional module, distinguishing absence from breakage. */
+export async function loadBillingModule(
+  importModule: () => Promise<unknown> = importBillingPackage,
+): Promise<BillingModule | null> {
   try {
     // Dynamic import on runtime; absent in OSS
-    const modUnknown: unknown = await import('@meetropolis/billing');
+    const modUnknown: unknown = await importModule();
     const mod = billingModuleSchema.parse(unwrapDefaultExport(modUnknown));
 
     // Build the full module with defaults
-    cached = {
+    const loaded: BillingModule = {
       version: EXPECTED_BILLING_MODULE_VERSION,
       setupBillingRoutes: mod.setupBillingRoutes as BillingModule['setupBillingRoutes'],
       installEarlyMiddleware: mod.installEarlyMiddleware as BillingModule['installEarlyMiddleware'],
@@ -189,13 +213,33 @@ export async function getBillingModule(): Promise<BillingModule | null> {
     };
 
     logger.info({ event: 'billing.enterprise_loaded', version: EXPECTED_BILLING_MODULE_VERSION });
-    return cached;
-  } catch (_e) {
-    // OSS build without enterprise billing - this is expected
-    logger.debug({ event: 'billing.enterprise_not_available', message: 'Using OSS billing' });
-    cached = null;
-    return null;
+    return loaded;
+  } catch (error) {
+    if (isAbsentBillingPackage(error)) {
+      // OSS build without enterprise billing - this is expected
+      logger.debug({ event: 'billing.enterprise_not_available', message: 'Using OSS billing' });
+      return null;
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      'Failed to load @meetropolis/billing. Remove the broken package for OSS mode or install a module ' +
+        `matching the billing loader contract (expected version ${EXPECTED_BILLING_MODULE_VERSION}). Cause: ${detail}`,
+    );
   }
+}
+
+/**
+ * Loads the optional enterprise billing module if present.
+ * Returns null for OSS builds without enterprise features.
+ * Only the exact absence of the package selects OSS mode; import and contract
+ * failures abort startup, and a failed load is never cached.
+ */
+export async function getBillingModule(): Promise<BillingModule | null> {
+  if (loadAttempted) return cached;
+  const loaded = await loadBillingModule();
+  loadAttempted = true;
+  cached = loaded;
+  return cached;
 }
 
 /**

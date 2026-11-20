@@ -1,13 +1,15 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Modal, Tabs } from '../system';
 import type { TabItem } from '../system';
 import type { AdminCapabilities } from '../../app/routes/hooks/useFetchMe';
 import { AdminHealthDashboard } from './AdminHealthDashboard';
 import { MapsAdmin } from './MapsAdmin';
+import { PendingConfirmations } from './PendingConfirmations';
 import { SettingsAdmin } from './SettingsAdmin';
 import { getEnterpriseWebModule } from '../../lib/enterpriseWebLoader';
 
-type OssTabKey = 'maps' | 'health' | 'settings' | 'enterprise';
+type OssTabKey = 'maps' | 'confirmations' | 'health' | 'settings' | 'enterprise';
 
 type EnterpriseTabsProps = { apiBase: string; capabilities: AdminCapabilities };
 
@@ -31,6 +33,7 @@ export function AdminOverlay(props: {
   capabilities: AdminCapabilities;
 }) {
   const { apiBase, open, onOpenChange, capabilities } = props;
+  const { t } = useTranslation();
 
   const showEnterprise = capabilities.hasBilling || capabilities.hasAdminEnterprise;
 
@@ -38,10 +41,11 @@ export function AdminOverlay(props: {
     const items: TabItem[] = [];
     if (showEnterprise) items.push({ key: 'enterprise', label: 'Enterprise' });
     items.push({ key: 'maps', label: 'Maps' });
+    items.push({ key: 'confirmations', label: t('admin.pendingConfirmations.title') });
     items.push({ key: 'health', label: 'System Health' });
     items.push({ key: 'settings', label: 'Einstellungen' });
     return items;
-  }, [showEnterprise]);
+  }, [showEnterprise, t]);
 
   const [tab, setTab] = React.useState<OssTabKey>((tabs[0]?.key as OssTabKey) || 'maps');
 
@@ -66,6 +70,7 @@ export function AdminOverlay(props: {
         </React.Suspense>
       )}
       {tab === 'maps' && <MapsAdmin apiBase={apiBase} />}
+      {tab === 'confirmations' && <PendingConfirmations apiBase={apiBase} />}
       {tab === 'health' && <AdminHealthDashboard onClose={() => onOpenChange(false)} />}
       {tab === 'settings' && <SettingsAdmin apiBase={apiBase} />}
     </Modal>

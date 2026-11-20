@@ -1,6 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { GITHUB_REPO_URL } from '../links';
+import { getBrandModule, type PublicAdsConfig } from '../../../lib/brandLoader';
+import { usePublicConfigStore } from '../../../state/publicConfigStore';
 
 interface PublicFooterProps {
   navigate: (route: string) => void;
@@ -52,9 +54,18 @@ const FOOTER_COLUMNS: FooterColumn[] = [
   },
 ];
 
+// justify-content lives in the stylesheet so the mobile media query can
+// override it without !important.
 const FOOTER_RESPONSIVE_STYLES = `
+  .pub-footer__columns {
+    display: flex;
+    gap: 64px;
+    flex-wrap: wrap;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
   @media (max-width: 768px) {
-    .pub-footer__columns { justify-content: flex-start !important; }
+    .pub-footer__columns { justify-content: flex-start; }
   }
 `;
 
@@ -160,20 +171,30 @@ function FooterLinkItem({
   );
 }
 
+type AdsConsentLinkProps = { config: PublicAdsConfig | null };
+
+// Optional brand control that reopens the ads consent choice. Resolves to
+// null when the brand module is absent or ships no such export, so the
+// footer stays unchanged in OSS builds and older brand builds.
+const AdsConsentSettingsLinkLazy = React.lazy<React.ComponentType<AdsConsentLinkProps>>(async () => {
+  const mod = await getBrandModule();
+  if (!mod?.AdsConsentSettingsLink) return { default: () => null };
+  return { default: mod.AdsConsentSettingsLink };
+});
+
 function FooterColumns({
   t,
   columns,
   onLinkClick,
+  legalColumnExtra,
 }: {
   t: (k: string) => string;
   columns: FooterColumn[];
   onLinkClick: (e: React.MouseEvent<HTMLAnchorElement>, action: FooterLinkAction) => void;
+  legalColumnExtra?: React.ReactNode;
 }) {
   return (
-    <div
-      className="pub-footer__columns"
-      style={{ display: 'flex', gap: 64, flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}
-    >
+    <div className="pub-footer__columns">
       {columns.map((col) => (
         <div key={col.titleKey} style={{ minWidth: 140 }}>
           <h4
@@ -195,6 +216,7 @@ function FooterColumns({
               <FooterLinkItem key={link.i18nKey} link={link} t={t} onClick={onLinkClick} />
             ))}
           </ul>
+          {col.titleKey === 'footer.legalTitle' ? legalColumnExtra : null}
         </div>
       ))}
     </div>
@@ -247,6 +269,7 @@ function LangToggle({
 
 export function PublicFooter({ navigate }: PublicFooterProps) {
   const { t, i18n } = useTranslation('public');
+  const ads = usePublicConfigStore((s) => s.ads);
   const currentYear = new Date().getFullYear();
   const currentLang: 'de' | 'en' = i18n.language?.startsWith('de') ? 'de' : 'en';
   const brandRaw = t('header.brandName');
@@ -280,7 +303,16 @@ export function PublicFooter({ navigate }: PublicFooterProps) {
           style={{ display: 'flex', justifyContent: 'space-between', gap: 64, flexWrap: 'wrap' }}
         >
           <FooterLogo tagline={t('footer.tagline')} />
-          <FooterColumns t={t} columns={FOOTER_COLUMNS} onLinkClick={handleLinkClick} />
+          <FooterColumns
+            t={t}
+            columns={FOOTER_COLUMNS}
+            onLinkClick={handleLinkClick}
+            legalColumnExtra={
+              <React.Suspense fallback={null}>
+                <AdsConsentSettingsLinkLazy config={ads} />
+              </React.Suspense>
+            }
+          />
         </div>
         <div style={{ height: 1, background: 'var(--pub-border-dark)', margin: '40px 0 24px 0' }} />
         <div

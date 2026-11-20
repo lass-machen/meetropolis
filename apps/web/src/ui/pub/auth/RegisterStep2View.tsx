@@ -149,7 +149,7 @@ function TeamSizeSelector({ label, hint, choices, teamSize, onChange }: TeamSize
               border:
                 teamSize === choice.value ? '2px solid var(--pub-accent-purple)' : '1px solid var(--pub-border-light)',
               background: '#fff',
-              color: teamSize === choice.value ? 'var(--pub-accent-purple)' : 'var(--pub-text-primary)',
+              color: teamSize === choice.value ? 'var(--pub-accent-purple-dark)' : 'var(--pub-text-primary)',
               fontWeight: teamSize === choice.value ? 600 : 400,
               fontSize: 14,
               fontFamily: 'inherit',

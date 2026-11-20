@@ -5,10 +5,14 @@ import { joinLivekitRoom } from './livekit';
 const originalFetch = global.fetch;
 
 // Mock livekit-client's Room to observe connect calls
+const { createdRooms } = vi.hoisted(() => ({ createdRooms: [] as unknown[] }));
 vi.mock('livekit-client', () => {
   class Room {
-    public connect = vi.fn(async (_url: string, _token: string, _opts: any) => {});
+    public connect = vi.fn(async (_url: string, _token: string, _opts: object) => {});
     public disconnect = vi.fn(async (_stopTracks?: boolean) => {});
+    constructor() {
+      createdRooms.push(this);
+    }
   }
   return { Room };
 });
@@ -16,6 +20,7 @@ vi.mock('livekit-client', () => {
 describe('joinLivekitRoom', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    createdRooms.length = 0;
     global.fetch = vi.fn((): Promise<any> => {
       return Promise.resolve({
         ok: true,
@@ -53,6 +58,101 @@ describe('joinLivekitRoom', () => {
 
     addSpy.mockRestore();
     remSpy.mockRestore();
+  });
+
+  describe('token error reasons', () => {
+    function tokenErrorResponse(status: number, body: unknown): any {
+      return {
+        ok: false,
+        status,
+        text: () => Promise.resolve(typeof body === 'string' ? body : JSON.stringify(body)),
+      };
+    }
+
+    function joinParams() {
+      return {
+        baseUrl: 'http://localhost:2568',
+        tokenEndpoint: '/livekit/token',
+        roomName: 'world',
+        identity: 'me',
+        displayName: 'Me',
+        useVideo: true,
+      };
+    }
+
+    it('keeps 403 membership reason and connects nothing', async () => {
+      global.fetch = vi.fn(() => Promise.resolve(tokenErrorResponse(403, { error: 'forbidden' }))) as any;
+      await expect(joinLivekitRoom(joinParams())).rejects.toThrow(/403.*forbidden/);
+      expect(createdRooms.length).toBe(0);
+    });
+
+    it('keeps 403 transcription consent reason distinct from membership', async () => {
+      global.fetch = vi.fn(() =>
+        Promise.resolve(tokenErrorResponse(403, { error: 'transcription_consent_required' })),
+      ) as any;
+      await expect(joinLivekitRoom(joinParams())).rejects.toThrow(/403.*transcription_consent_required/);
+      expect(createdRooms.length).toBe(0);
+    });
+
+    it('keeps 503 transcription gate reason', async () => {
+      global.fetch = vi.fn(() =>
+        Promise.resolve(tokenErrorResponse(503, { error: 'transcription_gate_unavailable' })),
+      ) as any;
+      await expect(joinLivekitRoom(joinParams())).rejects.toThrow(/503.*transcription_gate_unavailable/);
+    });
+
+    it('keeps central error shape code', async () => {
+      global.fetch = vi.fn(() =>
+        Promise.resolve(tokenErrorResponse(401, { error: { code: 'unauthorized', message: 'Login required' } })),
+      ) as any;
+      await expect(joinLivekitRoom(joinParams())).rejects.toThrow(/401.*unauthorized/);
+    });
+
+    it('falls back to status on empty body', async () => {
+      global.fetch = vi.fn(() => Promise.resolve(tokenErrorResponse(403, ''))) as any;
+      await expect(joinLivekitRoom(joinParams())).rejects.toThrow(/403/);
+    });
+
+    it('keeps central error message when code is missing', async () => {
+      global.fetch = vi.fn(() =>
+        Promise.resolve(tokenErrorResponse(403, { error: { message: 'consent needed' } })),
+      ) as any;
+      await expect(joinLivekitRoom(joinParams())).rejects.toThrow(/403.*consent_needed/);
+    });
+
+    it('keeps token timeout when the error body read aborts', async () => {
+      global.fetch = vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 403,
+          text: () => {
+            const err = new Error('aborted');
+            err.name = 'AbortError';
+            return Promise.reject(err);
+          },
+        }),
+      ) as any;
+      await expect(joinLivekitRoom(joinParams())).rejects.toThrow('livekit_token_timeout');
+    });
+
+    it.each([[null], [{}], [{ error: 123 }], [{ error: {} }], [123]])(
+      'falls back to status only for unusable body %j',
+      async (body) => {
+        global.fetch = vi.fn(() => Promise.resolve(tokenErrorResponse(403, body))) as any;
+        await expect(joinLivekitRoom(joinParams())).rejects.toThrow(/^livekit_token_error_403$/);
+      },
+    );
+
+    it('falls back to status on html body without leaking markup', async () => {
+      global.fetch = vi.fn(() =>
+        Promise.resolve(tokenErrorResponse(503, '<html><body>Proxy Error</body></html>')),
+      ) as any;
+      const err: unknown = await joinLivekitRoom(joinParams()).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(Error);
+      const message = (err as Error).message;
+      expect(message).toMatch(/503/);
+      expect(message).not.toContain('<html>');
+    });
   });
 
   it('throws livekit_token_timeout when the token fetch hangs', async () => {

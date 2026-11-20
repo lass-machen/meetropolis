@@ -1,3 +1,4 @@
+import { logger } from '../../logger.js';
 import type { ResolvedAuth } from './authState.js';
 
 /**
@@ -22,11 +23,11 @@ import type { ResolvedAuth } from './authState.js';
  * - Revocation invalidates eagerly ({@link invalidateSessionToken} /
  *   {@link invalidateSessionsForUser}), so the TTL is only the ceiling for
  *   revocations this process did not perform itself.
- * - Single-node only, like the rate-limit MemoryStore and the Colyseus room
- *   registry. With several server processes a revocation performed on process A
- *   is invisible to process B's cache for up to {@link SESSION_CACHE_TTL_MS}.
- *   Horizontal scaling needs a shared invalidation channel (e.g. Redis pub/sub)
- *   — until then the TTL is the bound on that staleness window.
+ * - With several server processes the relay in sessionInvalidationRelay.ts
+ *   forwards each invalidation to the other processes over the shared
+ *   presence channel (Redis pub/sub when Redis is configured), so their
+ *   caches drop the same entries at once. The TTL remains the bound for
+ *   processes without the relay installed and for messages that are lost.
  */
 
 /** How long a resolved session stays trusted without re-reading the row. */
@@ -74,9 +75,49 @@ export function setCachedSession(auth: ResolvedAuth, sessionExpiresAt: Date, now
   });
 }
 
+/** A session invalidation that other processes must apply to their caches. */
+export type SessionInvalidation = { kind: 'token'; tokenHash: string } | { kind: 'user'; userId: string };
+
+let invalidationPublisher: ((event: SessionInvalidation) => void) | undefined;
+
+/**
+ * Set the publisher that forwards local invalidations to other processes, or
+ * clear it with `undefined`. The relay in sessionInvalidationRelay.ts owns
+ * this hook while it is installed.
+ */
+export function setSessionInvalidationPublisher(publisher: ((event: SessionInvalidation) => void) | undefined): void {
+  invalidationPublisher = publisher;
+}
+
+/** Apply an invalidation to this process's cache only, without publishing it. */
+export function applySessionInvalidation(event: SessionInvalidation): void {
+  if (event.kind === 'token') {
+    entries.delete(event.tokenHash);
+    return;
+  }
+  for (const [tokenHash, entry] of entries) {
+    if (entry.auth.userId === event.userId) entries.delete(tokenHash);
+  }
+}
+
+function publishSessionInvalidation(event: SessionInvalidation): void {
+  if (!invalidationPublisher) return;
+  try {
+    invalidationPublisher(event);
+  } catch (e: unknown) {
+    logger.warn({
+      event: 'auth.session.invalidation_publish_failed',
+      kind: event.kind,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
 /** Drop the entry for a single token — used when its session is revoked. */
 export function invalidateSessionToken(tokenHash: string): void {
-  entries.delete(tokenHash);
+  const event: SessionInvalidation = { kind: 'token', tokenHash };
+  applySessionInvalidation(event);
+  publishSessionInvalidation(event);
 }
 
 /**
@@ -85,9 +126,9 @@ export function invalidateSessionToken(tokenHash: string): void {
  * Linear over a map bounded by MAX_ENTRIES, and only on those rare writes.
  */
 export function invalidateSessionsForUser(userId: string): void {
-  for (const [tokenHash, entry] of entries) {
-    if (entry.auth.userId === userId) entries.delete(tokenHash);
-  }
+  const event: SessionInvalidation = { kind: 'user', userId };
+  applySessionInvalidation(event);
+  publishSessionInvalidation(event);
 }
 
 /** Test seam: drop everything. */

@@ -19,10 +19,12 @@
  *   npx tsx src/scripts/rerasterCollision.ts            # dry-run, all maps
  *   npx tsx src/scripts/rerasterCollision.ts --apply    # migrate all safe maps
  */
+import { pathToFileURL } from 'node:url';
 import { createPrismaClient } from '../db.js';
 import { PrismaClient } from '../generated/prisma/index.js';
 import { decodeRlePairsFromBuffer, rleDecodeToNumbers, rleDecodeToBooleans } from '../mapEncoding.js';
 import { computeFootprintTiles, updateCollisionChunks, type CollisionTile } from '../api/utils/collisionHelpers.js';
+import { ObjectFootprintLimitError } from '../api/utils/objectFootprintLimits.js';
 
 type ItemDefault = { collisionBaseHeight: number; renderLayer: string; collide: boolean };
 
@@ -196,6 +198,28 @@ async function processMap(
   );
 }
 
+export async function rerasterMaps<MapRow extends { id: string }>(
+  maps: MapRow[],
+  processOne: (map: MapRow) => Promise<void>,
+): Promise<{ processed: number; skipped: number }> {
+  let processed = 0;
+  let skipped = 0;
+  for (const map of maps) {
+    try {
+      await processOne(map);
+      processed++;
+    } catch (error) {
+      if (error instanceof ObjectFootprintLimitError) {
+        console.warn(`Skipping map ${map.id}: ${error.name}`);
+        skipped++;
+        continue;
+      }
+      throw error;
+    }
+  }
+  return { processed, skipped };
+}
+
 async function main(): Promise<void> {
   const apply = process.argv.includes('--apply');
   const mapArgIdx = process.argv.indexOf('--map');
@@ -217,12 +241,19 @@ async function main(): Promise<void> {
         tenant: { select: { slug: true } },
       },
     });
-    for (const m of maps) {
-      await processMap(prisma, { ...m, tenantSlug: m.tenant.slug }, defaults, apply);
-    }
+    const { processed, skipped } = await rerasterMaps(maps, (m) =>
+      processMap(prisma, { ...m, tenantSlug: m.tenant.slug }, defaults, apply),
+    );
+    console.log(`Maps processed=${processed}, skipped (footprint limit)=${skipped}.`);
+    if (skipped > 0) process.exitCode = 1;
   } finally {
     await prisma.$disconnect().catch(() => {});
   }
 }
 
-void main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

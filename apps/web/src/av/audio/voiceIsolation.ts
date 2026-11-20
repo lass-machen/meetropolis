@@ -1,6 +1,19 @@
 // Lightweight wrapper to build a WebAudio graph and return a processed MediaStreamTrack
 // The actual RNNoise processing is encapsulated in an AudioWorklet processor file.
 
+import type { AudioProcessorOptions, Track, TrackProcessor } from 'livekit-client';
+import { VOICE_ISOLATION_PROCESSOR_NAME } from './captureTrack';
+
+/**
+ * Upper bound for loading the worklet module. A local ~4 KB module loads in
+ * well under 100 ms; 3 s leaves ample margin while keeping most of the 10 s
+ * microphone publish budget for getUserMedia and the publish itself.
+ */
+export const VOICE_ISOLATION_INIT_TIMEOUT_MS = 3_000;
+
+/** Error message used when the worklet init exceeds its time bound. */
+export const VOICE_ISOLATION_TIMEOUT = 'voice_isolation_timeout';
+
 export interface VoiceIsolationResult {
   processed: MediaStreamTrack;
   /**
@@ -12,6 +25,8 @@ export interface VoiceIsolationResult {
    * unplugged), and safe to call even if the graph was never fully wired.
    */
   stopSource: () => void;
+  /** Releases the graph but leaves the input track running. */
+  release: () => void;
 }
 
 /**
@@ -24,10 +39,12 @@ export interface VoiceIsolationResult {
 function createTeardown(
   inputTrack: MediaStreamTrack,
   audioContext: AudioContext,
-): { onInputEnded: () => void; stopSource: () => void } {
+  ownsContext: boolean,
+): { onInputEnded: () => void; stopSource: () => void; release: () => void } {
   let contextClosed = false;
   const closeContext = () => {
-    if (contextClosed) return;
+    // A context passed in by the caller is closed by its owner.
+    if (contextClosed || !ownsContext) return;
     contextClosed = true;
     try {
       void audioContext.close();
@@ -50,7 +67,15 @@ function createTeardown(
     } catch {}
     closeContext();
   };
-  return { onInputEnded, stopSource };
+  // Releases the graph but leaves the input track running, so a caller can
+  // still fall back to the raw capture.
+  const release = () => {
+    try {
+      inputTrack.removeEventListener('ended', onInputEnded);
+    } catch {}
+    closeContext();
+  };
+  return { onInputEnded, stopSource, release };
 }
 
 /**
@@ -105,13 +130,18 @@ function applySpeechContentHint(track: MediaStreamTrack): void {
   } catch {}
 }
 
-export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack): Promise<VoiceIsolationResult> {
+export async function wrapTrackWithVoiceIsolation(
+  inputTrack: MediaStreamTrack,
+  options: { initTimeoutMs?: number; audioContext?: AudioContext } = {},
+): Promise<VoiceIsolationResult> {
+  const initTimeoutMs = options.initTimeoutMs ?? VOICE_ISOLATION_INIT_TIMEOUT_MS;
   if (typeof window.AudioWorkletNode === 'undefined') {
     throw new Error('AudioWorklet not supported');
   }
 
-  const audioContext = new (window.AudioContext || window.webkitAudioContext!)();
-  const { onInputEnded, stopSource } = createTeardown(inputTrack, audioContext);
+  const ownsContext = !options.audioContext;
+  const audioContext = options.audioContext ?? createAudioContext();
+  const { onInputEnded, stopSource, release } = createTeardown(inputTrack, audioContext, ownsContext);
   try {
     inputTrack.addEventListener('ended', onInputEnded);
   } catch {}
@@ -121,11 +151,119 @@ export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack):
 
   // Load worklet module (bundled locally)
   const url = new URL('./worklets/rnnoise-processor.js', import.meta.url).toString();
-  await audioContext.audioWorklet.addModule(url);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      audioContext.audioWorklet.addModule(url),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(VOICE_ISOLATION_TIMEOUT)), initTimeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    release();
+    throw error;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 
   const destination = buildDenoiseGraph(audioContext, source);
   const processed = destination.stream.getAudioTracks()[0];
   applySpeechContentHint(processed);
 
-  return { processed, stopSource };
+  return { processed, stopSource, release };
+}
+
+function createAudioContext(): AudioContext {
+  return new (window.AudioContext || window.webkitAudioContext!)();
+}
+
+// processedTrack is a getter that reads undefined until init succeeds, which
+// the optional SDK field cannot express under exactOptionalPropertyTypes.
+export type VoiceIsolationProcessor = Omit<
+  TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>,
+  'processedTrack'
+> & {
+  readonly processedTrack: MediaStreamTrack | undefined;
+  /** AudioContext owned by this processor; set it on the track before setProcessor(). */
+  readonly audioContext: AudioContext;
+  /** Raw capture track the current graph reads from. */
+  readonly sourceTrack: MediaStreamTrack | undefined;
+};
+
+/**
+ * Voice isolation as a LiveKit track processor. LiveKit publishes
+ * `processedTrack` instead of the raw capture, re-runs `restart` with the new
+ * raw track on device switches, and calls `destroy` on stop. The raw track
+ * stays owned by LiveKit; this processor never stops it. One AudioContext
+ * lives for the whole processor lifetime and is closed in `destroy`.
+ */
+export function createVoiceIsolationProcessor(
+  initTimeoutMs: number = VOICE_ISOLATION_INIT_TIMEOUT_MS,
+): VoiceIsolationProcessor {
+  let audioContext: AudioContext | null = null;
+  let graph: {
+    processed: MediaStreamTrack;
+    release: () => void;
+    source: MediaStreamTrack;
+    onEnded: () => void;
+  } | null = null;
+
+  const ensureContext = (): AudioContext => {
+    audioContext ??= createAudioContext();
+    return audioContext;
+  };
+
+  const teardownGraph = () => {
+    const current = graph;
+    graph = null;
+    if (!current) return;
+    try {
+      current.source.removeEventListener('ended', current.onEnded);
+    } catch {}
+    current.release();
+    try {
+      current.processed.stop();
+    } catch {}
+  };
+
+  const build = async (track: MediaStreamTrack) => {
+    teardownGraph();
+    const result = await wrapTrackWithVoiceIsolation(track, { initTimeoutMs, audioContext: ensureContext() });
+    // When the device goes away the destination track would stay live; end it
+    // too so liveness checks on the published track see the loss.
+    const onEnded = () => {
+      try {
+        result.processed.stop();
+      } catch {}
+    };
+    try {
+      track.addEventListener('ended', onEnded);
+    } catch {}
+    graph = { processed: result.processed, release: result.release, source: track, onEnded };
+  };
+
+  return {
+    name: VOICE_ISOLATION_PROCESSOR_NAME,
+    get audioContext() {
+      return ensureContext();
+    },
+    get processedTrack() {
+      return graph?.processed;
+    },
+    get sourceTrack() {
+      return graph?.source;
+    },
+    init: async (opts) => build(opts.track),
+    restart: async (opts) => build(opts.track),
+    destroy: async () => {
+      teardownGraph();
+      const context = audioContext;
+      audioContext = null;
+      if (context) {
+        try {
+          await context.close();
+        } catch {}
+      }
+    },
+  };
 }

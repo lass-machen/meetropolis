@@ -18,29 +18,6 @@ export function isNativeClientRequest(req: express.Request): boolean {
   }
 }
 
-/**
- * Resolve the public base URL used to build user-facing links in emails
- * (e.g. the email-verification link). Precedence:
- *   1. PUBLIC_BASE_URL / BILLING_PUBLIC_URL — explicit self-host config.
- *   2. Request Origin header, but only when it is a real http(s) web origin.
- *      Native clients (Tauri desktop) send a custom-scheme origin such as
- *      `tauri://localhost`; that must never leak into an emailed link, so
- *      those requests fall through to the Host header instead.
- *   3. Host header as `https://<host>`.
- */
-export function resolvePublicBaseUrl(params: {
-  publicBaseUrl?: string | undefined;
-  billingPublicUrl?: string | undefined;
-  origin?: string | undefined;
-  host?: string | undefined;
-}): string {
-  const { publicBaseUrl, billingPublicUrl, origin, host } = params;
-  if (publicBaseUrl) return publicBaseUrl;
-  if (billingPublicUrl) return billingPublicUrl;
-  if (origin && /^https?:\/\//i.test(origin)) return origin;
-  return host ? `https://${host}` : '';
-}
-
 export function getRequestToken(req: express.Request): string | null {
   return (req.cookies?.auth_token as string | undefined) || req.headers.authorization?.replace('Bearer ', '') || null;
 }

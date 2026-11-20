@@ -63,6 +63,9 @@ export function AuthPage({
         onForgot: handlers.handleForgot,
         onReset: handlers.handleReset,
         onInvite: handleInvite,
+        onRegisterWithInvite: (code) => {
+          void handleInvite(code);
+        },
         onCreateTenant: handleCreateTenant,
         setRegStep: s.setRegStep,
         setRegData: s.setRegData,

@@ -1,7 +1,7 @@
 import type express from 'express';
 import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import { z } from 'zod';
-import multer from 'multer';
+import { uploadGuard, uploadParser, boundedMultipart } from '../middleware/uploadPolicy.js';
 import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -28,6 +28,8 @@ const AvatarPackCreateSchema = z.object({
   type: z.string().default('full'),
   avatars: z.array(z.record(z.string(), z.unknown())).min(1),
 });
+
+const archiveAvatarPackSchema = z.object({ archived: z.boolean() });
 
 type AvatarPackAuthResult = { ok: true } | { ok: false; status: number; error: string };
 
@@ -126,7 +128,7 @@ async function handleListAvatarPacks(prisma: PrismaClient, req: express.Request,
   try {
     const scope = await resolvePackScope(prisma, req, 'avatar');
     const list = await prisma.avatarPack.findMany({
-      where: avatarPackScopeWhere(scope),
+      where: { ...avatarPackScopeWhere(scope), archived: false },
       orderBy: { createdAt: 'desc' },
     });
     res.json(list);
@@ -215,6 +217,38 @@ async function handleCreateAvatarPack(
   }
 }
 
+async function handleArchiveAvatarPack(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
+  const auth = await authenticateAvatarPackAdmin(prisma, req);
+  if (!auth.ok) {
+    res.status(auth.status).json({ error: auth.error });
+    return;
+  }
+  const parsed = archiveAvatarPackSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid payload', details: parsed.error.issues });
+    return;
+  }
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: 'invalid id' });
+    return;
+  }
+  const pack = await prisma.avatarPack.findUnique({ where: { id }, select: { id: true } });
+  if (!pack) {
+    res.status(404).json({ error: 'not found' });
+    return;
+  }
+  const updated = await prisma.avatarPack.update({
+    where: { id: pack.id },
+    data: { archived: parsed.data.archived },
+  });
+  res.json(updated);
+}
+
 async function handleDeleteAvatarPack(
   prisma: PrismaClient,
   packsDir: string,
@@ -259,16 +293,17 @@ async function handleDeleteAvatarPack(
 export function registerAvatarPackRoutes(app: express.Application, prisma: PrismaClient) {
   const packsDir = process.env.ASSET_PACKS_DIR || path.resolve(__dirname, '../../../../../public/packs');
 
-  const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 },
-  });
+  const upload = uploadParser('avatar');
 
-  app.post('/avatar-packs/upload-sprite', upload.single('file'), (req, res) =>
-    handleSpriteUpload(prisma, packsDir, req, res),
+  app.post(
+    '/avatar-packs/upload-sprite',
+    uploadGuard(prisma, 'avatar'),
+    boundedMultipart(upload.single('file')),
+    (req, res) => handleSpriteUpload(prisma, packsDir, req, res),
   );
   app.get('/avatar-packs', (req, res) => handleListAvatarPacks(prisma, req, res));
   app.get('/avatar-packs/:id', (req, res) => handleGetAvatarPack(prisma, req, res));
   app.post('/avatar-packs', (req, res) => handleCreateAvatarPack(prisma, req, res));
+  app.patch('/avatar-packs/:id/archive', (req, res) => handleArchiveAvatarPack(prisma, req, res));
   app.delete('/avatar-packs/:id', (req, res) => handleDeleteAvatarPack(prisma, packsDir, req, res));
 }

@@ -59,7 +59,7 @@ services:
       db:
         condition: service_healthy
     command: >-
-      sh -lc "npx prisma migrate deploy --schema \"$${PRISMA_SCHEMA}\" && (npx prisma db seed --schema \"$${PRISMA_SCHEMA}\" || true)"
+      sh -lc "node dist/ops/startupCredentials.js && npx prisma migrate deploy --schema \"$${PRISMA_SCHEMA}\" && (npx prisma db seed --schema \"$${PRISMA_SCHEMA}\" || true)"
     restart: 'no'
 
   db:
@@ -98,6 +98,12 @@ services:
     environment:
       NODE_ENV: production
       PORT: 2567
+      # Scrape listener: reachable on the compose network, never published
+      # to the host and never routed through a reverse proxy. Unset the
+      # port to disable it. METRICS_HOST must be the container interface so
+      # a sidecar scraper can connect; the process default is loopback.
+      METRICS_PORT: 9100
+      METRICS_HOST: 0.0.0.0
       TRUST_PROXY: ${TRUST_PROXY:-false}
       # The migrate service ran prisma migrate deploy before the server
       # came up. Skip the entrypoint pass to avoid a redundant migration
@@ -110,7 +116,10 @@ services:
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
       API_TOKEN_PEPPER: ${API_TOKEN_PEPPER:?API_TOKEN_PEPPER is required}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      # Exact origins only, required: the web origin of this deployment, both
+      # desktop origins of the official app and, for the /tools pages, the API
+      # origin itself. See docs/origin-allowlist.md.
+      CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN is required}
       ASSET_PACKS_DIR: /workspace/apps/public/packs
       PRISMA_CLI_QUERY_ENGINE_TYPE: library
       PRISMA_CLIENT_ENGINE_TYPE: library
@@ -189,3 +198,8 @@ services:
     networks:
       - meetropolis
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '50m'
+        max-file: '5'

@@ -146,7 +146,11 @@ export class RemotePlayersManager {
     }
 
     this.loadingAvatars.add(textureKey);
-    avatarRegistry.preloadAvatar(this.scene, avatarId);
+    // A refused protected file (401/403/404) leaves the sprite on its current
+    // texture; clearing the flag lets a later update retry the load.
+    void avatarRegistry.preloadAvatar(this.scene, avatarId).catch(() => {
+      this.loadingAvatars.delete(textureKey);
+    });
 
     // Use per-texture callback to handle simultaneous loads correctly
     this.scene.load.once(`filecomplete-spritesheet-${textureKey}`, () => {

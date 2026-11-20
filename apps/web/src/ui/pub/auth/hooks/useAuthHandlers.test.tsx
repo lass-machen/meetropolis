@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useAuthHandlers } from './useAuthHandlers';
+import { PENDING_INVITE_KEY, inviteHash } from '../../../../lib/pendingInvite';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k }),
@@ -200,5 +201,65 @@ describe('useAuthHandlers — handleRegister (invite join)', () => {
     expect(args.setError).toHaveBeenCalledWith('invite_invalid');
     expect(window.location.hash).toBe('');
     expect(trackSignupMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('useAuthHandlers — pending invite after login', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getTelemetryModuleMock.mockResolvedValue(null);
+    sessionStorage.clear();
+    window.location.hash = '';
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+    window.location.hash = '';
+  });
+
+  it('navigates to the stored invite hash after login when a pending invite exists', async () => {
+    window.location.hash = '#/login';
+    sessionStorage.setItem(PENDING_INVITE_KEY, 'MEET-INV-123456');
+    postMock.mockResolvedValueOnce({ token: null });
+
+    const { result } = renderHook(() => useAuthHandlers(makeArgs()));
+    await result.current.handleLogin('jane@acme.test', 'secret');
+
+    expect(window.location.hash).toBe(inviteHash('MEET-INV-123456'));
+  });
+
+  it('keeps an allowed next hash even when a pending invite is stored', async () => {
+    window.location.hash = '#/login?next=' + encodeURIComponent('#/connect?request=abc_-1');
+    sessionStorage.setItem(PENDING_INVITE_KEY, 'MEET-INV-123456');
+    postMock.mockResolvedValueOnce({ token: null });
+
+    const { result } = renderHook(() => useAuthHandlers(makeArgs()));
+    await result.current.handleLogin('jane@acme.test', 'secret');
+
+    expect(window.location.hash).toBe('#/connect?request=abc_-1');
+  });
+});
+
+describe('useAuthHandlers — handleRegister clears the pending invite', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getTelemetryModuleMock.mockResolvedValue(null);
+    sessionStorage.clear();
+    window.location.hash = '';
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+    window.location.hash = '';
+  });
+
+  it('deletes the stored code after a successful registration', async () => {
+    sessionStorage.setItem(PENDING_INVITE_KEY, 'MEET-INV-123456');
+    postMock.mockResolvedValueOnce({ token: null });
+
+    const { result } = renderHook(() => useAuthHandlers(makeArgs()));
+    await result.current.handleRegister({ name: 'Jane', email: 'jane@acme.test', password: 'x', invite: 'INV' }, '');
+
+    expect(sessionStorage.getItem(PENDING_INVITE_KEY)).toBeNull();
   });
 });

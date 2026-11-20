@@ -21,7 +21,7 @@ command. The committed PNGs are the rendered artifacts.
 Usage:
     python3 tools/og-banner/generate.py \
         --assets apps/web/public/assets \
-        --font apps/web/public/fonts/PressStart2P.woff2 \
+        --font apps/web/public/fonts/PressStart2P-Regular.ttf \
         --copy tools/og-banner/copy.en.json \
         --out /tmp/og.html \
         --generation atelier-v1
@@ -208,13 +208,13 @@ def build(assets: str, font_path: str, copy: dict, generation: str) -> str:
     scene = scene_html(a, generation)
     floor_size = 50 if generation == "legacy" else a["floor"].width * ATELIER_SCALE
     with open(font_path, "rb") as f:
-        font = "data:font/woff2;base64," + base64.b64encode(f.read()).decode()
+        font = "data:font/ttf;base64," + base64.b64encode(f.read()).decode()
 
     claim = f'{copy["claim_pre"]}<span class="accent">{copy["claim_accent"]}</span>{copy["claim_post"]}'
     return f"""<!doctype html>
 <meta charset="utf-8">
 <style>
-@font-face {{ font-family:'Press Start 2P'; src:url('{font}') format('woff2'); font-display:block; }}
+@font-face {{ font-family:'Press Start 2P'; src:url('{font}') format('truetype'); font-display:block; }}
 * {{ margin:0; padding:0; box-sizing:border-box; }}
 html,body {{ width:1200px; height:630px; overflow:hidden; }}
 .og {{ position:relative; width:1200px; height:630px;
@@ -261,7 +261,7 @@ html,body {{ width:1200px; height:630px; overflow:hidden; }}
 def main() -> None:
     p = argparse.ArgumentParser(description="Build the Meetropolis OG/banner HTML.")
     p.add_argument("--assets", required=True, help="OSS asset dir (apps/web/public/assets)")
-    p.add_argument("--font", required=True, help="Press Start 2P woff2 path")
+    p.add_argument("--font", required=True, help="Press Start 2P TTF path")
     p.add_argument("--copy", required=True, help="copy JSON (badge/wordmark/claim_*/sub)")
     p.add_argument("--out", required=True, help="output HTML path")
     p.add_argument(

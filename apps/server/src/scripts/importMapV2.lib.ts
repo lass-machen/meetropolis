@@ -20,6 +20,7 @@ import { acquireMapAdvisoryLock } from '../api/utils/advisoryLocks.js';
 import { importedLayerStorageName, isReservedImportLayer } from '../api/utils/mapLayerPolicy.js';
 import type { MapDb } from '../api/utils/mapChunkMutations.js';
 import { encodeRlePairsToBuffer, rleEncodeBooleans, rleEncodeNumbers, tileRefIdFrom } from '../mapEncoding.js';
+import { assertObjectFootprints, MapCollisionBudget } from '../api/utils/mapObjectWriteLimits.js';
 
 type ImportDb = PrismaClient | MapDb;
 
@@ -357,6 +358,91 @@ function deriveTilePositionFromTiled(obj: TmjObject, tileWidthPx: number, tileHe
   return { tileX, tileY };
 }
 
+type ImportObjectCtx = {
+  prisma: ImportDb;
+  mapId: string;
+  chunkSize: number;
+  tileWidthPx: number;
+  tileHeightPx: number;
+  layer: TmjLayer;
+  tilesets: TmjTileset[];
+  budget: MapCollisionBudget;
+};
+
+async function persistImportedTmjObject(
+  ctx: ImportObjectCtx,
+  obj: TmjObject,
+  seenPacks: Set<string>,
+): Promise<boolean> {
+  const { prisma, mapId, chunkSize, tileWidthPx, tileHeightPx, layer, tilesets, budget } = ctx;
+  const meta = resolveObjectFromProperties(obj);
+  const fallback = deriveTilePositionFromTiled(obj, tileWidthPx, tileHeightPx);
+  const assetPackUuid = meta.assetPackUuid ?? 'unknown-pack';
+  const itemId = meta.itemId ?? obj.name ?? `gid-${obj.gid ?? 0}`;
+  const category = meta.category ?? layer.name?.toLowerCase() ?? 'objects';
+  const tileX = meta.tileX ?? fallback.tileX;
+  const tileY = meta.tileY ?? fallback.tileY;
+  const footprintW = meta.footprintW ?? Math.max(1, Math.round(obj.width / tileWidthPx));
+  const footprintH = meta.footprintH ?? Math.max(1, Math.round(obj.height / tileHeightPx));
+  const collide = meta.collide ?? false;
+  const collisionBaseHeight = meta.collisionBaseHeight ?? 0;
+  const renderLayer = meta.renderLayer === 'floor' || meta.renderLayer === 'overhead' ? meta.renderLayer : 'sorted';
+  const chunkX = Math.floor(tileX / chunkSize);
+  const chunkY = Math.floor(tileY / chunkSize);
+
+  if (assetPackUuid !== 'unknown-pack' && !seenPacks.has(assetPackUuid)) {
+    const exists = await prisma.assetPack.findUnique({ where: { uuid: assetPackUuid } });
+    if (!exists) {
+      console.warn(
+        `[importMapV2] object refers to missing AssetPack '${assetPackUuid}'; importing anyway. Make sure the seed creates the pack first.`,
+      );
+    }
+    seenPacks.add(assetPackUuid);
+  }
+
+  // Determine dataUrl: prefer a path that resolves to the on-disk PNG
+  // for this single-tile object tileset.
+  const dataUrl = resolveObjectDataUrl(obj, tilesets, itemId);
+
+  assertObjectFootprints([{ width: obj.width, height: obj.height, scaleFactor: 1 }], {
+    tileWidth: tileWidthPx,
+    tileHeight: tileHeightPx,
+  });
+  if (collide) {
+    budget.add(
+      { width: obj.width, height: obj.height, scaleFactor: 1 },
+      { tileWidth: tileWidthPx, tileHeight: tileHeightPx },
+    );
+  }
+  await prisma.mapObject.create({
+    data: {
+      mapId,
+      assetPackUuid,
+      itemId,
+      category,
+      tileX,
+      tileY,
+      chunkX,
+      chunkY,
+      width: obj.width,
+      height: obj.height,
+      collide,
+      zIndex: 0,
+      rotation: obj.rotation ?? 0,
+      flipX: false,
+      flipY: false,
+      scaleFactor: 1,
+      dataUrl,
+      collisionBaseHeight,
+      renderLayer,
+    },
+  });
+  // Footprint stays implicit in width/height until a schema column exists.
+  void footprintW;
+  void footprintH;
+  return true;
+}
+
 async function importObjectGroup(
   prisma: ImportDb,
   mapId: string,
@@ -365,7 +451,8 @@ async function importObjectGroup(
   tileHeightPx: number,
   layer: TmjLayer,
   tilesets: TmjTileset[],
-) {
+  budget: MapCollisionBudget,
+): Promise<number> {
   if (!Array.isArray(layer.objects) || layer.objects.length === 0) return 0;
   let created = 0;
 
@@ -375,72 +462,13 @@ async function importObjectGroup(
   // indicates a data bug worth surfacing as a console warning rather
   // than a hard crash.
   const seenPacks = new Set<string>();
+  const ctx: ImportObjectCtx = { prisma, mapId, chunkSize, tileWidthPx, tileHeightPx, layer, tilesets, budget };
 
   for (const obj of layer.objects) {
     // Zones, spawn points and workplace markers are productive TMJ metadata,
     // not rendered MapObjects. Tile objects always carry a positive gid.
     if (!obj.gid || obj.gid <= 0) continue;
-    const meta = resolveObjectFromProperties(obj);
-    const fallback = deriveTilePositionFromTiled(obj, tileWidthPx, tileHeightPx);
-    const assetPackUuid = meta.assetPackUuid ?? 'unknown-pack';
-    const itemId = meta.itemId ?? obj.name ?? `gid-${obj.gid ?? 0}`;
-    const category = meta.category ?? layer.name?.toLowerCase() ?? 'objects';
-    const tileX = meta.tileX ?? fallback.tileX;
-    const tileY = meta.tileY ?? fallback.tileY;
-    const footprintW = meta.footprintW ?? Math.max(1, Math.round(obj.width / tileWidthPx));
-    const footprintH = meta.footprintH ?? Math.max(1, Math.round(obj.height / tileHeightPx));
-    const collide = meta.collide ?? false;
-    const collisionBaseHeight = meta.collisionBaseHeight ?? 0;
-    const renderLayer = meta.renderLayer === 'floor' || meta.renderLayer === 'overhead' ? meta.renderLayer : 'sorted';
-    const chunkX = Math.floor(tileX / chunkSize);
-    const chunkY = Math.floor(tileY / chunkSize);
-
-    if (assetPackUuid !== 'unknown-pack' && !seenPacks.has(assetPackUuid)) {
-      const exists = await prisma.assetPack.findUnique({ where: { uuid: assetPackUuid } });
-      if (!exists) {
-        console.warn(
-          `[importMapV2] object refers to missing AssetPack '${assetPackUuid}'; importing anyway. Make sure the seed creates the pack first.`,
-        );
-      }
-      seenPacks.add(assetPackUuid);
-    }
-
-    // Determine dataUrl: prefer a path that resolves to the on-disk PNG
-    // for this single-tile object tileset.
-    const dataUrl = resolveObjectDataUrl(obj, tilesets, itemId);
-
-    await prisma.mapObject.create({
-      data: {
-        mapId,
-        assetPackUuid,
-        itemId,
-        category,
-        tileX,
-        tileY,
-        chunkX,
-        chunkY,
-        width: obj.width,
-        height: obj.height,
-        collide,
-        zIndex: 0,
-        rotation: obj.rotation ?? 0,
-        flipX: false,
-        flipY: false,
-        scaleFactor: 1,
-        dataUrl,
-        collisionBaseHeight,
-        renderLayer,
-      },
-    });
-    // Update footprint metadata via a follow-up update because the
-    // current MapObject schema stores footprint indirectly via width /
-    // height in pixels. We persist footprint as part of `meta` only if
-    // the schema ever grows the column; for now it is implicit in width
-    // / height. This keeps the seed-time importer working today without
-    // a schema migration.
-    void footprintW;
-    void footprintH;
-    created++;
+    if (await persistImportedTmjObject(ctx, obj, seenPacks)) created++;
   }
   return created;
 }
@@ -495,11 +523,26 @@ export function resolveObjectDataUrl(obj: TmjObject, tilesets: TmjTileset[], ite
   return `/assets/furniture/${group}/${itemId}.png`;
 }
 
-async function importObjectGroups(prisma: ImportDb, mapId: string, tmj: Tmj, chunkSize: number) {
+async function importObjectGroups(
+  prisma: ImportDb,
+  mapId: string,
+  tmj: Tmj,
+  chunkSize: number,
+  budget: MapCollisionBudget,
+) {
   let total = 0;
   for (const layer of tmj.layers) {
     if (layer.type !== 'objectgroup') continue;
-    total += await importObjectGroup(prisma, mapId, chunkSize, tmj.tilewidth, tmj.tileheight, layer, tmj.tilesets);
+    total += await importObjectGroup(
+      prisma,
+      mapId,
+      chunkSize,
+      tmj.tilewidth,
+      tmj.tileheight,
+      layer,
+      tmj.tilesets,
+      budget,
+    );
   }
   return total;
 }
@@ -542,7 +585,8 @@ export async function importTmjIntoMap(
     await rebuildZonesFromTmj(tx, tenantId, map.id, zones);
 
     await importTileLayers(tx, map.id, tmj, chunkSize, gidToTileRefId);
-    const objectsCreated = await importObjectGroups(tx, map.id, tmj, chunkSize);
+    const collisionBudget = new MapCollisionBudget();
+    const objectsCreated = await importObjectGroups(tx, map.id, tmj, chunkSize, collisionBudget);
     await reconcileCollisionTiles(
       tx,
       map.id,

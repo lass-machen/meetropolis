@@ -5,6 +5,7 @@ export type ApiTokenSummary = {
   name?: string | null;
   createdAt: string;
   lastUsedAt?: string | null;
+  scope?: 'read' | 'write';
 };
 
 type UseApiTokensLoaderParams = {

@@ -12,6 +12,7 @@ import { EditorInputHandler } from './EditorInputHandler';
 import { EditorService } from '../../services/EditorService';
 import type { TerrainPaintOp } from '../../services/EditorTypes';
 import { updateCollisionOverlay } from '../collision/overlay';
+import { loadMemberImageElement } from '../../lib/memberImage';
 import type { TileManager } from '../scenes/main/tileManager';
 import type { CollisionManager } from '../scenes/main/collisionManager';
 import type { AutotileGrid, AutotileRenderer } from '../autotile';
@@ -248,34 +249,39 @@ export class EditorIntegration {
           return `${mapV2BaseUrl()}${url}`;
         };
 
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () => reject(new Error('Image load failed'));
-          img.src = resolveUrl(ts.imageUrl);
-        });
+        // Stored pack and npc-media references load with member auth; the
+        // release runs once the tile is drawn (or on the early exits below).
+        const { image: tilesetImage, release: releaseTilesetImage } = await loadMemberImageElement(
+          resolveUrl(ts.imageUrl),
+        );
 
-        if (gen !== this.terrainPreviewGeneration) return;
+        if (gen !== this.terrainPreviewGeneration) {
+          releaseTilesetImage();
+          return;
+        }
 
-        const tw = ts.tileWidth || 16;
-        const th = ts.tileHeight || 16;
-        const margin = ts.margin ?? 0;
-        const spacing = ts.spacing ?? 0;
-        const cols = Math.max(1, Math.floor((img.width - 2 * margin + spacing) / (tw + spacing)));
-        const col = tileIndex % cols;
-        const row = Math.floor(tileIndex / cols);
-        const sx = margin + col * (tw + spacing);
-        const sy = margin + row * (th + spacing);
+        try {
+          const tw = ts.tileWidth || 16;
+          const th = ts.tileHeight || 16;
+          const margin = ts.margin ?? 0;
+          const spacing = ts.spacing ?? 0;
+          const cols = Math.max(1, Math.floor((tilesetImage.width - 2 * margin + spacing) / (tw + spacing)));
+          const col = tileIndex % cols;
+          const row = Math.floor(tileIndex / cols);
+          const sx = margin + col * (tw + spacing);
+          const sy = margin + row * (th + spacing);
 
-        const canvas = document.createElement('canvas');
-        canvas.width = tw;
-        canvas.height = th;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, sx, sy, tw, th, 0, 0, tw, th);
-          const dataUrl = canvas.toDataURL('image/png');
-          this.renderer.renderGhost({ dataUrl, width: tw, height: th });
+          const canvas = document.createElement('canvas');
+          canvas.width = tw;
+          canvas.height = th;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(tilesetImage, sx, sy, tw, th, 0, 0, tw, th);
+            const dataUrl = canvas.toDataURL('image/png');
+            this.renderer.renderGhost({ dataUrl, width: tw, height: th });
+          }
+        } finally {
+          releaseTilesetImage();
         }
       } catch {
         // Silently fail: the terrain ghost is a nice-to-have, not critical.

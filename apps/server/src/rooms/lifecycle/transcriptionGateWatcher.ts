@@ -1,4 +1,4 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { createPrismaClient } from '../../db.js';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { logger } from '../../logger.js';

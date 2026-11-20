@@ -1,3 +1,4 @@
+import type { MoveCorrectionMessage } from '@meetropolis/shared';
 import type { UseWorldRoomArgs } from '../types';
 import { useMapStore } from '../../state/mapStore';
 import { emitSameMapIdentities } from '../../lib/avEvents';
@@ -79,6 +80,31 @@ function syncLocalMapFromServer(localPlayer: { mapId?: string; mapName?: string 
   }
 }
 
+// A client that joined without a position (no saved presence, no move yet)
+// takes over the position the server chose for it. Once localPosRef holds a
+// position, a later full_state (e.g. after a reconnect) leaves the hero alone.
+function placeHeroAtServerPosition(
+  localPlayer: { x?: number; y?: number } | undefined,
+  localPosRef: UseWorldRoomArgs['localPosRef'],
+  gameBridge: UseWorldRoomArgs['gameBridge'],
+): void {
+  if (!localPlayer || typeof localPlayer.x !== 'number' || typeof localPlayer.y !== 'number') return;
+  const current = localPosRef.current;
+  if (typeof current.x === 'number' && typeof current.y === 'number') return;
+  current.x = localPlayer.x;
+  current.y = localPlayer.y;
+  gameBridge.setHeroPosition({ x: localPlayer.x, y: localPlayer.y });
+}
+
+function applyMoveCorrection(args: UseWorldRoomArgs, correction: MoveCorrectionMessage): void {
+  const { currentMapId, isChangingMap } = useMapStore.getState();
+  if (isChangingMap || (currentMapId && currentMapId !== correction.mapId)) return;
+  const { x, y } = correction;
+  args.localPosRef.current.x = x;
+  args.localPosRef.current.y = y;
+  args.gameBridge.setHeroPosition({ x, y });
+}
+
 function applyLocalAvatar(
   avatarId: string,
   gameBridge: UseWorldRoomArgs['gameBridge'],
@@ -126,6 +152,7 @@ function handleFullState(
 
   const localPlayer = data.players.find((p: PlayerStateData) => p.id === localPosRef.current.id);
   syncLocalMapFromServer(localPlayer);
+  placeHeroAtServerPosition(localPlayer, localPosRef, gameBridge);
   if (!ctx.localAvatar.confirmed && localPlayer?.avatarId) {
     applyLocalAvatar(localPlayer.avatarId, gameBridge, ctx.localAvatar);
   }
@@ -371,6 +398,11 @@ export function setupPlayerHandlers(
   room.onMessage('full_state', (data: FullStateMessage) => handleFullState(ctx, options, data));
   room.onMessage('player_joined', (data: PlayerJoinedMessage) => handlePlayerJoined(ctx, data));
   room.onMessage('player_moved', (data: PlayerMovedMessage) => handlePlayerMoved(ctx, data));
+  room.onMessage('move_correction', (data: MoveCorrectionMessage) => applyMoveCorrection(args, data));
+  room.onMessage('map_changed', ({ x, y }: { x: number; y: number }) => {
+    args.localPosRef.current.x = x;
+    args.localPosRef.current.y = y;
+  });
   room.onMessage('player_left', (data: PlayerLeftMessage) => handlePlayerLeft(ctx, data));
   room.onMessage('player_dnd', (data: PlayerDndMessage) => handlePlayerDnd(ctx, data));
   room.onMessage('player_avatar', (data: PlayerAvatarMessage) => handlePlayerAvatar(ctx, data));

@@ -29,11 +29,11 @@ function applyPendingObjectDelete(
       ...updatedPending,
       objectsToAdd: updatedPending.objectsToAdd.filter((o) => String(o.id) !== String(action.objectId)),
     };
-    const targetX = objToDelete.tileX * TILE_SIZE;
-    const targetY = objToDelete.tileY * TILE_SIZE;
-    const assetToRemove = state.assets.find((a) => a.x === targetX && a.y === targetY);
-    if (assetToRemove) {
-      updatedAssets = state.assets.filter((a) => a.id !== assetToRemove.id);
+    // Remove only the exactly matching asset, via the
+    // client instance reference stored on creation, not via the tile position.
+    const assetId = objToDelete.clientAssetId;
+    if (assetId !== undefined) {
+      updatedAssets = state.assets.filter((a) => a.id !== assetId);
     }
   } else {
     updatedPending = { ...updatedPending, objectsToDelete: [...updatedPending.objectsToDelete, action.objectId] };
@@ -86,6 +86,7 @@ function applyClearPendingChanges(state: EditorState): Partial<EditorState> {
       objectUpdates: [],
       zonesModified: false,
       spawnUpdate: null,
+      spawnRemoved: false,
     },
   };
 }
@@ -129,7 +130,11 @@ export function reduceObject(state: EditorState, action: ObjectActions): Partial
     case 'SET_PENDING_SPAWN':
       return {
         spawn: { x: action.x, y: action.y },
-        pendingChanges: { ...state.pendingChanges, spawnUpdate: { x: action.x, y: action.y } },
+        pendingChanges: {
+          ...state.pendingChanges,
+          spawnUpdate: { x: action.x, y: action.y },
+          spawnRemoved: false,
+        },
       };
     case 'CLEAR_PENDING_CHANGES':
       return applyClearPendingChanges(state);

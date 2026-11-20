@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createRoot } from 'react-dom/client';
 import { Plug, Timer, TriangleAlert } from 'lucide-react';
 import i18n from '../../app/providers/i18n';
+import { getDesktopModule, isDesktopEnvironment } from '../../lib/desktopLoader';
 import { getEnterpriseWebModule } from '../../lib/enterpriseWebLoader';
 import type { TranscriptionConsentGateProps } from '../../lib/enterpriseWebLoader';
 
@@ -25,7 +26,7 @@ export function showGuestExpiredOverlay(apiBase: string): void {
     const host = document.createElement('div');
     host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;';
     host.innerHTML = `
-      <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(239,68,68,0.5);background:rgba(239,68,68,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
+      <div style="min-width:min(320px, calc(100vw - 82px));max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(239,68,68,0.5);background:rgba(239,68,68,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
         <div style="display:flex;justify-content:center;margin-bottom:12px;">${TIMER_ICON_SVG}</div>
         <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('realtime.guestExpired.title')}</div>
         <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">${i18n.t('realtime.guestExpired.description')}</div>
@@ -62,7 +63,7 @@ export function showAuthExpiredOverlay(apiBase: string): void {
     const host = document.createElement('div');
     host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;';
     host.innerHTML = `
-      <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(239,68,68,0.5);background:rgba(239,68,68,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
+      <div style="min-width:min(320px, calc(100vw - 82px));max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(239,68,68,0.5);background:rgba(239,68,68,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
         <div style="display:flex;justify-content:center;margin-bottom:12px;">${TIMER_ICON_SVG}</div>
         <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('realtime.authExpired.title')}</div>
         <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">${i18n.t('realtime.authExpired.description')}</div>
@@ -94,15 +95,28 @@ export function showAuthExpiredOverlay(apiBase: string): void {
 // see rooms/lifecycle/onAuth.ts). Should not happen for an up-to-date OSS
 // build (colyseus.ts always sends the current constant); guards against an
 // endless reconnect loop if it ever does (e.g. a stale cached bundle).
-export function showClientTooOldOverlay(): void {
+export function showClientTooOldOverlay(options?: { assetUpdate?: boolean }): void {
   try {
+    const titleKey = options?.assetUpdate ? 'assetUpdate.title' : 'realtime.clientTooOld.title';
+    let descriptionKey = options?.assetUpdate ? 'assetUpdate.description' : 'realtime.clientTooOld.description';
+    if (options?.assetUpdate) {
+      if (isDesktopEnvironment()) {
+        // Trigger the desktop app's own update check right away so its
+        // existing update banner appears; older builds lack the function.
+        void getDesktopModule()
+          .then((desktopModule) => desktopModule?.checkForDesktopUpdate?.())
+          .catch(() => {});
+      } else {
+        descriptionKey = 'assetUpdate.reloadDescription';
+      }
+    }
     const host = document.createElement('div');
     host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;';
     host.innerHTML = `
-      <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(239,68,68,0.5);background:rgba(239,68,68,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
+      <div style="min-width:min(320px, calc(100vw - 82px));max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(239,68,68,0.5);background:rgba(239,68,68,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
         <div style="display:flex;justify-content:center;margin-bottom:12px;">${ALERT_ICON_SVG}</div>
-        <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('realtime.clientTooOld.title')}</div>
-        <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">${i18n.t('realtime.clientTooOld.description')}</div>
+        <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t(titleKey)}</div>
+        <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">${i18n.t(descriptionKey)}</div>
         <button data-client-too-old-ok style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent,#3b82f6);color:white;cursor:pointer;font-weight:600;">${i18n.t('realtime.clientTooOld.button')}</button>
       </div>`;
     document.body.appendChild(host);
@@ -125,7 +139,7 @@ export function showSessionTakenOverOverlay(): void {
     host.style.cssText =
       'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
     host.innerHTML = `
-      <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(234,88,12,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;">
+      <div style="min-width:min(320px, calc(100vw - 82px));max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(234,88,12,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;">
         <div style="display:flex;justify-content:center;margin-bottom:12px;">${PLUG_ICON_SVG}</div>
         <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('sessionConflict.takenOver.title')}</div>
         <div style="font-size:14px;color:#94a3b8;margin-bottom:20px;">${i18n.t('sessionConflict.takenOver.description')}</div>
@@ -185,7 +199,7 @@ export function showLimitErrorOverlay(code: number | undefined, text: string, on
     const host = document.createElement('div');
     host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;';
     host.innerHTML = `
-      <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(234,88,12,0.5);background:rgba(234,88,12,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
+      <div style="min-width:min(320px, calc(100vw - 82px));max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(234,88,12,0.5);background:rgba(234,88,12,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
         <div style="display:flex;justify-content:center;margin-bottom:12px;">${ALERT_ICON_SVG}</div>
         <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${title}</div>
         <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">${description}</div>
@@ -234,6 +248,6 @@ export function showTranscriptionConsentOverlay(props: TranscriptionConsentGateP
       return;
     }
 
-    host.innerHTML = `<div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(148,163,184,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;font-size:14px;">${i18n.t('connection.transcriptionConsentRequired')}</div>`;
+    host.innerHTML = `<div style="min-width:min(320px, calc(100vw - 82px));max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(148,163,184,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;font-size:14px;">${i18n.t('connection.transcriptionConsentRequired')}</div>`;
   });
 }

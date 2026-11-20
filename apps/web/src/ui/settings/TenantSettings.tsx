@@ -33,6 +33,7 @@ export function TenantSettings({
     saving,
     error,
     success,
+    setError,
     setSuccess,
     handleChangeRole,
     handleRemoveMember,
@@ -88,6 +89,7 @@ export function TenantSettings({
             }}
             onInvite={handleInvite}
             onSuccess={setSuccess}
+            onError={setError}
             onResetPassword={handleResetPassword}
             onEditMember={handleEditMember}
           />

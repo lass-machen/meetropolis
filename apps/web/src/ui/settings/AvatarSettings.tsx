@@ -1,7 +1,12 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { DEFAULT_AVATARS, fallbackAvatarSpriteUrl } from '../../lib/defaultAvatars';
+import { useMemberAsset } from '../../hooks/useMemberAsset';
+import { loadMemberImageElement } from '../../lib/memberImage';
+import { isMemberAssetRef } from '../../lib/memberAssets';
 import { logger } from '../../lib/logger';
+import { Alert, Button } from '../system';
 
 function resolveUrl(url: string): string {
   if (url.startsWith('/')) return `${getApiBaseFromWindow()}${url}`;
@@ -71,62 +76,89 @@ function mapPackToAvatars(packs: unknown): AvatarOption[] {
 function useAvatarOptions(apiBase: string) {
   const [avatars, setAvatars] = React.useState<AvatarOption[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [loadFailed, setLoadFailed] = React.useState(false);
 
-  React.useEffect(() => {
-    const fetchAvatars = async () => {
-      try {
-        const res = await fetch(`${apiBase}/avatar-packs`, { credentials: 'include' });
-        if (res.ok) {
-          const packs = (await res.json()) as unknown;
-          const list = mapPackToAvatars(packs);
-          if (list.length === 0) list.push(DEFAULT_AVATAR);
-          setAvatars(list);
-        }
-      } catch (err) {
-        logger.warn('[AvatarSettings] Failed to fetch avatar packs:', err);
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setLoadFailed(false);
+    try {
+      const res = await fetch(`${apiBase}/avatar-packs`, { credentials: 'include' });
+      if (!res.ok) {
+        setLoadFailed(true);
         setAvatars([DEFAULT_AVATAR]);
-      } finally {
-        setLoading(false);
+        return;
       }
-    };
-    void fetchAvatars();
+      const packs = (await res.json()) as unknown;
+      const list = mapPackToAvatars(packs);
+      if (list.length === 0) list.push(DEFAULT_AVATAR);
+      setAvatars(list);
+    } catch (err) {
+      logger.warn('[AvatarSettings] Failed to fetch avatar packs:', err);
+      setLoadFailed(true);
+      setAvatars([DEFAULT_AVATAR]);
+    } finally {
+      setLoading(false);
+    }
   }, [apiBase]);
 
-  return { avatars, loading };
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { avatars, loading, loadFailed, retry: load };
 }
 
 export function AvatarSettings({ currentAvatarId, onAvatarChange }: AvatarSettingsProps) {
+  const { t } = useTranslation();
   const apiBase = getApiBaseFromWindow();
-  const { avatars, loading } = useAvatarOptions(apiBase);
+  const { avatars, loading, loadFailed, retry } = useAvatarOptions(apiBase);
 
   if (loading) {
-    return <div style={styles.loading}>Loading avatars...</div>;
+    return <div style={styles.loading}>{t('avatarSettings.loading')}</div>;
   }
 
   return (
-    <div style={styles.grid}>
-      {avatars.map((av) => (
-        <button
-          key={av.id}
-          type="button"
-          onClick={() => onAvatarChange(av.id)}
-          style={{
-            ...styles.card,
-            ...(av.id === currentAvatarId ? styles.cardSelected : {}),
-          }}
-          title={av.displayName}
-        >
-          <AvatarPreview
-            spriteUrl={av.spriteUrl}
-            frameWidth={av.frameWidth}
-            frameHeight={av.frameHeight}
-            idleRow={av.idleRow}
-            {...(av.previewUrl != null ? { previewUrl: av.previewUrl } : {})}
-          />
-          <div style={styles.cardLabel}>{av.displayName}</div>
-        </button>
-      ))}
-    </div>
+    <>
+      {loadFailed && (
+        <div>
+          <Alert intent="error" style={{ marginBottom: 12 }}>
+            {t('avatarSettings.loadFailed')}
+          </Alert>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              void retry();
+            }}
+          >
+            {t('avatarSettings.retry')}
+          </Button>
+        </div>
+      )}
+      <div style={styles.grid}>
+        {avatars.map((av) => (
+          <button
+            key={av.id}
+            type="button"
+            onClick={() => onAvatarChange(av.id)}
+            style={{
+              ...styles.card,
+              ...(av.id === currentAvatarId ? styles.cardSelected : {}),
+            }}
+            title={av.displayName}
+          >
+            <AvatarPreview
+              spriteUrl={av.spriteUrl}
+              frameWidth={av.frameWidth}
+              frameHeight={av.frameHeight}
+              idleRow={av.idleRow}
+              {...(av.previewUrl != null ? { previewUrl: av.previewUrl } : {})}
+            />
+            <div style={styles.cardLabel}>{av.displayName}</div>
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -144,7 +176,10 @@ function AvatarPreview({
   previewUrl?: string;
 }) {
   if (previewUrl) {
-    return <img src={resolveUrl(previewUrl)} alt="Avatar preview" style={styles.preview} />;
+    if (!isMemberAssetRef(previewUrl)) {
+      return <img src={resolveUrl(previewUrl)} alt="Avatar preview" style={styles.preview} />;
+    }
+    return <MemberPreviewImage previewUrl={previewUrl} />;
   }
 
   return (
@@ -154,6 +189,21 @@ function AvatarPreview({
       frameHeight={frameHeight}
       idleRow={idleRow}
     />
+  );
+}
+
+// Stored member previews (/packs/..., /npc-media/...) load with member auth.
+// While loading or after a failure (401/403/404) the box keeps the preview
+// size with a question mark instead of a broken image icon.
+function MemberPreviewImage({ previewUrl }: { previewUrl: string }) {
+  const asset = useMemberAsset(previewUrl);
+  if (asset.status === 'ready' && asset.src) {
+    return <img src={asset.src} alt="Avatar preview" style={styles.preview} />;
+  }
+  return (
+    <div style={{ ...styles.preview, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {asset.status === 'error' ? '?' : null}
+    </div>
   );
 }
 
@@ -179,30 +229,47 @@ function AvatarPreviewCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const img = new Image();
-    img.onload = () => {
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.imageSmoothingEnabled = false;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      // Source crop and destination share the frame size, so the sprite is
-      // scaled to the display box by CSS at its true aspect ratio.
-      ctx.drawImage(img, 0, idleRow * frameHeight, frameWidth, frameHeight, 0, 0, canvas.width, canvas.height);
+    // Stored member sheets load with member auth; bundled and local data
+    // pass through the helper untouched. A late result after unmount or a
+    // prop change is released at once and never drawn.
+    const controller = new AbortController();
+    let cancelled = false;
+    let release: (() => void) | null = null;
+    void loadMemberImageElement(spriteUrl, { signal: controller.signal }).then(
+      ({ image, release: releaseHandle }) => {
+        if (cancelled) {
+          releaseHandle();
+          return;
+        }
+        release = releaseHandle;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.imageSmoothingEnabled = false;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Source crop and destination share the frame size, so the sprite is
+        // scaled to the display box by CSS at its true aspect ratio.
+        ctx.drawImage(image, 0, idleRow * frameHeight, frameWidth, frameHeight, 0, 0, canvas.width, canvas.height);
+      },
+      () => {
+        if (cancelled) return;
+        logger.warn(`[AvatarPreviewCanvas] Failed to load sprite: ${spriteUrl}`);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#555';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 28px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('?', canvas.width / 2, canvas.height / 2);
+      },
+    );
+    return () => {
+      cancelled = true;
+      controller.abort();
+      release?.();
     };
-    img.onerror = () => {
-      logger.warn(`[AvatarPreviewCanvas] Failed to load sprite: ${spriteUrl}`);
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#555';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 28px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('?', canvas.width / 2, canvas.height / 2);
-    };
-    img.src = spriteUrl;
   }, [spriteUrl, frameWidth, frameHeight, idleRow]);
 
   return (

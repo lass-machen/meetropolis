@@ -7,8 +7,15 @@ import { ConnectionBanners } from './ConnectionBanners';
 import { AdminOverlay } from '../../../ui/admin/AdminOverlay';
 import { MapSwitcher } from '../../../ui/hud/MapSwitcher';
 import { getEnterpriseWebModule } from '../../../lib/enterpriseWebLoader';
+import { acquireMemberAsset } from '../../../lib/memberAssets';
 
-type PackStoreProps = { apiBase: string; open: boolean; onOpenChange: (v: boolean) => void };
+type PackStoreProps = {
+  apiBase: string;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  /** Loads a protected pack file and returns a displayable URL; release it when done. */
+  acquireAsset?: (ref: string, opts?: { signal?: AbortSignal }) => Promise<{ url: string; release: () => void }>;
+};
 
 const PackStoreFallback: React.ComponentType<PackStoreProps> = () => null;
 
@@ -297,7 +304,12 @@ export function WorldMainView(props: WorldMainViewProps) {
         <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} capabilities={capabilities} />
       )}
       <React.Suspense fallback={null}>
-        <PackStoreLazy apiBase={apiBase} open={packStoreOpen} onOpenChange={setPackStoreOpen} />
+        <PackStoreLazy
+          apiBase={apiBase}
+          open={packStoreOpen}
+          onOpenChange={setPackStoreOpen}
+          acquireAsset={acquireMemberAsset}
+        />
       </React.Suspense>
       {!editor.active && (
         <div style={{ position: 'absolute', bottom: 70, left: 12, zIndex: 30 }}>

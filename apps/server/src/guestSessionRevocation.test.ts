@@ -15,6 +15,9 @@
  * Every test therefore asserts against `validateSessionToken` — the function
  * the world join calls — with real timers and no TTL advance: revocation has to
  * bite NOW, not in 30 seconds.
+ *
+ * The admin revocation is covered against a real database in
+ * api/routes/guestRevocation.integration.test.ts.
  */
 import express from 'express';
 import request from 'supertest';
@@ -22,7 +25,19 @@ import jwt from 'jsonwebtoken';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const SECRET = 'guest-revocation-test-secret';
-const TENANT = { id: 'tenant-1', slug: 'acme', name: 'Acme' };
+const TENANT: Tenant = {
+  id: 'tenant-1',
+  slug: 'acme',
+  name: 'Acme',
+  concurrentLimit: 50,
+  freeSeats: 3,
+  bypassLimits: false,
+  isInternal: false,
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  defaultMapName: 'office',
+  publicRegistrationEnabled: true,
+};
 const GUEST_USER = 'guest-user-1';
 const ADMIN_USER = 'admin-user-1';
 
@@ -64,6 +79,7 @@ const db = vi.hoisted(() => {
     if (typeof where.id === 'string' && row.id !== where.id) return false;
     if (typeof where.tenantId === 'string' && row.tenantId !== where.tenantId) return false;
     if (typeof where.userId === 'string' && row.userId !== where.userId) return false;
+    if (Array.isArray(where.userId?.in) && !where.userId.in.includes(row.userId)) return false;
     if (typeof where.role === 'string' && row.role !== where.role) return false;
     if (where.expiresAt?.lt) {
       if (!row.expiresAt || row.expiresAt.getTime() >= where.expiresAt.lt.getTime()) return false;
@@ -87,6 +103,14 @@ const db = vi.hoisted(() => {
   const prisma = {
     session: {
       findUnique: ({ where }: any) => Promise.resolve(sessions.find((r) => r.tokenHash === where.tokenHash) ?? null),
+      findMany: ({ where }: any) =>
+        Promise.resolve(
+          sessions.filter((r) => {
+            if (Array.isArray(where?.id?.in) && !where.id.in.includes(r.id)) return false;
+            if (where?.expiresAt?.gt && !(r.expiresAt.getTime() > where.expiresAt.gt.getTime())) return false;
+            return true;
+          }),
+        ),
       update: ({ where, data }: any) => {
         const row = sessions.find((r) => r.id === where.id);
         if (row) Object.assign(row, data);
@@ -128,11 +152,11 @@ vi.mock('./emailLoader.js', () => ({ sendIfAvailable: vi.fn() }));
 import { hashSessionToken, validateSessionToken } from './api/utils/sessionAuth.js';
 import { clearSessionCache, getCachedSession } from './api/utils/sessionCache.js';
 import { setAuthResolution } from './api/utils/authState.js';
-import { registerGuestRoutes } from './api/routes/guests.js';
 import { guestExpiryMiddleware } from './api/middleware/guestExpiry.js';
 import { startGuestExpiryInterval } from './rooms/lifecycle/guestExpiry.js';
+import { createWorldAccess } from './rooms/lifecycle/worldAccess.js';
 import type { WorldRoom } from './rooms/WorldRoom.js';
-import type { PrismaClient } from './generated/prisma/index.js';
+import type { PrismaClient, Tenant } from './generated/prisma/index.js';
 
 const prisma = db.prisma as unknown as PrismaClient;
 
@@ -169,48 +193,6 @@ beforeEach(() => {
   );
   clearSessionCache();
   vi.clearAllMocks();
-});
-
-describe('admin revoke (DELETE /guests/:membershipId)', () => {
-  function makeApp(): express.Application {
-    const app = express();
-    app.use(express.json());
-    app.use((req, _res, next) => {
-      req.tenant = TENANT;
-      setAuthResolution(req, {
-        auth: { userId: ADMIN_USER, tenantId: TENANT.id, sessionId: 'admin-sess', tokenHash: 'admin-hash' },
-      });
-      next();
-    });
-    registerGuestRoutes(app, prisma);
-    return app;
-  }
-
-  it('a revoked guest cannot authenticate any more — not even from the warm cache', async () => {
-    const token = seedSession(GUEST_USER);
-    await warmCache(token);
-
-    const res = await request(makeApp()).delete('/guests/m-guest');
-    expect(res.status).toBe(200);
-
-    // Rows gone AND cache dropped. The row check alone was already true while
-    // the hole was open; the cache check is the regression guard.
-    expect(db.sessions.filter((s) => s.userId === GUEST_USER)).toHaveLength(0);
-    expect(getCachedSession(hashSessionToken(token))).toBeNull();
-    // This is the call rooms/lifecycle/onAuth.ts makes on a world join.
-    await expect(validateSessionToken(prisma, token)).resolves.toBeNull();
-  });
-
-  it('leaves another user’s session alone', async () => {
-    const guestToken = seedSession(GUEST_USER);
-    const adminToken = seedSession(ADMIN_USER);
-    await warmCache(guestToken);
-    await warmCache(adminToken);
-
-    await request(makeApp()).delete('/guests/m-guest');
-
-    await expect(validateSessionToken(prisma, adminToken)).resolves.not.toBeNull();
-  });
 });
 
 describe('guestExpiryMiddleware (REST)', () => {
@@ -255,13 +237,42 @@ describe('guestExpiryMiddleware (REST)', () => {
 });
 
 describe('room guest-expiry sweep', () => {
-  function makeRoom(players: Map<string, { identity: string }>, clients: unknown[]): WorldRoom {
-    return {
+  /** Database session row id behind a seeded token, as onAuth would store it. */
+  function sessionRowId(token: string): string {
+    const row = db.sessions.find((s) => s.tokenHash === hashSessionToken(token));
+    if (!row) throw new Error('test setup: session row missing');
+    return row.id;
+  }
+
+  function makeRoom(
+    players: Map<string, { identity: string }>,
+    clients: unknown[],
+    sessionIds: Map<string, string>,
+  ): WorldRoom {
+    // The sweep reads each session's verified tenant from the registry, never
+    // the room slug: every player here was verified for this tenant at join time.
+    // The bundled session check needs each entry's database session row, as a
+    // real join via onAuth would store it.
+    const room = {
       metadata: { tenant: TENANT.slug },
       prismaForPresence: prisma,
       state: { players },
       clients,
     } as unknown as WorldRoom;
+    room.worldAccess = createWorldAccess(room);
+    for (const [sessionId, player] of players) {
+      const rowId = sessionIds.get(sessionId);
+      room.worldAccess.register(sessionId, {
+        identity: player.identity,
+        tenantId: TENANT.id,
+        tenantSlug: TENANT.slug,
+        sessionId: rowId ?? null,
+        authSessionId: rowId,
+        isNpc: false,
+        zonePrivacyVersion: 1,
+      });
+    }
+    return room;
   }
 
   /**
@@ -290,7 +301,8 @@ describe('room guest-expiry sweep', () => {
     const leave = vi.fn();
     const error = vi.fn();
     const players = new Map([['sess-a', { identity: GUEST_USER }]]);
-    await runOneSweep(makeRoom(players, [{ sessionId: 'sess-a', leave, error }]));
+    const sessionIds = new Map([['sess-a', sessionRowId(token)]]);
+    await runOneSweep(makeRoom(players, [{ sessionId: 'sess-a', leave, error }], sessionIds));
 
     // Kicked from the room …
     expect(error).toHaveBeenCalledWith(4006, 'guest_expired');
@@ -307,7 +319,8 @@ describe('room guest-expiry sweep', () => {
 
     const leave = vi.fn();
     const players = new Map([['sess-a', { identity: GUEST_USER }]]);
-    await runOneSweep(makeRoom(players, [{ sessionId: 'sess-a', leave, error: vi.fn() }]));
+    const sessionIds = new Map([['sess-a', sessionRowId(token)]]);
+    await runOneSweep(makeRoom(players, [{ sessionId: 'sess-a', leave, error: vi.fn() }], sessionIds));
 
     expect(leave).not.toHaveBeenCalled();
     await expect(validateSessionToken(prisma, token)).resolves.not.toBeNull();

@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ApiTokensOverlay } from './ApiTokensOverlay';
 
 vi.mock('react-i18next', () => ({
@@ -231,7 +231,7 @@ describe('ApiTokensOverlay create', () => {
     expect(await screen.findByText('fresh')).toBeTruthy();
     expect(screen.getByPlaceholderText<HTMLInputElement>('admin.api.newTokenPlaceholder').value).toBe('');
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
-    expect(JSON.parse(post![1]!.body as string)).toEqual({ name: 'fresh' });
+    expect(JSON.parse(post![1]!.body as string)).toEqual({ name: 'fresh', scope: 'read' });
   });
 
   it('shows an error and no secret when creation is rejected, and does not reload', async () => {
@@ -382,5 +382,74 @@ describe('ApiTokensOverlay late responses', () => {
     await act(async () => {});
 
     expect(state()).toEqual({ tokens: 0, name: '', fresh: null });
+  });
+});
+
+describe('ApiTokensOverlay token scope', () => {
+  it('preselects the read scope in the create form', async () => {
+    stubApi({ list: [{ ok: true, body: [] }] });
+    render(<Harness />);
+    await screen.findByText('admin.api.createToken');
+
+    expect(screen.getByText('admin.api.scope')).toBeTruthy();
+    const readOption = screen.getByRole('radio', { name: 'admin.api.scopeRead' });
+    const writeOption = screen.getByRole('radio', { name: 'admin.api.scopeWrite' });
+    expect((readOption as HTMLInputElement).checked).toBe(true);
+    expect((writeOption as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('sends the read scope when creating without changing the selection', async () => {
+    const fetchMock = stubApi({
+      list: [
+        { ok: true, body: [] },
+        { ok: true, body: [] },
+      ],
+      post: { ok: true, body: { token: 'SECRET123', id: 't2' } },
+    });
+    render(<Harness />);
+    fireEvent.click(await screen.findByText('admin.api.createToken'));
+
+    await screen.findByText('SECRET123');
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
+    expect(JSON.parse(post![1]!.body as string).scope).toBe('read');
+  });
+
+  it('sends the write scope after selecting it', async () => {
+    const fetchMock = stubApi({
+      list: [
+        { ok: true, body: [] },
+        { ok: true, body: [] },
+      ],
+      post: { ok: true, body: { token: 'SECRET123', id: 't2' } },
+    });
+    render(<Harness />);
+    await screen.findByText('admin.api.createToken');
+    fireEvent.click(screen.getByRole('radio', { name: 'admin.api.scopeWrite' }));
+    fireEvent.click(screen.getByText('admin.api.createToken'));
+
+    await screen.findByText('SECRET123');
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
+    expect(JSON.parse(post![1]!.body as string).scope).toBe('write');
+  });
+
+  it('shows the scope of each listed token', async () => {
+    stubApi({
+      list: [
+        {
+          ok: true,
+          body: [
+            { id: 't-read', name: 'read-token', createdAt: '2026-01-01T00:00:00.000Z', scope: 'read' },
+            { id: 't-write', name: 'write-token', createdAt: '2026-01-01T00:00:00.000Z', scope: 'write' },
+          ],
+        },
+      ],
+    });
+    render(<Harness />);
+
+    // The create form uses the same labels, so look inside each token entry.
+    const readEntry = (await screen.findByText('read-token')).parentElement!;
+    const writeEntry = screen.getByText('write-token').parentElement!;
+    expect(within(readEntry).getByText('admin.api.scopeRead')).toBeTruthy();
+    expect(within(writeEntry).getByText('admin.api.scopeWrite')).toBeTruthy();
   });
 });

@@ -93,6 +93,11 @@ export function buildAtelierCatalog(input: unknown): SpriteCatalog {
   const catalog = structuredClone(input) as SpriteCatalog;
   delete (catalog as Partial<SpriteCatalog>).variants;
   catalog.schema = CATALOG_SCHEMA_V6;
+  (catalog as SpriteCatalog & { notice: string }).notice =
+    'Generated via tools/asset-lab (buildAtelierCatalog) from the existing catalog plus Atelier raster additions. ' +
+    'Pixel basis: tools/sprite-generator. Tiamat UG holds the copyright in both the Python generator and this output; ' +
+    'this generated file is licensed under MIT, consistent with @meetropolis/shared. The Python generator remains ' +
+    'AGPL-3.0-only. See packages/shared/sprite/NOTICE.';
   addAccessories(catalog);
   catalog.palettes.beard = {
     ...(catalog.palettes.beard as Record<string, Record<string, string>>),

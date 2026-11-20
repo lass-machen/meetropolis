@@ -12,6 +12,8 @@ apps/server/prisma/schema.composed.prisma
 
 # Vendor / third-party assets
 apps/web/public/
+# Verbatim third-party license texts, bound by sha256 in compliance/dependency-evidence.json
+compliance/licenses/
 apps/web/src-tauri/
 
 # Standalone HTML editors (haben eigenes inline-JS-Format, nicht prettier-tauglich)
@@ -46,3 +48,6 @@ build_output.txt
 packages/brand/
 packages/desktop/
 packages/tenancy-enterprise/
+
+# Local editor settings
+.codex/

@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/assets/banner.png" alt="Meetropolis — the office that stays. Self-hosted virtual office with spatial audio, video and a 2D world for remote teams." width="100%">
-</p>
-
 # Meetropolis
 
 An open-source virtual office platform for remote teams. Proximity-based
@@ -9,7 +5,7 @@ spatial audio/video, a live 2D world built on Phaser, and a real-time
 multi-user engine powered by Colyseus.
 
 [![CI](https://github.com/lass-machen/meetropolis/actions/workflows/ci.yml/badge.svg)](https://github.com/lass-machen/meetropolis/actions/workflows/ci.yml)
-![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)
+![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Node](https://img.shields.io/badge/Node-24-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.x-blue.svg)
@@ -46,6 +42,9 @@ in `.env.example` on purpose — `compose.yaml` refuses to start
 (`:?required`) until you set them, so generate and fill them in
 **before** the first `docker compose up`, not after a failed start.
 
+Set `PUBLIC_BASE_URL` to the absolute public URL of the web app (for example `https://meet.example.com`). It is the only base for invitation, guest, email-verification, password-reset and welcome links. Without a usable value the server logs a warning at startup and refuses to create those links (`public_base_url_missing`) instead of handing out a broken one. A loopback or `*.localhost` base is accepted only with `PUBLIC_BASE_URL_ALLOW_LOOPBACK=true`, for a local try-out on `http://localhost:5173`; never set that flag in production.
+**Breaking change:** earlier versions fell back to relative links, to `BILLING_PUBLIC_URL` or to the request origin or host. These fallbacks are gone, so set `PUBLIC_BASE_URL` before upgrading.
+
 `compose.yaml` ships no reverse proxy and no TLS terminator — you are
 expected to put your own (Traefik, Caddy, nginx, etc.) in front of the
 server and web containers for production. See `## Production deployment`
@@ -64,6 +63,8 @@ override or in the (private) deploy repo.
 ### Local development without Docker
 
 Requires a running PostgreSQL instance. Configure `DATABASE_URL` in `.env`.
+
+Set `NPC_MEDIA_DIR` to a writable directory (for example `./.data/npc-media`); its default `/data/npc-media` is meant for the Docker volume, and the server logs `npc_media.dir_unavailable` if it cannot create it.
 
 ```bash
 npm install
@@ -166,17 +167,21 @@ boundaries; the OSS build runs fully without them.
 
 Copy `.env.example` to `.env`. Key variables:
 
-| Variable             | Description                                           |
-| -------------------- | ----------------------------------------------------- |
-| `DATABASE_URL`       | PostgreSQL connection string                          |
-| `JWT_SECRET`         | JWT signing secret (32+ chars in production)          |
-| `LIVEKIT_URL`        | LiveKit server URL                                    |
-| `LIVEKIT_API_KEY`    | LiveKit API key                                       |
-| `LIVEKIT_API_SECRET` | LiveKit API secret                                    |
-| `HOST_IP`            | Host LAN IP for LiveKit ICE (Docker Desktop on macOS) |
-| `CORS_ORIGIN`        | Allowed CORS origins (required in production)         |
-| `VITE_API_BASE`      | Server URL baked into the web bundle at _build_ time  |
-| `VITE_LIVEKIT_URL`   | LiveKit URL baked into the web bundle at _build_ time |
+| Variable             | Description                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `DATABASE_URL`       | PostgreSQL connection string                                                             |
+| `JWT_SECRET`         | JWT signing secret (32+ chars in production)                                             |
+| `LIVEKIT_URL`        | LiveKit server URL                                                                       |
+| `LIVEKIT_API_KEY`    | LiveKit API key                                                                          |
+| `LIVEKIT_API_SECRET` | LiveKit API secret                                                                       |
+| `HOST_IP`            | Host LAN IP for LiveKit ICE (Docker Desktop on macOS)                                    |
+| `CORS_ORIGIN`        | Exact list of allowed browser origins (required)                                         |
+| `PUBLIC_BASE_URL`    | Absolute public web app URL used for shareable links                                     |
+| `METRICS_PORT`       | Optional scrape listener; unset disables it                                              |
+| `METRICS_HOST`       | Bind address for that listener (default loopback)                                        |
+| `VITE_API_BASE`      | Server URL baked into the web bundle at _build_ time                                     |
+| `VITE_LIVEKIT_URL`   | LiveKit URL baked into the web bundle at _build_ time                                    |
+| `NPC_MEDIA_DIR`      | Storage directory for NPC media, shared with the npc service (default `/data/npc-media`) |
 
 See `.env.example` for the full list including optional variables.
 
@@ -282,9 +287,7 @@ Before deploying for your team or customers:
 2. Provide your own legal pages (`/privacy`, `/terms`, `/impressum`). The
    default build renders neutral placeholders.
 3. Update the HTML title and meta description in `apps/web/index.html`.
-4. Configure your own analytics tracking (`VITE_META_PIXEL_ID`) or leave it
-   disabled.
-5. Review and adjust source strings that reference "Meetropolis" if you
+4. Review and adjust source strings that reference "Meetropolis" if you
    intend to publish a derivative product (see [TRADEMARKS.md](TRADEMARKS.md)).
 
 ## API tokens
@@ -292,8 +295,8 @@ Before deploying for your team or customers:
 Control your presence remotely via personal API tokens:
 
 1. Open "API Tokens and Docs" from the top-right menu.
-2. Create a token. It is shown only once, save it.
-3. Use it to control mic, camera, screenshare and DND status:
+2. Create a token and pick its level: `read` (default, only safe methods such as GET, HEAD and OPTIONS) or `write` (may also change data). It is shown only once, save it. Tokens created before levels existed keep full access (`write`).
+3. Use a `write` token to control mic, camera, screenshare and DND status, since this changes state:
 
 ```bash
 curl -X POST "http://localhost:2567/controls" \
@@ -301,6 +304,8 @@ curl -X POST "http://localhost:2567/controls" \
   -H "Content-Type: application/json" \
   -d '{"mic": false, "dnd": true}'
 ```
+
+No token, not even `write`, can change a password or email address, delete an account, manage sessions or tokens (`/api-tokens`), or reach `/auth`, `/me`, `/users/me`, `/admin`, `/debug` or platform administration (pack upload, archive and delete, and map import under `/admin`); those need a signed-in browser session.
 
 ## Production deployment
 
@@ -319,6 +324,69 @@ The bundled `compose.yaml` covers the minimum self-host case (Postgres
 | `CORS_ORIGIN`      | Explicit list of allowed origins         |
 | `COOKIE_SECURE`    | `true`                                   |
 
+`CORS_ORIGIN` holds exact origins (`scheme://host[:port]`) and nothing else:
+no wildcard, no suffix rule, no path, and `null` is not an origin. The server
+refuses to start when the list is missing or malformed, in every mode. The
+same list decides for the HTTP API, for the matchmaking route and for the
+websocket upgrade: an origin that is not listed gets `403` and no CORS
+headers, and `Origin: null` is refused as well. A request without an `Origin`
+header is not a browser request: it stays possible for native clients,
+webhooks and health checks, gets no CORS headers, and is decided by the
+route's own auth.
+
+The official desktop app reports `tauri://localhost` on macOS/Linux and
+`http://tauri.localhost` on Windows. Both must be listed explicitly, older
+builds included. The same applies to the API origin of an operator who uses
+the `/tools` pages: it is an ordinary origin now, there is no same-origin
+exception any more. See [`docs/origin-allowlist.md`](docs/origin-allowlist.md).
+
+`GET`/`HEAD` `/metrics` on the public app port always returns 404.
+Prometheus scrapes `METRICS_PORT` (compose default 9100) on the
+container network. `compose.yaml` does not publish that port and does
+not put a proxy route in front of it. Direct runs bind loopback unless
+`METRICS_HOST` is set. See [`docs/metrics.md`](docs/metrics.md).
+
+Websocket upgrades are budgeted per client address: every upgrade
+attempt is counted before the origin check, and an exhausted budget
+answers `429` with a `Retry-After` header instead of a handshake.
+`WS_UPGRADE_RATE_LIMIT_MAX` (default 120) sets the budget,
+`WS_UPGRADE_RATE_LIMIT_WINDOW_MS` (default 60000) the window. The mobile
+gateway joins from inside the server process and the npc-service runs in
+its own container: both share the budget of their source address.
+
+Every production start path (server entrypoint, migration service, and
+the server process itself) enforces the credential policy below before
+any migration, seed, or listen work. A violation stops the start and
+reports only the offending key name, never a value. `TOOLS_PASSWORD`
+stays optional: unset or empty keeps the tools route disabled and the
+start valid.
+
+| Variable             | Production rule                            |
+| -------------------- | ------------------------------------------ |
+| `LIVEKIT_API_KEY`    | Present, non-blank, not the template value |
+| `LIVEKIT_API_SECRET` | Present, non-blank, not the template value |
+| `DATABASE_URL`       | Valid Postgres URL, password neither blank |
+|                      | nor the template value                     |
+| `POSTGRES_PASSWORD`  | When set, non-blank and not the template   |
+|                      | value                                      |
+| `TOOLS_PASSWORD`     | When set, non-blank and not the template   |
+|                      | value                                      |
+
+The seed program additionally enforces `SEED_ADMIN_EMAIL` and
+`SEED_ADMIN_PASSWORD` before it opens a database connection. It uses
+the same production mode detection as the start path and does not
+require LiveKit or tools credentials.
+
+| Variable              | Production rule                          |
+| --------------------- | ---------------------------------------- |
+| `SEED_ADMIN_EMAIL`    | Present and non-blank; an explicit       |
+|                       | historical default address is allowed    |
+| `SEED_ADMIN_PASSWORD` | Present, non-blank, and not the template |
+|                       | value                                    |
+
+Development keeps the previous fallbacks. A violation exits with
+status 1 and prints only the offending key name.
+
 See [`docs/livekit-production.md`](docs/livekit-production.md) for the
 LiveKit-specific hardening walkthrough (replacing `--dev`, rotating
 keys, ICE / NAT setup, verification).
@@ -335,9 +403,10 @@ keys, ICE / NAT setup, verification).
 ## Production Mail Setup
 
 The OSS server can send transactional email (invites, guest magic links,
-verify links, welcome emails) over plain SMTP via
-[nodemailer](https://nodemailer.com/). Sensitive tokens (password reset)
-are NEVER sent by email — the admin generates them via the admin UI.
+verify links, welcome emails, password reset links) over plain SMTP via
+[nodemailer](https://nodemailer.com/). Password reset is self-service:
+`POST /auth/forgot` mails a reset link to the account's address and
+answers `{ ok: true }` without returning the link or token.
 
 ### Provider precedence
 
@@ -346,10 +415,60 @@ The mail loader resolves a single active provider at server boot:
 1. **EE-Resend** — when the optional `@meetropolis/tenancy` module is
    installed and both `RESEND_API_KEY` + `RESEND_FROM` are set.
 2. **OSS-SMTP (nodemailer)** — when `SMTP_HOST` + `SMTP_FROM` are set.
-3. **Console fallback** — last-resort, logs subject + recipient domain
-   only (no body in production), returns `false` from `send()` so
-   verify-requests keep surfacing tokens via the API response. A
-   one-time WARN log fires at boot: `email.fallback_console`.
+3. **Console fallback** — last resort when no provider is configured. It
+   delivers nothing and logs only a redacted marker without recipient,
+   subject, link or token; `send()` returns `false`. A one-time log entry
+   `email.fallback_console` fires at boot (error level in production,
+   warning otherwise). The console fallback does not count as delivery,
+   see [Running without a mail provider](#running-without-a-mail-provider).
+
+### Running without a mail provider
+
+Self-hosting needs a mail provider to admit new users. Without
+`SMTP_HOST` and `SMTP_FROM` (and without the enterprise mail module) the
+server cannot confirm or register new accounts, except through
+[manual account confirmation](#manual-account-confirmation):
+
+- `POST /auth/verify/request` answers `503 EMAIL_DELIVERY_UNAVAILABLE`.
+- `POST /auth/register` with an invitation code answers
+  `503 EMAIL_DELIVERY_UNAVAILABLE`.
+- `POST /invites/accept` by an account whose email address is not yet
+  confirmed answers `503 EMAIL_DELIVERY_UNAVAILABLE`.
+- `POST /auth/forgot` answers `{ ok: true }` but issues and sends nothing.
+
+No API response contains a confirmation token.
+
+What still works without mail:
+
+- Creating an invitation returns its link (`inviteUrl`) with
+  `emailSent: false`. Copy and share the link; accounts whose email
+  address is already confirmed can accept it.
+- Creating a guest returns the guest's magic link for copying.
+- A super admin can create a password reset link with
+  `POST /admin/users/:id/reset-token`; the response contains the link.
+  For tenant admins the same route answers
+  `503 EMAIL_DELIVERY_UNAVAILABLE` without a mail provider.
+
+#### Manual account confirmation
+
+When no mail provider is configured (no `SMTP_HOST` with `SMTP_FROM` and
+no enterprise mail module), setting `MANUAL_ACCOUNT_CONFIRMATION=true`
+lets a super admin confirm new accounts by hand. The switch has no effect
+while a delivering mail route exists: with SMTP or the enterprise mail
+module configured, email proof always applies, even when sending fails.
+
+With the switch active, registration with an invitation code and
+acceptance of an invitation by an unconfirmed account create a pending
+confirmation instead of answering `503 EMAIL_DELIVERY_UNAVAILABLE`. Until
+confirmation the account has no access and no membership.
+
+Only a super admin (an owner of the internal tenant) can confirm: in the
+admin overlay or with `GET /admin/pending-confirmations` and
+`POST /admin/users/:id/confirm-email`. A pending confirmation expires
+after 7 days, or earlier when the invitation itself expires; afterwards
+the person needs a new invitation. Check the identity and the address of
+the person through another channel before confirming. Confirmation sets `emailVerifiedAt`, and the server logs record
+the confirmation with the account identifiers of the admin and the person.
 
 ### Recommended providers
 
@@ -529,7 +648,7 @@ remote group on broadband at home, will rarely hit a NAT scenario that
 TURN solves. STUN-only (the OSS default) is enough. Only invest in
 TURN once a real user reports audio/video that never connects.
 
-## Out of scope (not implemented in Block C)
+## Out of scope (not implemented yet)
 
 These items are deliberately not part of the OSS-SMTP stack and would
 require dedicated blocks:
@@ -542,8 +661,6 @@ require dedicated blocks:
   relay with bounce logs.
 - Per-tenant rate-limiting for guest invites. `express-rate-limit` is
   installed but not wired up — track as a follow-up.
-- Self-service password reset via email. Block C is invite/verify/guest
-  only; password reset remains admin-triggered with token-in-UI.
 
 ## Contributing
 

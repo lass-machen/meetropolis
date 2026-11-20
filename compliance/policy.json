@@ -1,0 +1,455 @@
+{
+  "schemaVersion": 1,
+  "description": "Area-specific license policy for the local license gate. IDs are exact SPDX ids without alias normalisation. No blanket package or path exemptions.",
+  "commonAllowedLicenses": [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Unlicense",
+    "Zlib"
+  ],
+  "areas": [
+    {
+      "id": "agpl",
+      "description": "Server and load test area including the repo root.",
+      "paths": ["", "apps/server", "apps/npc-service", "apps/loadtest"],
+      "additionalAllowedLicenses": ["AGPL-3.0-only"]
+    },
+    {
+      "id": "mit",
+      "description": "Web, shared and asset area.",
+      "paths": ["apps/web", "packages/shared", "tools/asset-lab"],
+      "additionalAllowedLicenses": []
+    }
+  ],
+  "assets": {
+    "extensions": [
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".gif",
+      ".webp",
+      ".avif",
+      ".svg",
+      ".ico",
+      ".icns",
+      ".ttf",
+      ".otf",
+      ".woff",
+      ".woff2",
+      ".wav",
+      ".mp3",
+      ".ogg",
+      ".flac",
+      ".aac",
+      ".mp4",
+      ".webm",
+      ".glb",
+      ".gltf",
+      ".pdf",
+      ".zip"
+    ],
+    "fontExtensions": [".ttf", ".otf", ".woff", ".woff2"],
+    "allowedLicensesByArea": { "agpl": ["AGPL-3.0-only", "MIT"], "mit": ["MIT"] },
+    "fontLicenses": ["OFL-1.1"],
+    "fontLicenseTexts": ["apps/web/public/fonts/PressStart2P-OFL.txt"]
+  },
+  "reviewRequired": [
+    {
+      "id": "MPL-2.0",
+      "reason": "Weak copyleft with file-level duties: not yet legally assessed whether the conditions are compatible with the area licenses. The decision is up to the user."
+    },
+    {
+      "id": "EPL-2.0",
+      "reason": "Weak copyleft with a secondary license option: not yet legally assessed whether the conditions are compatible with the area licenses. The decision is up to the user."
+    }
+  ],
+  "metadata": {
+    "licenseByArea": { "agpl": "AGPL-3.0-only", "mit": "MIT" },
+    "manifests": [
+      "package.json",
+      "apps/server/package.json",
+      "apps/npc-service/package.json",
+      "apps/loadtest/package.json",
+      "apps/web/package.json",
+      "packages/shared/package.json",
+      "tools/asset-lab/package.json"
+    ],
+    "licenseFiles": [
+      { "path": "LICENSE", "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0" },
+      { "path": "apps/web/LICENSE", "sha256": "277ab413c56025b9be6fc28b8c9a6d51c38d089cc66539237cf8fbb6630d47b2" },
+      {
+        "path": "packages/shared/LICENSE",
+        "sha256": "277ab413c56025b9be6fc28b8c9a6d51c38d089cc66539237cf8fbb6630d47b2"
+      },
+      {
+        "path": "tools/asset-lab/LICENSE",
+        "sha256": "e226430ff897d3d4d5d0c528af73fe35c4117a7402aea3783b3f9b09e1f689d9"
+      }
+    ],
+    "dockerfiles": [
+      "apps/server/Dockerfile",
+      "apps/web/Dockerfile",
+      "apps/npc-service/Dockerfile",
+      "apps/loadtest/Dockerfile"
+    ]
+  },
+  "documentation": {
+    "componentTable": {
+      "path": "LICENSING.md",
+      "heading": "Per-component breakdown",
+      "rootAlias": "/LICENSE"
+    },
+    "readme": {
+      "path": "README.md",
+      "heading": "License",
+      "rootMarker": "repository root",
+      "badges": ["AGPL-3.0-only", "MIT"],
+      "groups": [
+        {
+          "components": ["", "apps/server", "apps/npc-service", "apps/loadtest"],
+          "license": "AGPL-3.0-only",
+          "licenseTarget": "LICENSE"
+        },
+        {
+          "components": ["apps/web", "packages/shared"],
+          "license": "MIT",
+          "licenseTarget": "apps/web/LICENSE"
+        }
+      ]
+    },
+    "assetLab": {
+      "path": "tools/asset-lab/README.md",
+      "license": "MIT",
+      "licenseTarget": "LICENSE"
+    },
+    "maskedContent": {
+      "licenseIds": [
+        "0BSD",
+        "AGPL-3.0-only",
+        "AGPL-3.0-or-later",
+        "Apache-2.0",
+        "BSD-2-Clause",
+        "BSD-3-Clause",
+        "BUSL-1.1",
+        "CC-BY-NC-4.0",
+        "CC-BY-NC-ND-4.0",
+        "CC-BY-NC-SA-4.0",
+        "CC-BY-ND-4.0",
+        "EPL-2.0",
+        "GPL-2.0-only",
+        "GPL-2.0-or-later",
+        "GPL-3.0-only",
+        "GPL-3.0-or-later",
+        "ISC",
+        "LGPL-2.1-only",
+        "LGPL-2.1-or-later",
+        "LGPL-3.0-only",
+        "LGPL-3.0-or-later",
+        "MIT",
+        "MIT-0",
+        "MPL-2.0",
+        "OFL-1.1",
+        "PROPRIETARY",
+        "SSPL-1.0",
+        "UNLICENSED",
+        "Unlicense",
+        "Zlib"
+      ],
+      "keywords": [
+        "license",
+        "licence",
+        "licensing",
+        "licenses",
+        "licences",
+        "lizenz",
+        "lizenzen",
+        "lizenzierung",
+        "copyright",
+        "SPDX",
+        "copyleft",
+        "unlicense",
+        "unlicensed",
+        "proprietary",
+        "proprietär",
+        "GNU",
+        "GPL",
+        "AGPL",
+        "LGPL",
+        "MPL",
+        "EPL",
+        "SSPL",
+        "BUSL",
+        "Commons Clause",
+        "CC-NC",
+        "CC-ND",
+        "CC-BY-NC",
+        "CC-BY-ND"
+      ],
+      "allowlist": [
+        {
+          "path": "LICENSING.md",
+          "kind": "code-span",
+          "contextSha256": "fc3f4d878c1f0806f764a2bf9171179242d2fad2bc6b3c868f8d30e6373fc570",
+          "occurrence": 1,
+          "reason": "Existing MIT assignment for the web client and the shared type package in the introduction."
+        },
+        {
+          "path": "LICENSING.md",
+          "kind": "code-span",
+          "contextSha256": "b7dbb22cea8290bac6b6adc229f1b0a4ad0b903cadb2f1f8bc97be94f162961b",
+          "occurrence": 1,
+          "reason": "Area row of the root area with the fixed AGPL-3.0-only id."
+        },
+        {
+          "path": "LICENSING.md",
+          "kind": "code-span",
+          "contextSha256": "e51a9a55581c895b3ed5298cf16accbd24c216ae52793d5ee0b3d0ee5aa0ba8f",
+          "occurrence": 1,
+          "reason": "Area row of the server area with the fixed AGPL-3.0-only id."
+        },
+        {
+          "path": "LICENSING.md",
+          "kind": "code-span",
+          "contextSha256": "8e4a4111ff0e07962d6d8fe9f4a4b078a779f13e4d9ae2f70f9199d3652bd066",
+          "occurrence": 1,
+          "reason": "Area row of the NPC service area with the fixed AGPL-3.0-only id."
+        },
+        {
+          "path": "LICENSING.md",
+          "kind": "code-span",
+          "contextSha256": "84e56e96a799c03a4362775825bcc804ecef73e98c9a21d6075de292bd94e8ff",
+          "occurrence": 1,
+          "reason": "Area row of the load test area with the fixed AGPL-3.0-only id."
+        },
+        {
+          "path": "LICENSING.md",
+          "kind": "code-span",
+          "contextSha256": "7ed5995c7af65391503b31dfa5b0c0c0c719f0f519c91a05d075363f16699f21",
+          "occurrence": 1,
+          "reason": "Area row of the web client area with the fixed MIT id."
+        },
+        {
+          "path": "LICENSING.md",
+          "kind": "code-span",
+          "contextSha256": "b80b5667136993d13878ddc46f6960f492a90fe5c647f3a713d42075bab01ee6",
+          "occurrence": 1,
+          "reason": "Area row of the shared type package with the fixed MIT id."
+        },
+        {
+          "path": "LICENSING.md",
+          "kind": "code-span",
+          "contextSha256": "da64e478ed0515651fc3709870b3e824bc1057316d64303f9d2c8d970b6ccf0a",
+          "occurrence": 1,
+          "reason": "Area row of the Asset Lab tool area with the fixed MIT id."
+        },
+        {
+          "path": "LICENSING.md",
+          "kind": "code-span",
+          "contextSha256": "33f932748922fb33b33896b820b95777f0f36cf99d309b416c157e82a03ec8af",
+          "occurrence": 1,
+          "reason": "Existing MIT prose for the shared type package with a note on keeping the copyright notice."
+        },
+        {
+          "path": "LICENSING.md",
+          "kind": "code-span",
+          "contextSha256": "b7c02632af3827c390fe842ac003839c08003832c677353bda357d52fc62f8b5",
+          "occurrence": 1,
+          "reason": "Public subject of a commercial license request, no area license assignment."
+        },
+        {
+          "path": "LICENSING.md",
+          "kind": "code-span",
+          "contextSha256": "616973c27e13c898b5d910218ae75c26b36b71fd66cb6c87f468272d61ea2968",
+          "occurrence": 1,
+          "reason": "Public API id describing the optional tenancy module, no further license id."
+        },
+        {
+          "path": "README.md",
+          "kind": "code-span",
+          "contextSha256": "10f884e1847445facecf2895d69f72d8ad9ef90ecc51036e77d30b0472d9bd44",
+          "occurrence": 1,
+          "reason": "Existing MIT assignment for the web client and the shared type package in the license section."
+        },
+        {
+          "path": "tools/asset-lab/README.md",
+          "kind": "code-span",
+          "contextSha256": "b61ff051ca274a66fe7323717380d1d3bc00e9ed66bf536c10d02512e70b02d2",
+          "occurrence": 1,
+          "reason": "Existing note about the MIT composer in the Asset Lab."
+        },
+        {
+          "path": "tools/asset-lab/README.md",
+          "kind": "code-span",
+          "contextSha256": "c2d24150eef0f7200e88e2e17e1b4d7a67a5471e9cc3dfde8c2cbee12d4eb559",
+          "occurrence": 1,
+          "reason": "Existing MIT assignment of the Asset Lab, its own templates and its own exports; third-party notes stay separate."
+        }
+      ]
+    }
+  },
+  "sourceImports": {
+    "protectedPackageRoots": [
+      "@meetropolis/tenancy",
+      "@meetropolis/billing",
+      "@meetropolis/telemetry-node",
+      "@meetropolis/transcription",
+      "@meetropolis/enterprise-web",
+      "@meetropolis/brand-web",
+      "@meetropolis/desktop",
+      "@meetropolis/telemetry-web"
+    ],
+    "protectedPackageFamilies": [
+      "@meetropolis/enterprise",
+      "@meetropolis/brand",
+      "@meetropolis/desktop",
+      "@meetropolis/telemetry"
+    ],
+    "protectedScopes": ["@signalyr"],
+    "forbiddenWebScopes": ["@tauri-apps"],
+    "organizationRepositories": {
+      "owners": ["lass-machen"],
+      "allowedPublic": ["lass-machen/meetropolis"]
+    },
+    "allowedDynamicImports": [
+      { "path": "apps/server/src/tenancyLoader.ts", "specifier": "@meetropolis/tenancy" },
+      { "path": "apps/server/src/billingLoader.ts", "specifier": "@meetropolis/billing" },
+      { "path": "apps/server/src/adminLoader.ts", "specifier": "@meetropolis/billing" },
+      { "path": "apps/server/src/emailLoader.ts", "specifier": "@meetropolis/tenancy" },
+      { "path": "apps/server/src/telemetryLoader.ts", "specifier": "@meetropolis/telemetry-node" },
+      { "path": "apps/server/src/transcriptionLoader.ts", "specifier": "@meetropolis/transcription" },
+      { "path": "apps/web/src/lib/enterpriseWebLoader.ts", "specifier": "@meetropolis/enterprise-web" },
+      { "path": "apps/web/src/lib/brandLoader.ts", "specifier": "@meetropolis/brand-web" },
+      { "path": "apps/web/src/lib/desktopLoader.ts", "specifier": "@meetropolis/desktop" },
+      { "path": "apps/web/src/lib/telemetryLoader.ts", "specifier": "@meetropolis/telemetry-web" }
+    ],
+    "pinnedFiles": [
+      {
+        "path": "apps/web/optional-submodules.ts",
+        "sha256": "2caa7fa362eb55634bf9915b0a40e8994ffe3a73a4f0c5c3533de3c48350cb51",
+        "reason": "Reviewed config generator: pins the loader resolution against unintended path changes."
+      }
+    ],
+    "pinnedDynamicImports": [
+      {
+        "path": "tools/asset-lab/tests/collision.test.ts",
+        "sha256": "d66e6f97ec7f13f57c00c481c216126d5e8a6edf02ea6a029d52de8be3b7ce7d",
+        "kind": "dynamic-import",
+        "argumentKind": "identifier",
+        "line": 15,
+        "targetPath": "apps/server/src/api/utils/collisionHelpers.ts",
+        "reason": "Reviewed local test reference: secures the only identifier-based import on the server collision helper."
+      }
+    ]
+  },
+  "lockfiles": [
+    {
+      "path": "package-lock.json",
+      "roots": ["", "apps/web", "packages/shared", "apps/server", "apps/npc-service", "apps/loadtest"]
+    },
+    {
+      "path": "tools/asset-lab/package-lock.json",
+      "roots": [""]
+    }
+  ],
+  "envExamples": {
+    "credentialKeys": [
+      "POSTGRES_PASSWORD",
+      "LIVEKIT_API_KEY",
+      "LIVEKIT_API_SECRET",
+      "VITE_DEBUG_AUTOLOGIN_PASSWORD",
+      "STRIPE_SECRET_KEY",
+      "STRIPE_WEBHOOK_SECRET",
+      "RESEND_API_KEY",
+      "NPC_SERVICE_SECRET",
+      "SEED_ADMIN_PASSWORD"
+    ],
+    "addressKeys": ["LK_NAT_1_TO_1_IPS", "HOST_IP"],
+    "safeDefaults": {
+      "version": 1,
+      "rules": {
+        "ENV-DEFAULT-NUMERIC": {
+          "portKeys": ["PORT", "POSTGRES_PORT", "LK_RTC_TCP_PORT", "LK_RTC_UDP_PORT", "SMTP_PORT"],
+          "integerKeys": [
+            "AUDIO_ZONE_HYSTERESIS_SAMPLES",
+            "AUDIO_ZONE_HYSTERESIS_MS",
+            "AUDIO_ZONE_RECONCILE_INTERVAL_MS",
+            "AUDIO_ZONE_PUSH_BATCH_MS",
+            "AUDIO_ZONE_HYSTERESIS_SWEEP_MS",
+            "VITE_LIVEKIT_TOKEN_TIMEOUT_MS",
+            "VITE_LIVEKIT_CONNECT_TIMEOUT_MS",
+            "VITE_LIVEKIT_URL_TIMEOUT_MS",
+            "VITE_COLYSEUS_JOIN_TIMEOUT_MS",
+            "VITE_COLYSEUS_STATE_TIMEOUT_MS",
+            "VITE_MIC_PUBLISH_TIMEOUT_MS",
+            "TRUST_PROXY",
+            "RATE_LIMIT_LOGIN_WINDOW_MS",
+            "RATE_LIMIT_LOGIN_MAX",
+            "RATE_LIMIT_REGISTER_WINDOW_MS",
+            "RATE_LIMIT_REGISTER_MAX",
+            "RATE_LIMIT_PASSWORD_RESET_WINDOW_MS",
+            "RATE_LIMIT_PASSWORD_RESET_MAX",
+            "RATE_LIMIT_FORGOT_PASSWORD_EMAIL_WINDOW_MS",
+            "RATE_LIMIT_FORGOT_PASSWORD_EMAIL_MAX",
+            "RATE_LIMIT_EMAIL_VERIFICATION_WINDOW_MS",
+            "RATE_LIMIT_EMAIL_VERIFICATION_MAX",
+            "RATE_LIMIT_GUEST_LOGIN_WINDOW_MS",
+            "RATE_LIMIT_GUEST_LOGIN_MAX",
+            "RATE_LIMIT_TENANT_SIGNUP_WINDOW_MS",
+            "RATE_LIMIT_TENANT_SIGNUP_MAX",
+            "RATE_LIMIT_AVATAR_COMPOSE_WINDOW_MS",
+            "RATE_LIMIT_AVATAR_COMPOSE_MAX",
+            "RATE_LIMIT_AVATAR_RESOLVE_WINDOW_MS",
+            "RATE_LIMIT_AVATAR_RESOLVE_MAX",
+            "RATE_LIMIT_MATCHMAKE_WINDOW_MS",
+            "RATE_LIMIT_MATCHMAKE_MAX"
+          ]
+        },
+        "ENV-DEFAULT-BOOLEAN": {
+          "keys": [
+            "LK_RTC_USE_EXTERNAL_IP",
+            "VITE_FEATURE_AV_SETTINGS",
+            "VITE_FEATURE_VOICE_ONLY",
+            "VITE_DEBUG_LOGS",
+            "VITE_DEBUG_AUTOLOGIN",
+            "COOKIE_SECURE",
+            "PUBLIC_REGISTRATION_ENABLED",
+            "RATE_LIMIT_ENABLED",
+            "AVATAR_EDITOR_ENABLED",
+            "MOBILE_GATEWAY_ENABLED",
+            "SMTP_POOL",
+            "SMTP_TLS_REJECT_UNAUTHORIZED",
+            "SMTP_VERIFY_ON_BOOT"
+          ]
+        },
+        "ENV-DEFAULT-LITERAL": {
+          "literals": {
+            "NODE_ENV": ["development", "test", "production"],
+            "LOG_LEVEL": ["debug", "info", "warn", "error", "silent"],
+            "SMTP_SECURE": ["auto"]
+          }
+        },
+        "ENV-DEFAULT-URL": {
+          "urls": {
+            "LIVEKIT_EXTERNAL_URL": {
+              "schemes": ["http", "https", "ws", "wss"],
+              "paths": ["", "/"]
+            },
+            "VITE_API_BASE": {
+              "schemes": ["http", "https"],
+              "paths": ["", "/", "/api", "/api/"]
+            },
+            "VITE_LIVEKIT_URL": {
+              "schemes": ["http", "https", "ws", "wss"],
+              "paths": ["", "/"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

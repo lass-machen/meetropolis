@@ -8,10 +8,14 @@
   //
   // `noEmit` + `rootDir: "."` because this config never builds anything — it
   // only needs a program that can contain files above `src`.
+  //
+  // The seed imports server modules that rely on the global declarations in
+  // `src/types` (Express request fields, process-wide registries), so those
+  // declarations are part of this program too.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
     "rootDir": "."
   },
-  "include": ["prisma/**/*.ts", "prisma.config.ts"]
+  "include": ["prisma/**/*.ts", "prisma.config.ts", "src/types/**/*.d.ts"]
 }
