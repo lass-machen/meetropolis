@@ -120,3 +120,46 @@ describe('sanitizeTierKey', () => {
     expect(sanitizeTierKey('-team')).toBeUndefined();
   });
 });
+
+it('matches the exact pending route before the verify prefix and discards proof secrets there', () => {
+  expect(parseHashRoute('/verify-pending?token=ignored')).toEqual({ route: 'verify-pending', params: {} });
+});
+
+/**
+ * Unknown hash paths show an explicit not-found state instead of silently
+ * falling back to the landing or app route. Empty and root paths keep their
+ * previous behaviour.
+ */
+describe('parseHashRoute unknown path', () => {
+  afterEach(() => {
+    delete window.__MEETROPOLIS_API_BASE__;
+    window.location.hash = '';
+  });
+
+  it('resolves an unknown path to not-found', () => {
+    expect(parseHashRoute('/gibt-es-nicht').route).toBe('not-found');
+  });
+
+  it('resolves an unknown path to not-found when an api base is set', () => {
+    window.__MEETROPOLIS_API_BASE__ = 'https://api.example.test';
+    expect(parseHashRoute('/gibt-es-nicht').route).toBe('not-found');
+  });
+
+  it('keeps the previous result for an empty hash', () => {
+    expect(parseHashRoute('').route).toBe('landing');
+  });
+
+  it('keeps the previous result for the root path', () => {
+    expect(parseHashRoute('/').route).toBe('landing');
+  });
+
+  it('keeps the app result for empty and root paths when an api base is set', () => {
+    window.__MEETROPOLIS_API_BASE__ = 'https://api.example.test';
+    expect(parseHashRoute('').route).toBe('app');
+    expect(parseHashRoute('/').route).toBe('app');
+  });
+
+  it('sends the hosted billing portal return path to the app', () => {
+    expect(parseHashRoute('/billing/account').route).toBe('app');
+  });
+});

@@ -35,7 +35,7 @@ vi.mock('../handlers/sessionHandlers.js', () => ({
   takeOverExistingSessions: vi.fn(),
 }));
 
-const completePendingJoinMock = vi.fn(() => Promise.resolve());
+const completePendingJoinMock = vi.fn((..._args: unknown[]) => Promise.resolve());
 vi.mock('./onJoin.completion.js', () => ({
   completePendingJoin: (...args: unknown[]) => completePendingJoinMock(...args),
 }));
@@ -45,7 +45,7 @@ import { enforceOssLimit, enforceTenantLimits } from './onJoin.limiter.js';
 import { findExistingSession } from './ghostDetection.js';
 import { takeOverExistingSessions } from '../handlers/sessionHandlers.js';
 import type { WorldRoom, RoomOptions, Player as PlayerCtor } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 
 const mockEnforceOssLimit = vi.mocked(enforceOssLimit);
 const mockEnforceTenantLimits = vi.mocked(enforceTenantLimits);
@@ -159,7 +159,8 @@ describe('performOnJoin: newest-wins takeover (E3.4)', () => {
     });
     // completePendingJoin actually materializes the new player in room state.
     completePendingJoinMock.mockImplementation(() => {
-      room.state.players.set('new-sid', { identity: 'user-real' });
+      // Partial Player double: only identity is read by the takeover path.
+      room.state.players.set('new-sid', { identity: 'user-real' } as unknown as PlayerCtor);
       return Promise.resolve();
     });
 

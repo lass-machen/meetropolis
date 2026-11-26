@@ -1,0 +1,4 @@
+#!/bin/sh
+set -e
+
+exec "$(git rev-parse --show-toplevel)/scripts/pre-push.sh"

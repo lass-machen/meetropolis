@@ -83,7 +83,7 @@ function BackToLoginLink({ onBack }: { onBack: () => void }) {
         style={{
           all: 'unset',
           cursor: 'pointer',
-          color: 'var(--pub-accent-purple)',
+          color: 'var(--pub-accent-purple-dark)',
           textDecoration: 'none',
           fontWeight: 600,
         }}
@@ -103,7 +103,7 @@ function InlineAction({ onClick, children }: { onClick: () => void; children: Re
       style={{
         all: 'unset',
         cursor: 'pointer',
-        color: 'var(--pub-accent-purple)',
+        color: 'var(--pub-accent-purple-dark)',
         fontWeight: 600,
       }}
     >

@@ -91,9 +91,9 @@
     "q3Question": "Welche Lizenz hat die Software?",
     "q3Answer": "Server unter AGPL-3.0, Web-Frontend unter MIT. Du darfst die Software selbst betreiben, anpassen und in deine Infrastruktur einbetten — solange du die Lizenzbedingungen einhältst.",
     "q4Question": "Können wir jederzeit kündigen?",
-    "q4Answer": "Ja. Monatliche Pläne kündbar zum Monatsende, jährliche zum Jahresende. Keine Mindestlaufzeit, kein Lock-in.",
+    "q4Answer": "Ja. Ein Abo kannst du jederzeit zum Ende des laufenden Abrechnungszeitraums kündigen. Keine Mindestlaufzeit, kein Lock-in.",
     "q5Question": "Was passiert mit unseren Custom Maps, wenn wir kündigen?",
-    "q5Answer": "Du kannst alle Maps jederzeit als Datei exportieren — auch nach der Kündigung im read-only-Zeitraum. Eure Welten gehören euch.",
+    "q5Answer": "Du kannst alle Maps jederzeit als Datei exportieren, solange du Zugang zu deinem Arbeitsbereich hast. Exportiere sie also, bevor dein Zugang endet. Eure Welten gehören euch.",
     "q6Question": "Brauchen wir die Desktop-App?",
     "q6Answer": "Nein. Die Anwendung läuft komplett im Browser. Die Desktop-App ist optional und bietet zusätzlich einen Floating Mini-Modus für nebenher."
   },
@@ -198,7 +198,21 @@
     "successText": "Deine E-Mail wurde erfolgreich bestätigt. Du wirst gleich weitergeleitet...",
     "errorTitle": "Verifizierung fehlgeschlagen",
     "noToken": "Kein Verifizierungs-Token vorhanden.",
-    "backButton": "Zurück zur Startseite"
+    "backButton": "Zurück zur Startseite",
+    "invite": {
+      "title": "Einladung bestätigt",
+      "text": "Deine E-Mail-Adresse ist bestätigt und die Einladung wurde angenommen."
+    },
+    "verify": {
+      "title": "E-Mail-Adresse bestätigt",
+      "text": "Deine E-Mail-Adresse wurde erfolgreich bestätigt."
+    },
+    "email_change": {
+      "title": "E-Mail-Adresse geändert",
+      "text": "Deine neue E-Mail-Adresse ist jetzt aktiv und bestätigt."
+    },
+    "continue": "Weiter zur Anmeldung oder zum Büro",
+    "invalidLink": "Dieser Link ist ungültig, abgelaufen oder bereits verwendet. Bitte fordere eine neue Bestätigung an."
   },
   "auth": {
     "brandingHeadline": "Dein virtuelles Büro, selbst gehostet.",
@@ -225,7 +239,7 @@
     "registerPassword": "Passwort",
     "registerPasswordPlaceholder": "••••••••",
     "registerSubmit": "Weiter",
-    "registerTermsHint": "Mit der Registrierung akzeptierst du unsere AGB und Datenschutzerklärung.",
+    "registerTermsHint": "Mit der Registrierung akzeptierst du unsere AGB. Unsere Datenschutzerklärung hast du zur Kenntnis genommen.",
     "registerHasAccount": "Bereits ein Konto?",
     "registerLoginLink": "Anmelden",
     "inviteBadge": "Einladung",
@@ -239,6 +253,15 @@
     "inviteLoginLink": "Anmelden",
     "inviteNoAccount": "Kein Konto?",
     "inviteRegisterLink": "Registrieren",
+    "inviteAccept": {
+      "loading": "Einladung wird geladen …",
+      "notFound": "Diese Einladung gibt es nicht oder sie wurde widerrufen.",
+      "alreadyUsed": "Diese Einladung wurde bereits verwendet.",
+      "acceptTitle": "Einladung zu {{tenant}} annehmen",
+      "acceptButton": "Einladung annehmen",
+      "inviteTitle": "Einladung zu {{tenant}}",
+      "inviteForEmail": "Die Einladung gilt für {{email}}."
+    },
     "forgotTitle": "Passwort vergessen",
     "forgotSubtitle": "Gib deine E-Mail-Adresse ein. Wir schicken dir einen Link, mit dem du ein neues Passwort setzt.",
     "forgotSentTitle": "Schau in dein Postfach",
@@ -264,6 +287,7 @@
     "dividerOr": "oder",
     "emailLabel": "E-Mail-Adresse",
     "passwordLabel": "Passwort",
+    "requiredFieldsMissing": "Bitte fülle alle Pflichtfelder aus.",
     "setupTeamTitle": "Richte dein Team ein",
     "setupTeamSubtitle": "Wie heißt euer Team und wie groß ist es?",
     "teamName": "Teamname",
@@ -315,7 +339,7 @@
     "vatIdPlaceholder": "z. B. DE123456789",
     "vatIdHint": "Für innergemeinschaftliche Leistungen (Reverse-Charge) empfohlen.",
     "b2bDeclaration": "Ich bestätige, dass ich diesen Vertrag als Unternehmer im Sinne des § 14 BGB und nicht als Verbraucher abschließe.",
-    "agbAccept": "Ich akzeptiere die <termsLink>AGB</termsLink> und die <privacyLink>Datenschutzerklärung</privacyLink>.",
+    "agbAccept": "Ich akzeptiere die <termsLink>AGB</termsLink>. Die <privacyLink>Datenschutzerklärung</privacyLink> habe ich zur Kenntnis genommen.",
     "transparencyTitle": "Deine Bestellung im Überblick",
     "transparencyPackage": "Paket",
     "transparencyPrice": "Preis",
@@ -336,7 +360,21 @@
     "errB2bDeclaration": "Bitte bestätige die Unternehmer-Erklärung.",
     "errAgb": "Bitte akzeptiere die AGB.",
     "errB2bRequired": "Für die kostenpflichtige Nutzung sind Firmenname, Rechtsform und die Unternehmer-Erklärung erforderlich.",
-    "back": "Zurück"
+    "back": "Zurück",
+    "emailProof": {
+      "title": "Bitte bestätige deine E-Mail-Adresse",
+      "description": "Öffne die separate Bestätigungsmail. Erst nach der Bestätigung kannst du diese Einladung nutzen.",
+      "idle": "Die Einladung bleibt für dich vorgemerkt.",
+      "sending": "Bestätigungsmail wird angefordert …",
+      "sent": "Eine Bestätigungsmail wurde versandt.",
+      "cooldown": "Bitte warte noch {{seconds}} Sekunden, bevor du erneut eine Mail anforderst.",
+      "failed": "Die Mail konnte nicht zugestellt werden. Bitte wende dich an die Administration.",
+      "loginRequired": "Bitte melde dich erneut an, um eine Bestätigungsmail anzufordern.",
+      "adminPending": "Dein Konto wartet auf die Bestätigung durch eine Administratorin oder einen Administrator.",
+      "resend": "Bestätigungsmail erneut anfordern",
+      "login": "Zur Anmeldung",
+      "check": "Bestätigung prüfen"
+    }
   },
   "billing": {
     "reconcilingTitle": "Wir richten dein Büro ein …",

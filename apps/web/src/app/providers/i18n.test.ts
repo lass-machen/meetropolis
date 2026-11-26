@@ -1,4 +1,26 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+
+// Brand loader is mocked so this file can assert that a marketing bundle with
+// a legacy commonLanding block does not leak those keys into the common ns.
+const brandHarness = vi.hoisted(() => ({
+  module: {
+    marketingDe: {
+      commonLanding: {
+        'landing.nav.features': 'Funktionen',
+      },
+    },
+    marketingEn: {
+      commonLanding: {
+        'landing.nav.features': 'Features',
+      },
+    },
+  },
+}));
+
+vi.mock('../../lib/brandLoader', () => ({
+  getBrandModule: () => Promise.resolve(brandHarness.module),
+}));
+
 import i18n from './i18n';
 
 describe('i18n basic translation', () => {
@@ -88,4 +110,21 @@ describe('i18n sentinel override keys (raw === key contract)', () => {
       expect(i18n.t(key, { ns: 'public' })).toBe(key);
     });
   }
+});
+
+describe('i18n brand commonLanding stays out of common', () => {
+  beforeAll(async () => {
+    // loadBrandOverrides is fire-and-forget at module init. Poll briefly so a
+    // still-active merge path can register the probe key before we assert.
+    const deadline = Date.now() + 500;
+    while (Date.now() < deadline) {
+      if (i18n.exists('landing.nav.features', { ns: 'common' })) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    await i18n.changeLanguage('en');
+  });
+
+  it('does not put landing.nav.features into the common namespace', () => {
+    expect(i18n.exists('landing.nav.features', { ns: 'common' })).toBe(false);
+  });
 });

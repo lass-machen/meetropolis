@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { logger } from '../../lib/logger';
+import { loadMemberImage } from '../services/assetLoader';
 import type { MainSceneLike, TilemapWithData, TilesetDataEntry } from '../types/scene';
 
 type TilesetSpec = {
@@ -290,15 +291,13 @@ function loadTextureForTileset(scene: MainSceneLike, ts: TilesetSpec, safeKey: s
   const isDataUrl = typeof ts.dataUrl === 'string' && ts.dataUrl.startsWith('data:');
   if (isDataUrl) {
     scene.textures.addBase64(safeKey, ts.dataUrl);
-  } else {
-    try {
-      if (typeof ts.dataUrl === 'string' && !ts.dataUrl.startsWith('data:')) {
-        scene.load.setCORS('anonymous');
-      }
-      scene.load.image(safeKey, ts.dataUrl);
-      scene.load.start();
-    } catch {}
+    return;
   }
+  // Protected tileset files (/packs/...) load through the authenticated
+  // member-asset helper; other refs pass through it unchanged. The caller
+  // cannot await, so a failed load stays silent here: the tileset is
+  // simply absent from the map, as with a failed direct load before.
+  void loadMemberImage(scene, safeKey, ts.dataUrl).catch(() => {});
 }
 
 function handleTilesetWithExistingTexture(scene: MainSceneLike, ts: TilesetSpec): void {

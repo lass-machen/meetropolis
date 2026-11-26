@@ -305,7 +305,17 @@ export function ContactForm({ apiBase, fallbackEmail, onNavigate }: ContactFormP
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
         <SendButton status={status} challengeStatus={challengeStatus} />
-        {status === 'error' && errorKey && <StatusNote tone="error">{t(errorKey)}</StatusNote>}
+        {status === 'error' && errorKey && (
+          <StatusNote tone="error">
+            <span>{t(errorKey)}</span>
+            {errorKey === 'contact.errorDelivery' && fallbackEmail && (
+              <>
+                {' '}
+                {t('contact.unavailableWithEmail')} <a href={`mailto:${fallbackEmail}`}>{fallbackEmail}</a>
+              </>
+            )}
+          </StatusNote>
+        )}
         <StatusNote tone="muted">{t('contact.spamNote')}</StatusNote>
       </div>
     </form>

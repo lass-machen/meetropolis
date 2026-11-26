@@ -60,6 +60,7 @@ run "prisma validate" bash -c 'cd apps/server && npx prisma validate'
 # --- Job: Lint (eslint + budgets + lint-stats) + format check.
 run "lint" npm run lint
 run "format:check" npm run format:check
+run "gates (hooks, prettierignore)" bash scripts/test-gates.sh
 
 # --- Job: Typecheck (all workspaces).
 run "typecheck" npm run typecheck

@@ -57,7 +57,7 @@ function allocatorPrisma() {
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue([]),
     assetPack: {
-      findFirst: vi.fn(() => STORED_PACK),
+      findFirst: vi.fn((): Promise<typeof STORED_PACK | null> => Promise.resolve(STORED_PACK)),
     },
     mapAutotile: {
       findUnique: vi.fn(({ where }: { where: { mapId_packUuid_autotileId: typeof IDENTITY & { mapId: string } } }) => {
@@ -74,7 +74,7 @@ function allocatorPrisma() {
         rows.push(entry);
         return entry;
       }),
-      aggregate: vi.fn(() => ({ _max: { slot: rows.at(-1)?.slot ?? null } })),
+      aggregate: vi.fn(() => ({ _max: { slot: rows[rows.length - 1]?.slot ?? null } })),
     },
     map: {
       findUnique: vi.fn(() => ({ nextAutotileSlot })),

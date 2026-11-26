@@ -1,11 +1,13 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { logger } from '../../logger.js';
 import { colyseusPlayers } from '../../metrics.js';
 import { createPrismaClient } from '../../db.js';
 import type { WorldRoom, RoomOptions, Player as PlayerCtor } from '../WorldRoom.js';
+import { admitPlayer } from './worldAccess.js';
+import { resetMoveBaseline } from '../handlers/moveBaseline.js';
 import { broadcastToMap } from '../utils/broadcastHelpers.js';
 import { sanitizePosition, sanitizePositionForMap, getMapCenter, type MapMeta } from '../utils/mapBoundsHelpers.js';
-import { getAllBubbleMembers } from '../utils/bubbleHelpers.js';
+import { bubbleStateForClient } from '../handlers/socialScope.js';
 import type { RoomMetadata } from './onJoin.limiter.js';
 import { isWorldAuth } from './onAuth.js';
 import { tenantKeyForClient, isPlayerVisibleToTenant, syncTenantViewsOnJoin } from './tenantView.js';
@@ -232,6 +234,9 @@ async function seedPresenceRecent(
 
     setTimeout(() => {
       try {
+        // The join may have been revoked after the player list was read;
+        // only a still-joined session sees other members' contact details.
+        if (!room.worldAccess.isJoined(client.sessionId)) return;
         client.send('presence_recent', out);
       } catch (e) {
         logger.debug('[WorldRoom] Failed to send presence_recent', e);
@@ -307,6 +312,9 @@ function scheduleFullStateSend(room: WorldRoom, client: Client): void {
   const viewerKey = tenantKeyForClient(client);
   setTimeout(() => {
     try {
+      // The join may have been revoked while the delayed send was pending;
+      // only a still-joined session receives the world state.
+      if (!room.worldAccess.isJoined(client.sessionId)) return;
       client.send('full_state', {
         players: Array.from(room.state.players.entries())
           .filter(([sid, p]) => isPlayerVisibleToTenant(p.isNpc, room.playerTenantKey.get(sid), viewerKey))
@@ -324,14 +332,10 @@ function scheduleFullStateSend(room: WorldRoom, client: Client): void {
             mapName: p.mapName,
           })),
       });
-      const groups = Object.entries(room.bubbleGroups)
-        .map(([id, members]) => ({
-          id,
-          members: members.filter((m) => room.state.players.has(m)),
-        }))
-        .filter((g) => Array.isArray(g.members) && g.members.length >= 2);
-      const members = getAllBubbleMembers(room);
-      client.send('bubble_state', { groups, members });
+      // The bubble seed is scoped to the joining client's own tenant and map,
+      // exactly like the change-broadcast: a group of another tenant in a
+      // shared room never reaches this client.
+      client.send('bubble_state', bubbleStateForClient(room, client));
       // Tenant-scope the zone-lock seed exactly like the change-broadcast: strip
       // pendingRequests (identity/name = PII) belonging to other tenants so a
       // shared-room foreign tenant never receives them.
@@ -361,8 +365,8 @@ export async function completePendingJoin(
   // Every tenant-scoped read below is scoped by this, NEVER by the
   // client-supplied options.tenant, so a spoofed options.tenant cannot leak
   // another tenant's members/presence or pin the player onto another tenant's
-  // map. Absent only for NPC / token-less legacy joins, which fall back to the
-  // room/options slug (NPCs are secret-gated, legacy is a transitional state).
+  // map. Absent only for NPC joins, which fall back to the room/options slug
+  // (NPCs are secret-gated).
   const auth = isWorldAuth(client.auth) ? client.auth : undefined;
   const authTenantId = auth?.tenantId;
   const authTenantSlug = auth?.tenantSlug;
@@ -409,7 +413,8 @@ export async function completePendingJoin(
   // never see a stale "available" state.
   player.dnd = options?.dnd === true;
 
-  room.state.players.set(client.sessionId, player);
+  if (!(await admitPlayer(room, client, player))) return;
+  resetMoveBaseline(player);
   // Record the player's verified tenant and wire the per-client StateView
   // filters so this player is only ever synced to same-tenant clients (NPCs to
   // all). MUST run synchronously here — before onJoin resolves — so the initial

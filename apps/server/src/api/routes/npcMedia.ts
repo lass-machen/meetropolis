@@ -1,13 +1,15 @@
-import type express from 'express';
+import express from 'express';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import fsp from 'fs/promises';
-import multer from 'multer';
+import { uploadGuard, uploadParser, boundedMultipart } from '../middleware/uploadPolicy.js';
 import { requireAuth, requireApiToken, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
+import { detectMimeFromMagic } from '../utils/mediaMime.js';
 import { logger } from '../../logger.js';
+import { createLegacyAssetGuard } from '../../ops/memberAssetRoutes.js';
 
 // --- Allowed MIME types and their extensions ---
 
@@ -20,26 +22,6 @@ const ALLOWED_MEDIA: Record<string, string> = {
   'video/mp4': '.mp4',
   'video/webm': '.webm',
 };
-
-// --- Magic bytes for common formats ---
-
-const MAGIC_BYTES: ReadonlyArray<{ bytes: number[]; mime: string }> = [
-  { bytes: [0x52, 0x49, 0x46, 0x46], mime: 'audio/wav' }, // RIFF (WAV)
-  { bytes: [0xff, 0xfb], mime: 'audio/mpeg' }, // MP3 frame sync
-  { bytes: [0xff, 0xf3], mime: 'audio/mpeg' },
-  { bytes: [0xff, 0xf2], mime: 'audio/mpeg' },
-  { bytes: [0x49, 0x44, 0x33], mime: 'audio/mpeg' }, // ID3 tag
-  { bytes: [0x4f, 0x67, 0x67, 0x53], mime: 'audio/ogg' }, // OGG
-  { bytes: [0x1a, 0x45, 0xdf, 0xa3], mime: 'video/webm' }, // WebM/MKV
-  { bytes: [0x00, 0x00, 0x00], mime: 'video/mp4' }, // MP4 (ftyp follows)
-];
-
-function detectMimeFromMagic(buf: Buffer): string | null {
-  for (const { bytes, mime } of MAGIC_BYTES) {
-    if (bytes.every((b, i) => buf[i] === b)) return mime;
-  }
-  return null;
-}
 
 function mapMimeToMediaType(mime: string): 'audio' | 'video' | 'screenshare' {
   if (mime.startsWith('video/')) return 'video';
@@ -100,6 +82,9 @@ async function handleUploadMedia(
   const detectedMime = detectMimeFromMagic(file.buffer);
   const mime = detectedMime || file.mimetype;
   if (!ALLOWED_MEDIA[mime]) return res.status(400).json({ error: 'unsupported_media_type', detected: mime });
+
+  if (mime.startsWith('audio/') && file.size > 25 * 1024 * 1024)
+    return res.status(413).json({ error: 'Audio file too large.', code: 'UPLOAD_TOO_LARGE' });
 
   // Optional override mediaType from query (for screenshare)
   const mediaTypeQuery = req.query.mediaType as string | undefined;
@@ -174,20 +159,64 @@ async function handleDeleteMedia(
 
 // --- Route registration ---
 
-export function registerNpcMediaRoutes(app: express.Application, prisma: PrismaClient) {
-  const npcMediaDir = process.env.NPC_MEDIA_DIR || path.resolve(process.cwd(), '../../npc-media');
+/**
+ * Shared with the npc service (apps/npc-service/src/config.ts) and mounted as
+ * one volume in compose; a local run without Docker sets NPC_MEDIA_DIR.
+ */
+export const NPC_MEDIA_DEFAULT_DIR = '/data/npc-media';
+
+/** Storage root of NPC media files; shared with the tenant file cleanup. */
+export function npcMediaDir(): string {
+  return process.env.NPC_MEDIA_DIR || NPC_MEDIA_DEFAULT_DIR;
+}
+
+/** Create the storage root; logs loudly instead of failing silently. */
+export function ensureNpcMediaDir(): boolean {
   try {
-    fs.mkdirSync(npcMediaDir, { recursive: true });
-  } catch {
-    /* ignore */
+    fs.mkdirSync(npcMediaDir(), { recursive: true });
+    return true;
+  } catch (error) {
+    logger.error({
+      event: 'npc_media.dir_unavailable',
+      hint: 'set NPC_MEDIA_DIR to a writable directory',
+      error: String(error),
+    });
+    return false;
   }
+}
 
-  const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
-  });
+/** Serve NPC media files; mirrors the upload and deletion roots. */
+export function registerNpcMediaStatic(app: express.Application): void {
+  const mediaDir = npcMediaDir();
+  ensureNpcMediaDir();
+  app.use(
+    '/npc-media',
+    createLegacyAssetGuard(),
+    express.static(mediaDir, {
+      maxAge: '7d',
+      setHeaders: (res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        res.removeHeader('Access-Control-Allow-Credentials');
+      },
+    }),
+  );
+}
 
-  app.post('/npcs/:id/media', upload.single('file'), (req, res) => handleUploadMedia(req, res, prisma, npcMediaDir));
+/** Resolve a stored NPC media path below the storage root. */
+export function npcMediaFilePath(storagePath: string): string {
+  return path.join(npcMediaDir(), storagePath);
+}
+
+export function registerNpcMediaRoutes(app: express.Application, prisma: PrismaClient) {
+  const mediaDir = npcMediaDir();
+  ensureNpcMediaDir();
+
+  const upload = uploadParser('npc');
+
+  app.post('/npcs/:id/media', uploadGuard(prisma, 'npc'), boundedMultipart(upload.single('file')), (req, res) =>
+    handleUploadMedia(req, res, prisma, mediaDir),
+  );
   app.get('/npcs/:id/media', (req, res) => handleListMedia(req, res, prisma));
-  app.delete('/npcs/:id/media/:mediaId', (req, res) => handleDeleteMedia(req, res, prisma, npcMediaDir));
+  app.delete('/npcs/:id/media/:mediaId', (req, res) => handleDeleteMedia(req, res, prisma, mediaDir));
 }

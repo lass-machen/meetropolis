@@ -72,6 +72,67 @@ describe('createRosterRefresher', () => {
     expect(args.rosterByIdentityRef.current['user-1']).toEqual({ name: 'Dave', x: 10, y: 20 });
   });
 
+  it('replaces an unmapped session row when its stable identity arrives', () => {
+    const identities = makeRef<Record<string, string>>({});
+    const names = makeRef<Record<string, string>>({});
+    const inputs = {
+      remotesRef: makeRef<Record<string, { x: number; y: number }>>({ 'session-a': { x: 10, y: 20 } }),
+      colyseusToLivekitMap: identities,
+      identityToNameMap: names,
+    };
+
+    const missing = runRefresher([], inputs);
+    identities.current['session-a'] = 'user-1';
+    names.current['user-1'] = 'Dave';
+    const { roster } = runRefresher(missing.roster, inputs);
+
+    expect(roster).toEqual([{ identity: 'user-1', name: 'Dave', online: true, x: 10, y: 20 }]);
+  });
+
+  it('omits a remote without mapping until the mapping arrives and keeps mapped peers', () => {
+    const prev: RosterItem[] = [{ identity: 'user-other', name: 'Other', online: true, x: 1, y: 2 }];
+    const identities = makeRef<Record<string, string>>({ 'session-other': 'user-other' });
+    const names = makeRef<Record<string, string>>({ 'user-other': 'Other' });
+    const remotesRef = makeRef<Record<string, { x: number; y: number }>>({
+      'session-a': { x: 10, y: 20 },
+      'session-other': { x: 1, y: 2 },
+    });
+    const inputs = {
+      remotesRef,
+      colyseusToLivekitMap: identities,
+      identityToNameMap: names,
+    };
+
+    const missing = runRefresher(prev, inputs);
+
+    expect(missing.roster.find((r) => r.identity === 'session-a')).toBeUndefined();
+    expect(missing.roster.filter((r) => r.identity === 'user-other')).toHaveLength(1);
+    expect(missing.roster.find((r) => r.identity === 'user-other')).toMatchObject({
+      online: true,
+      x: 1,
+      y: 2,
+    });
+
+    identities.current['session-a'] = 'user-1';
+    names.current['user-1'] = 'Dave';
+    const { roster } = runRefresher(missing.roster, inputs);
+
+    expect(roster.find((r) => r.identity === 'session-a')).toBeUndefined();
+    expect(roster.filter((r) => r.identity === 'user-1')).toHaveLength(1);
+    expect(roster.find((r) => r.identity === 'user-1')).toMatchObject({
+      name: 'Dave',
+      online: true,
+      x: 10,
+      y: 20,
+    });
+    expect(roster.filter((r) => r.identity === 'user-other')).toHaveLength(1);
+    expect(roster.find((r) => r.identity === 'user-other')).toMatchObject({
+      online: true,
+      x: 1,
+      y: 2,
+    });
+  });
+
   it('adds the local user under their stable user id', () => {
     const { roster } = runRefresher([], {
       me: { id: 'local-user', email: 'local@example.com', name: 'Local User' },

@@ -124,50 +124,12 @@ export async function loadVisibleChunks(scene: MainSceneLike, layerName: ChunkLa
   applyChunkUpdates(scene, layerName, updates);
 }
 
-export function applyChunkUpdates(
-  scene: MainSceneLike,
-  layerName: ChunkLayerName,
-  updates: Array<{ key: string; version: number; encoding: string; data: string }>,
-): void {
-  if (!scene.v2 || !scene.mapRef) return;
+type ChunkUpdate = { key: string; version: number; encoding: string; data: string };
 
-  // Handle walls_auto separately: populate AutotileGrid instead of the tilemap.
-  if (layerName === 'walls_auto') {
-    if (!scene.autotileGrid || !scene.autotileRenderer) return;
-    const cs = scene.v2.chunkSize;
-    const total = cs * cs;
-    for (const u of updates) {
-      const [xs, ys] = u.key.split(':');
-      const cx = Number(xs),
-        cy = Number(ys);
-      if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue;
-      const arr = decodeRLE(u.data, total);
-      for (let i = 0; i < total; i++) {
-        const vx = i % cs;
-        const vy = Math.floor(i / cs);
-        const gx = cx * cs + vx;
-        const gy = cy * cs + vy;
-        if (gx >= scene.mapRef.width || gy >= scene.mapRef.height) continue;
-        const wallTypeId = arr[i];
-        if (wallTypeId > 0) {
-          scene.autotileGrid.set(gx, gy, wallTypeId);
-        } else {
-          scene.autotileGrid.remove(gx, gy);
-        }
-      }
-      scene.loadedChunks.add(`${layerName}:${cx}:${cy}`);
-    }
-    scene.autotileRenderer.updateAllVisible();
-    return;
-  }
-
-  const layer =
-    layerName === 'collision' ? scene.collisionLayer : layerName === 'walls' ? scene.wallsLayer : scene.editorGround;
-  if (!layer) {
-    logger.warn(`[Chunks] Layer ${layerName} not found on scene`);
-    return;
-  }
-  const cs = scene.v2.chunkSize;
+// Handle walls_auto separately: populate AutotileGrid instead of the tilemap.
+function applyWallsAutoUpdates(scene: MainSceneLike, updates: ChunkUpdate[], chunkSize: number): void {
+  if (!scene.autotileGrid || !scene.autotileRenderer) return;
+  const cs = chunkSize;
   const total = cs * cs;
   for (const u of updates) {
     const [xs, ys] = u.key.split(':');
@@ -180,7 +142,40 @@ export function applyChunkUpdates(
       const vy = Math.floor(i / cs);
       const gx = cx * cs + vx;
       const gy = cy * cs + vy;
-      if (gx >= scene.mapRef.width || gy >= scene.mapRef.height) continue;
+      if (gx >= scene.mapRef!.width || gy >= scene.mapRef!.height) continue;
+      const wallTypeId = arr[i];
+      if (wallTypeId > 0) {
+        scene.autotileGrid.set(gx, gy, wallTypeId);
+      } else {
+        scene.autotileGrid.remove(gx, gy);
+      }
+    }
+    scene.loadedChunks.add(`walls_auto:${cx}:${cy}`);
+  }
+  scene.autotileRenderer.updateAllVisible();
+}
+
+function applyTileLayerUpdates(
+  scene: MainSceneLike,
+  layerName: ChunkLayerName,
+  layer: NonNullable<MainSceneLike['collisionLayer']>,
+  updates: ChunkUpdate[],
+  chunkSize: number,
+): void {
+  const cs = chunkSize;
+  const total = cs * cs;
+  for (const u of updates) {
+    const [xs, ys] = u.key.split(':');
+    const cx = Number(xs),
+      cy = Number(ys);
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue;
+    const arr = decodeRLE(u.data, total);
+    for (let i = 0; i < total; i++) {
+      const vx = i % cs;
+      const vy = Math.floor(i / cs);
+      const gx = cx * cs + vx;
+      const gy = cy * cs + vy;
+      if (gx >= scene.mapRef!.width || gy >= scene.mapRef!.height) continue;
       if (layerName === 'collision') {
         const v = arr[i] !== 0;
         if (v) {
@@ -196,7 +191,7 @@ export function applyChunkUpdates(
           } catch {}
         }
       } else {
-        const gid = tileRefIdToGid(arr[i] | 0, scene.v2.firstGids);
+        const gid = tileRefIdToGid(arr[i] | 0, scene.v2!.firstGids);
         if (gid < 0) {
           try {
             layer.removeTileAt(gx, gy);
@@ -210,17 +205,38 @@ export function applyChunkUpdates(
     }
     scene.loadedChunks.add(`${layerName}:${cx}:${cy}`);
   }
-  if (layerName === 'collision') {
-    scene.ensureCollisionCollider();
+}
+
+function finalizeCollisionLayer(scene: MainSceneLike): void {
+  scene.ensureCollisionCollider();
+  try {
+    scene.rebuildStaticColliders();
+  } catch (e) {
+    logger.error('[Chunks] Failed to rebuild static colliders', e);
+  }
+  if (scene.v2) {
     try {
-      scene.rebuildStaticColliders();
-    } catch (e) {
-      logger.error('[Chunks] Failed to rebuild static colliders', e);
-    }
-    if (scene.v2) {
-      try {
-        scene.collisionLayer?.setVisible(false);
-      } catch {}
-    }
+      scene.collisionLayer?.setVisible(false);
+    } catch {}
+  }
+}
+
+export function applyChunkUpdates(scene: MainSceneLike, layerName: ChunkLayerName, updates: ChunkUpdate[]): void {
+  if (!scene.v2 || !scene.mapRef) return;
+
+  if (layerName === 'walls_auto') {
+    applyWallsAutoUpdates(scene, updates, scene.v2.chunkSize);
+    return;
+  }
+
+  const layer =
+    layerName === 'collision' ? scene.collisionLayer : layerName === 'walls' ? scene.wallsLayer : scene.editorGround;
+  if (!layer) {
+    logger.warn(`[Chunks] Layer ${layerName} not found on scene`);
+    return;
+  }
+  applyTileLayerUpdates(scene, layerName, layer, updates, scene.v2.chunkSize);
+  if (layerName === 'collision') {
+    finalizeCollisionLayer(scene);
   }
 }

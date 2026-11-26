@@ -12,8 +12,12 @@ import {
   livekitOutboundBitrateBps,
   livekitPacketLossRatio,
 } from '../../metrics.js';
-import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
+import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
+import { validateTenantSessionFresh } from '../utils/sessionAuth.js';
+import { readAuthCookie, readBearerToken } from '../../types/authShapes.js';
 import { evaluateTranscriptionGate } from '../../rooms/lifecycle/transcriptionGate.js';
+import { avSessionMetadata, isReservedAvIdentity } from '../../rooms/lifecycle/avSessionRef.js';
+import { isAvWorldPresenceCurrent, resolveAvWorldPresence } from '../../rooms/lifecycle/avWorldPresence.js';
 
 function handleHealth(_req: express.Request, res: express.Response): void {
   res.json({ ok: true });
@@ -161,16 +165,57 @@ function respondTranscriptionGateUnavailable(res: express.Response): void {
   res.status(503).json({ error: 'transcription_gate_unavailable' });
 }
 
+function respondWorldSessionRequired(
+  res: express.Response,
+  event: 'livekit.token.no_world_presence' | 'livekit.token.world_presence_lost',
+  corrId: string,
+): void {
+  logger.warn({ event, correlationId: corrId || undefined });
+  res.status(403).json({ error: 'world_session_required' });
+}
+
+/**
+ * Validates the login session behind a LiveKit token request. Responds and
+ * returns null when the session is rejected or its identity is reserved.
+ */
+async function resolveLivekitTokenSession(
+  prisma: PrismaClient,
+  res: express.Response,
+  rawToken: string,
+  tenantId: string,
+  clientSuppliedIdentity: string,
+  corrId: string,
+): Promise<{ identity: string; sessionId: string } | null> {
+  const session = await validateTenantSessionFresh(prisma, rawToken, tenantId);
+  if (session.status !== 'allowed') {
+    const forbidden = session.status === 'forbidden';
+    const reason = forbidden ? session.reason : session.status;
+    logger.warn({ event: 'livekit.token.session_rejected', correlationId: corrId || undefined, reason });
+    res.status(forbidden ? 403 : 401).json({ error: forbidden ? 'forbidden' : 'unauthorized' });
+    return null;
+  }
+  const identity = session.userId;
+  if (isReservedAvIdentity(identity)) {
+    logger.warn({ event: 'livekit.token.reserved_identity', correlationId: corrId || undefined });
+    res.status(403).json({ error: 'forbidden' });
+    return null;
+  }
+  if (clientSuppliedIdentity !== identity) {
+    logger.warn({
+      event: 'livekit.token.identity_override',
+      correlationId: corrId || undefined,
+      requestedIdentity: clientSuppliedIdentity,
+      authenticatedIdentity: identity,
+    });
+  }
+  return { identity, sessionId: session.sessionId };
+}
+
 export async function handleLivekitToken(
   prisma: PrismaClient,
   req: express.Request,
   res: express.Response,
 ): Promise<void> {
-  const auth = requireAuth(req);
-  if (!auth) {
-    res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
   const parse = livekitTokenSchema.safeParse(req.body || {});
   if (!parse.success) {
     res.status(400).json({ error: 'roomName and identity required' });
@@ -181,64 +226,64 @@ export async function handleLivekitToken(
     res.status(400).json({ error: 'invalid_room_name' });
     return;
   }
-  // Identity is ALWAYS the authenticated user id, never client input.
-  // The zone-membership model (WorldRoom Player.identity, audioZones/*) is
-  // keyed on this value; trusting a client-supplied identity would let a
-  // user mint a token that impersonates another participant and bypass
-  // every allow-list computed from Colyseus state.
-  const identity = auth.userId;
+  const corrId = (req.headers['x-correlation-id'] || '').toString();
+  const tenant = getTenantFromReq(req);
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
+  // A LiveKit token belongs to a login session: the raw token from cookie or
+  // bearer header is checked against the database, so an API token fails.
+  const rawToken = readAuthCookie(req) ?? readBearerToken(req);
+  if (!rawToken) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   try {
-    const corrId = (req.headers['x-correlation-id'] || '').toString();
-    if (clientSuppliedIdentity !== identity) {
-      logger.warn({
-        event: 'livekit.token.identity_override',
-        correlationId: corrId || undefined,
-        requestedIdentity: clientSuppliedIdentity,
-        authenticatedIdentity: identity,
-      });
-    }
+    const resolved = await resolveLivekitTokenSession(prisma, res, rawToken, tenant.id, clientSuppliedIdentity, corrId);
+    if (!resolved) return;
+    const { identity } = resolved;
     try {
-      logger.info({
-        event: 'livekit.token.request',
-        correlationId: corrId || undefined,
-        roomName,
-        identity,
-        ua: (req.headers['user-agent'] || '').toString(),
-      });
+      logger.info({ event: 'livekit.token.request', correlationId: corrId || undefined, roomName, identity });
     } catch {}
     if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
       res.status(500).json({ error: 'livekit not configured' });
       return;
     }
-    const tenant = getTenantFromReq(req);
-    if (!tenant) {
-      res.status(400).json({ error: 'tenant_required' });
-      return;
-    }
-    // Tenant resolution (tenancy.ts) lets the client X-Tenant header override
-    // the session JWT, so without this check any user could mint a token for a
-    // FOREIGN tenant's AV room (enumerate + publish). Gate on real membership:
-    // an AV join needs no elevated role, so any role (incl. guest) qualifies; a
-    // spoofed foreign tenant does not. Generic 403 keeps it non-enumerable.
-    const membership = await requireMembership(req, identity, prisma);
-    if (!membership) {
-      logger.warn({ event: 'livekit.token.forbidden', correlationId: corrId || undefined, identity });
-      res.status(403).json({ error: 'forbidden' });
-      return;
-    }
+    // The membership is read for its end date only; the access was decided above.
+    const membership = await prisma.membership.findUnique({
+      where: { tenantId_userId: { tenantId: tenant.id, userId: identity } },
+      select: { expiresAt: true },
+    });
     const gateDecision = await evaluateTranscriptionGate(prisma, tenant.id, identity);
     if (gateDecision === 'consent_required') return respondTranscriptionConsentRequired(res);
     if (gateDecision === 'unavailable') return respondTranscriptionGateUnavailable(res);
+    // World presence: the token belongs to exactly one currently
+    // materialized human world session of this verified login session.
+    const worldProof = resolveAvWorldPresence({
+      userId: identity,
+      authSessionId: resolved.sessionId,
+      tenantId: tenant.id,
+      tenantSlug: tenant.slug,
+    });
+    if (!worldProof) return respondWorldSessionRequired(res, 'livekit.token.no_world_presence', corrId);
     const effectiveCanPublish = resolveEffectiveCanPublish(canPublish, zonePrivacyVersion, identity, corrId);
-    const roomNameWithTenant = `${tenant.slug}:${roomName}`;
     const token = await createLivekitToken({
-      roomName: roomNameWithTenant,
+      roomName: `${tenant.slug}:${roomName}`,
       identity,
+      accessExpiresAt: membership?.expiresAt ?? null,
+      metadata: avSessionMetadata(resolved.sessionId),
       name,
       canPublish: effectiveCanPublish,
       canPublishData: true,
       canSubscribe,
     });
+    // Re-confirm the pinned world registration immediately before delivery:
+    // a presence lost, revoked, expired, re-registered, or with a changed epoch
+    // while signing never reaches the caller. The minted token stays
+    // undelivered and therefore grants nothing.
+    if (!isAvWorldPresenceCurrent(worldProof))
+      return respondWorldSessionRequired(res, 'livekit.token.world_presence_lost', corrId);
     res.type('text/plain').send(token);
   } catch (e: unknown) {
     logger.error({ event: 'livekit.token.error', error: e instanceof Error ? e.message : String(e) });

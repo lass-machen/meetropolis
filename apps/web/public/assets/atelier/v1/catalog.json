@@ -936,43 +936,43 @@
       "key": "business_man",
       "displayName": "Business Man",
       "look": "business",
-      "url": "/assets/sprites/atelier-v1/business_man.d1d7a78d7e68.png",
-      "sha256": "d1d7a78d7e68bd3c34e9cee921a6ba6d1d21ab220572ba30148c3bc6372c8d0b"
+      "url": "/assets/sprites/atelier-v1/business_man.36311df39e9f.png",
+      "sha256": "36311df39e9f900d23b046476073b66d8d22cf64fe045c420f69c44da78a0956"
     },
     {
       "key": "business_woman",
       "displayName": "Business Woman",
       "look": "atelier",
-      "url": "/assets/sprites/atelier-v1/business_woman.f01546e80735.png",
-      "sha256": "f01546e80735e2cfd1996e59dc21bc866373ab3221078e392c6f62054a0b2013"
+      "url": "/assets/sprites/atelier-v1/business_woman.45dca8a84981.png",
+      "sha256": "45dca8a84981c71422488e8bee680388ac497139af607471de111ecb831fd4a7"
     },
     {
       "key": "casual_woman",
       "displayName": "Casual Woman",
       "look": "copper",
-      "url": "/assets/sprites/atelier-v1/casual_woman.348f4f49cbd0.png",
-      "sha256": "348f4f49cbd02ae4b9671bc3453f83cc9d79aa217d8651624da3068f88951068"
+      "url": "/assets/sprites/atelier-v1/casual_woman.ab39c8c31f0c.png",
+      "sha256": "ab39c8c31f0c3785d2489b99baca1b46a76493ddae7875afa76a518729eeaf3d"
     },
     {
       "key": "dev_hoodie",
       "displayName": "Developer",
       "look": "weekend",
-      "url": "/assets/sprites/atelier-v1/dev_hoodie.8b424e037c79.png",
-      "sha256": "8b424e037c79d1072fd650ce2fec7771068f69dd7ecdbf0668312de16a8b5579"
+      "url": "/assets/sprites/atelier-v1/dev_hoodie.d4774f6a8b1a.png",
+      "sha256": "d4774f6a8b1a73a0775023dadc20b06173085b304904504ef8784f7710866114"
     },
     {
       "key": "manager_woman",
       "displayName": "Manager",
       "look": "studio",
-      "url": "/assets/sprites/atelier-v1/manager_woman.af80ed75d4ab.png",
-      "sha256": "af80ed75d4abf5fd56a4718f1001dc578a69ca6b9ab8c89caf9d4ea463541aa0"
+      "url": "/assets/sprites/atelier-v1/manager_woman.df14c70aed86.png",
+      "sha256": "df14c70aed863a9c675aef1f5b3af288634eefad8d4b681b3b1dd9fbab1b68c2"
     },
     {
       "key": "suit_man",
       "displayName": "Suit Man",
       "look": "cap",
-      "url": "/assets/sprites/atelier-v1/suit_man.4dc2fcec15cd.png",
-      "sha256": "4dc2fcec15cd6bdee06b7c8e7708dd93b6c1c00816487360c72e1ce198bbbe8a"
+      "url": "/assets/sprites/atelier-v1/suit_man.6594b26689d8.png",
+      "sha256": "6594b26689d8de3f1ea86597905e9dce1632e55dafae35a6cfc19b1d9d2373e1"
     }
   ]
 }

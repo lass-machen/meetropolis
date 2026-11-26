@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PubButton, PubInput } from '../components';
 import { AuthMailIcon } from './AuthFormPartials';
@@ -60,6 +60,7 @@ interface PasswordFieldProps {
 
 function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
   const { t } = useTranslation('public');
+  const inputId = useId();
   return (
     <div>
       <div
@@ -70,17 +71,17 @@ function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
           marginBottom: 6,
         }}
       >
-        <label className="pub-input-label" style={{ margin: 0 }}>
+        <label className="pub-input-label" htmlFor={inputId} style={{ margin: 0 }}>
           {t('auth.passwordLabel')}
         </label>
         <button
           type="button"
           onClick={onForgot}
+          className="pub-auth-text-link"
           style={{
-            all: 'unset',
             cursor: 'pointer',
             fontSize: 13,
-            color: 'var(--pub-accent-purple)',
+            color: 'var(--pub-accent-purple-dark)',
             textDecoration: 'none',
           }}
         >
@@ -89,6 +90,7 @@ function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
       </div>
       <div className="pub-input-wrapper">
         <input
+          id={inputId}
           className="pub-input"
           type="password"
           name="password"
@@ -96,7 +98,7 @@ function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
           placeholder="••••••••"
           value={password}
           onChange={(e) => onChange(e.target.value)}
-          required
+          aria-required={true}
         />
       </div>
     </div>
@@ -124,7 +126,7 @@ function LoginFields({ email, password, onEmail, onPassword, onForgot }: LoginFi
         autoComplete="username"
         value={email}
         onChange={(e) => onEmail(e.target.value)}
-        required
+        aria-required={true}
       />
       <PasswordField password={password} onChange={onPassword} onForgot={onForgot} />
     </div>
@@ -168,10 +170,10 @@ function LoginFooter({ onRegister, onInvite, registrationEnabled }: LoginFooterP
           <button
             type="button"
             onClick={onRegister}
+            className="pub-auth-text-link"
             style={{
-              all: 'unset',
               cursor: 'pointer',
-              color: 'var(--pub-accent-purple)',
+              color: 'var(--pub-accent-purple-dark)',
               textDecoration: 'none',
               fontWeight: 600,
             }}
@@ -185,10 +187,10 @@ function LoginFooter({ onRegister, onInvite, registrationEnabled }: LoginFooterP
         <button
           type="button"
           onClick={onInvite}
+          className="pub-auth-text-link"
           style={{
-            all: 'unset',
             cursor: 'pointer',
-            color: 'var(--pub-accent-purple)',
+            color: 'var(--pub-accent-purple-dark)',
             textDecoration: 'none',
             fontWeight: 600,
           }}
@@ -215,9 +217,25 @@ export function LoginView({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const visibleError = localError ?? error;
+
+  function updateEmail(v: string) {
+    setLocalError(null);
+    setEmail(v);
+  }
+
+  function updatePassword(v: string) {
+    setLocalError(null);
+    setPassword(v);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (email.trim() === '' || password.trim() === '') {
+      setLocalError(t('auth.requiredFieldsMissing'));
+      return;
+    }
     setLoading(true);
     try {
       await onSubmit(email, password);
@@ -231,13 +249,20 @@ export function LoginView({
       onSubmit={(e) => {
         void handleSubmit(e);
       }}
+      noValidate
       autoComplete="on"
       style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
     >
       <LoginTitle />
-      <LoginFields email={email} password={password} onEmail={setEmail} onPassword={setPassword} onForgot={onForgot} />
+      <LoginFields
+        email={email}
+        password={password}
+        onEmail={updateEmail}
+        onPassword={updatePassword}
+        onForgot={onForgot}
+      />
       {successMessage && <LoginAlert kind="success" text={successMessage} />}
-      {error && <LoginAlert kind="error" text={error} />}
+      {visibleError && <LoginAlert kind="error" text={visibleError} />}
       <PubButton
         type="submit"
         variant="primary"

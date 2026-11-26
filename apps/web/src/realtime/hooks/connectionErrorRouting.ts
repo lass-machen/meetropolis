@@ -6,6 +6,7 @@
  * SDK reports as a rejected `joinOrCreate` carrying a `ServerError(code)`.
  * Extracted from useColyseusConnection.ts (LoC budget).
  */
+import { CLIENT_UPDATE_REQUIRED_CODE } from '@meetropolis/shared';
 import { deriveTenant } from '../../lib/colyseus';
 import type { UseWorldRoomArgs, ConnectionRefs } from '../types';
 import {
@@ -33,7 +34,13 @@ export interface ConnectionErrorRouteContext {
 }
 
 type TerminalErrorKind =
-  'consent' | 'guest_expired' | 'session_taken_over' | 'auth_rejected' | 'client_too_old' | 'limit';
+  | 'consent'
+  | 'guest_expired'
+  | 'session_taken_over'
+  | 'auth_rejected'
+  | 'client_too_old'
+  | 'client_update_required'
+  | 'limit';
 
 /** Classifies a terminal error by the overlay it needs; null when the error is
  * not terminal. The order is the precedence when several signals match. */
@@ -49,10 +56,15 @@ function classifyTerminalError({ code, reason, text }: ConnectionErrorInfo): Ter
   // H4 hardening: onAuth() rejected the join outright (expired/invalid token, or
   // a bad service token for npc-* identities). Re-login is the only way forward;
   // see rooms/lifecycle/onAuth.ts AUTH_REJECTED_CODE.
-  if (code === 4401 || text === 'unauthorized') return 'auth_rejected';
+  // Matchmaking answers the same refusal with the HTTP status 401.
+  if (code === 4401 || code === 401 || text === 'unauthorized') return 'auth_rejected';
   // H4 hardening: this build's zonePrivacyVersion is below the server's
   // minimum. See rooms/lifecycle/onAuth.ts CLIENT_TOO_OLD_CODE.
-  if (code === 4426 || text === 'client_too_old') return 'client_too_old';
+  // Matchmaking answers it with the HTTP status 426.
+  // Asset-protocol refusal: the desktop build predates protected pack and
+  // NPC media files. Takes precedence over the generic client_too_old below.
+  if ((code === 4426 || code === 426) && text === CLIENT_UPDATE_REQUIRED_CODE) return 'client_update_required';
+  if (code === 4426 || code === 426 || text === 'client_too_old') return 'client_too_old';
   // Colyseus itself closes clients with 4001 (SERVER_SHUTDOWN), 4002 (WITH_ERROR)
   // and 4003 (FAILED_TO_RECONNECT), e.g. on a graceful shutdown during a deploy.
   // For those codes only the server text identifies a limit or billing error;
@@ -103,6 +115,9 @@ function showTerminalOverlay(
       return;
     case 'client_too_old':
       showClientTooOldOverlay();
+      return;
+    case 'client_update_required':
+      showClientTooOldOverlay({ assetUpdate: true });
       return;
     case 'limit':
       // Limit and billing errors never auto-reconnect: the user must click retry.

@@ -1,9 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { EXPECTED_ADMIN_MODULE_VERSION, adminEnterpriseSchema } from './adminLoader.js';
+import {
+  EXPECTED_ADMIN_MODULE_VERSION,
+  adminEnterpriseSchema,
+  getAdminEnterpriseModule,
+  loadAdminEnterpriseModule,
+} from './adminLoader.js';
 import type { AdminEnterpriseModule } from './adminLoader.js';
-import { EXPECTED_BILLING_MODULE_VERSION, billingModuleSchema } from './billingLoader.js';
+import {
+  EXPECTED_BILLING_MODULE_VERSION,
+  billingModuleSchema,
+  getBillingModule,
+  loadBillingModule,
+} from './billingLoader.js';
 import type { BillingModule } from './billingLoader.js';
+import { logger } from './logger.js';
 import { loadTenancyModule, tenancyModuleSchema } from './tenancyLoader.js';
 import type { TenancyModule } from './tenancyLoader.js';
 
@@ -278,5 +289,85 @@ describe('tenancy loader pack-visibility contract', () => {
     await expect(loadTenancyModule(() => Promise.resolve({ version: 2, isMultiTenantEnabled: noop }))).rejects.toThrow(
       'matching the tenancy loader contract',
     );
+  });
+});
+
+function missingPackageError(packageName: string): Error {
+  return Object.assign(new Error(`Cannot find package '${packageName}' imported from loader`), {
+    code: 'ERR_MODULE_NOT_FOUND',
+  });
+}
+
+describe('enterprise billing package loading', () => {
+  it('billing loader returns null when exactly @meetropolis/billing is absent', async () => {
+    await expect(
+      loadBillingModule(() => Promise.reject(missingPackageError('@meetropolis/billing'))),
+    ).resolves.toBeNull();
+  });
+
+  it('billing loader throws when the installed package reports version 4', async () => {
+    await expect(loadBillingModule(() => Promise.resolve(enterpriseModuleFixture(4)))).rejects.toThrow(
+      /Failed to load @meetropolis\/billing\./,
+    );
+  });
+
+  it('billing loader throws when a different package is missing', async () => {
+    await expect(loadBillingModule(() => Promise.reject(missingPackageError('stripe')))).rejects.toThrow(
+      /Failed to load @meetropolis\/billing\./,
+    );
+  });
+
+  it('billing loader returns the module when the package reports version 3', async () => {
+    const module = await loadBillingModule(() =>
+      Promise.resolve(enterpriseModuleFixture(EXPECTED_BILLING_MODULE_VERSION)),
+    );
+    expect(module?.version).toBe(3);
+  });
+
+  it('billing loader caches absence: repeated getBillingModule calls stay null without reloading', async () => {
+    const debugSpy = vi.spyOn(logger, 'debug');
+    try {
+      await expect(getBillingModule()).resolves.toBeNull();
+      await expect(getBillingModule()).resolves.toBeNull();
+      expect(debugSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      debugSpy.mockRestore();
+    }
+  });
+
+  it('admin loader returns null when exactly @meetropolis/billing is absent', async () => {
+    await expect(
+      loadAdminEnterpriseModule(() => Promise.reject(missingPackageError('@meetropolis/billing'))),
+    ).resolves.toBeNull();
+  });
+
+  it('admin loader throws when the installed package reports version 4', async () => {
+    await expect(loadAdminEnterpriseModule(() => Promise.resolve(enterpriseModuleFixture(4)))).rejects.toThrow(
+      /Failed to load @meetropolis\/billing\./,
+    );
+  });
+
+  it('admin loader throws when a different package is missing', async () => {
+    await expect(loadAdminEnterpriseModule(() => Promise.reject(missingPackageError('stripe')))).rejects.toThrow(
+      /Failed to load @meetropolis\/billing\./,
+    );
+  });
+
+  it('admin loader returns the module when the package reports version 3', async () => {
+    const module = await loadAdminEnterpriseModule(() =>
+      Promise.resolve(enterpriseModuleFixture(EXPECTED_ADMIN_MODULE_VERSION)),
+    );
+    expect(module?.version).toBe(3);
+  });
+
+  it('admin loader caches absence: repeated getAdminEnterpriseModule calls stay null without reloading', async () => {
+    const debugSpy = vi.spyOn(logger, 'debug');
+    try {
+      await expect(getAdminEnterpriseModule()).resolves.toBeNull();
+      await expect(getAdminEnterpriseModule()).resolves.toBeNull();
+      expect(debugSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      debugSpy.mockRestore();
+    }
   });
 });

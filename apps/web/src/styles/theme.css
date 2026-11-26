@@ -1,107 +1,103 @@
 :root {
   /* Dark defaults */
-  --brand-primary: #450db3;
-  --brand-accent: #f3a814;
-  --bg: #0f1115;
-  --fg: #e5e7eb;
-  --fg-subtle: #9ca3af;
-  --border: rgba(255, 255, 255, 0.08);
-  --glass: rgba(255, 255, 255, 0.06);
-  --glass-hover: rgba(255, 255, 255, 0.12);
-  --shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
-  --modal-bg: rgba(17, 17, 20, 0.98);
-  --modal-fg: #e5e7eb;
-  --panel-bg: rgba(17, 17, 20, 0.92);
-  --panel-fg: var(--fg);
-  --chip-bg: rgba(17, 17, 20, 0.7);
-  --bar-bg: rgba(0, 0, 0, 0.5);
-  --bar-fg: #e5e7eb;
-  --bar-chip-bg: rgba(255, 255, 255, 0.06);
-  --bar-divider: rgba(255, 255, 255, 0.12);
-  --focus: rgba(243, 168, 20, 0.45);
-  --uc-glass: rgba(255, 255, 255, 0.1);
-  --radius: 14px;
-  --radius-sm: 10px;
-  --radius-xs: 8px;
-  --gradient: linear-gradient(135deg, #450db3 0%, #f3a814 100%);
-  --gradient-hero: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%);
+  --brand-primary: var(--color-primary);
+  --brand-accent: var(--color-accent);
+  --bg: var(--color-bg);
+  --fg: var(--color-text);
+  --fg-subtle: var(--color-text-muted);
+  --border: var(--color-border);
+  --glass: var(--color-surface);
+  --glass-hover: var(--color-surface-hover);
+  --shadow: var(--shadow-panel);
+  --modal-bg: var(--color-dialog-bg);
+  --modal-fg: var(--color-dialog-text);
+  --panel-bg: var(--color-panel-bg);
+  --panel-fg: var(--color-panel-text);
+  --chip-bg: var(--color-chip-bg);
+  --bar-bg: var(--color-hud-bg);
+  --bar-fg: var(--color-hud-text);
+  --bar-chip-bg: var(--color-hud-chip-bg);
+  --bar-divider: var(--color-hud-divider);
+  --focus: var(--color-focus);
+  --uc-glass: var(--color-user-card-bg);
+  --radius: var(--radius-panel);
+  --gradient: var(--gradient-primary);
+  --gradient-hero: var(--gradient-brand);
 
-  --btn-text-shadow: none;
+  --btn-text-shadow: var(--shadow-button-text);
 }
 
 /* System preference overrides */
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: #f6f7fb;
-    --fg: #0f1115;
-    --fg-subtle: #6b7280;
-    --border: rgba(0, 0, 0, 0.08);
-    --glass: rgba(255, 255, 255, 0.92);
-    --glass-hover: rgba(0, 0, 0, 0.06);
-    --shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
-    --modal-bg: rgba(255, 255, 255, 0.98);
-    --modal-fg: #0f1115;
-    --panel-bg: rgba(17, 17, 20, 0.92);
-    --panel-fg: #e5e7eb;
-    --chip-bg: rgba(17, 17, 20, 0.7);
-    --bar-bg: rgba(255, 255, 255, 0.2);
-    --bar-fg: #e5e7eb;
-    --bar-chip-bg: rgba(255, 255, 255, 0.08);
-    --bar-divider: rgba(255, 255, 255, 0.18);
-    --focus: rgba(69, 13, 179, 0.45);
-    --uc-glass: rgba(255, 255, 255, 0.2);
+    --bg: var(--color-bg);
+    --fg: var(--color-text);
+    --fg-subtle: var(--color-text-muted);
+    --border: var(--color-border);
+    --glass: var(--color-surface);
+    --glass-hover: var(--color-surface-hover);
+    --shadow: var(--shadow-panel);
+    --modal-bg: var(--color-dialog-bg);
+    --modal-fg: var(--color-dialog-text);
+    --panel-bg: var(--color-panel-bg);
+    --panel-fg: var(--color-panel-text);
+    --chip-bg: var(--color-chip-bg);
+    --bar-bg: var(--color-hud-bg);
+    --bar-fg: var(--color-hud-text);
+    --bar-chip-bg: var(--color-hud-chip-bg);
+    --bar-divider: var(--color-hud-divider);
+    --focus: var(--color-focus);
+    --uc-glass: var(--color-user-card-bg);
   }
 }
 
 /* Manual override wins over system preference */
 :root[data-theme='dark'] {
-  --brand-primary: #450db3;
-  --brand-accent: #f3a814;
-  --bg: #0f1115;
-  --fg: #e5e7eb;
-  --fg-subtle: #9ca3af;
-  --border: rgba(255, 255, 255, 0.08);
-  --glass: rgba(255, 255, 255, 0.06);
-  --glass-hover: rgba(255, 255, 255, 0.12);
-  --shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
-  --modal-bg: rgba(17, 17, 20, 0.98);
-  --modal-fg: #e5e7eb;
-  --panel-bg: rgba(17, 17, 20, 0.92);
-  --panel-fg: var(--fg);
-  --chip-bg: rgba(17, 17, 20, 0.7);
-  --bar-bg: rgba(0, 0, 0, 0.5);
-  --bar-fg: #e5e7eb;
-  --bar-chip-bg: rgba(255, 255, 255, 0.06);
-  --bar-divider: rgba(255, 255, 255, 0.12);
-  --focus: rgba(243, 168, 20, 0.45);
-  --radius: 14px;
-  --radius-sm: 10px;
-  --radius-xs: 8px;
-  --gradient: linear-gradient(135deg, #450db3 0%, #f3a814 100%);
-  --gradient-hero: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%);
-  --btn-text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
-  --uc-glass: rgba(255, 255, 255, 0.1);
+  --brand-primary: var(--color-primary);
+  --brand-accent: var(--color-accent);
+  --bg: var(--color-bg);
+  --fg: var(--color-text);
+  --fg-subtle: var(--color-text-muted);
+  --border: var(--color-border);
+  --glass: var(--color-surface);
+  --glass-hover: var(--color-surface-hover);
+  --shadow: var(--shadow-panel);
+  --modal-bg: var(--color-dialog-bg);
+  --modal-fg: var(--color-dialog-text);
+  --panel-bg: var(--color-panel-bg);
+  --panel-fg: var(--color-panel-text);
+  --chip-bg: var(--color-chip-bg);
+  --bar-bg: var(--color-hud-bg);
+  --bar-fg: var(--color-hud-text);
+  --bar-chip-bg: var(--color-hud-chip-bg);
+  --bar-divider: var(--color-hud-divider);
+  --focus: var(--color-focus);
+  --radius: var(--radius-panel);
+  --gradient: var(--gradient-primary);
+  --gradient-hero: var(--gradient-brand);
+  --btn-text-shadow: var(--shadow-button-text);
+  --uc-glass: var(--color-user-card-bg);
 }
 
 :root[data-theme='light'] {
-  --bg: #f6f7fb;
-  --fg: #0f1115;
-  --fg-subtle: #6b7280;
-  --border: rgba(0, 0, 0, 0.08);
-  --glass: rgba(255, 255, 255, 0.92);
-  --glass-hover: rgba(0, 0, 0, 0.06);
-  --shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
-  --modal-bg: rgba(255, 255, 255, 0.98);
-  --modal-fg: #0f1115;
-  --panel-bg: rgba(17, 17, 20, 0.92);
-  --panel-fg: #e5e7eb;
-  --chip-bg: rgba(17, 17, 20, 0.7);
-  --bar-bg: rgba(255, 255, 255, 0.2);
-  --bar-fg: #e5e7eb;
-  --bar-chip-bg: rgba(255, 255, 255, 0.08);
-  --bar-divider: rgba(255, 255, 255, 0.18);
-  --focus: rgba(69, 13, 179, 0.45);
-  --uc-glass: rgba(255, 255, 255, 0.2);
+  --bg: var(--color-bg);
+  --fg: var(--color-text);
+  --fg-subtle: var(--color-text-muted);
+  --border: var(--color-border);
+  --glass: var(--color-surface);
+  --glass-hover: var(--color-surface-hover);
+  --shadow: var(--shadow-panel);
+  --modal-bg: var(--color-dialog-bg);
+  --modal-fg: var(--color-dialog-text);
+  --panel-bg: var(--color-panel-bg);
+  --panel-fg: var(--color-panel-text);
+  --chip-bg: var(--color-chip-bg);
+  --bar-bg: var(--color-hud-bg);
+  --bar-fg: var(--color-hud-text);
+  --bar-chip-bg: var(--color-hud-chip-bg);
+  --bar-divider: var(--color-hud-divider);
+  --focus: var(--color-focus);
+  --uc-glass: var(--color-user-card-bg);
 }
 
 /* Base layout glue */
@@ -166,18 +162,18 @@ body {
   --bg-btn-fg: var(--fg);
 }
 .bg-btn-primary {
-  --bg-btn-bg: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  --bg-btn-border: rgba(0, 0, 0, 0);
-  --bg-btn-fg: #fff;
+  --bg-btn-bg: linear-gradient(135deg, var(--palette-legacy-hex-10b981) 0%, var(--palette-legacy-hex-059669) 100%);
+  --bg-btn-border: var(--palette-legacy-rgba-0-0-0-0);
+  --bg-btn-fg: var(--palette-legacy-hex-fff);
 }
 .bg-btn-secondary {
-  --bg-btn-bg: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-  --bg-btn-border: rgba(0, 0, 0, 0);
-  --bg-btn-fg: #fff;
+  --bg-btn-bg: linear-gradient(135deg, var(--palette-legacy-hex-3b82f6) 0%, var(--palette-legacy-hex-8b5cf6) 100%);
+  --bg-btn-border: var(--palette-legacy-rgba-0-0-0-0);
+  --bg-btn-fg: var(--palette-legacy-hex-fff);
 }
 .bg-btn-active {
-  --bg-btn-bg: rgba(16, 185, 129, 0.2);
-  --bg-btn-border: rgba(16, 185, 129, 0.45);
+  --bg-btn-bg: var(--palette-legacy-rgba-16-185-129-0-2);
+  --bg-btn-border: var(--palette-legacy-rgba-16-185-129-0-45);
   --bg-btn-fg: var(--fg);
 }
 .bg-btn-disabled {
@@ -199,7 +195,7 @@ body {
   border: 1px solid var(--border);
   box-shadow:
     var(--shadow),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2);
+    inset 0 1px 1px var(--palette-legacy-rgba-255-255-255-0-2);
 }
 .bg-horizontal {
   flex-direction: row;
@@ -402,12 +398,12 @@ body {
   --uc-bg: var(--bar-bg);
   --uc-shadow: var(--shadow);
   --uc-name-bg: color-mix(in oklab, var(--bg) 60%, transparent);
-  --uc-badge-on: color-mix(in oklab, #10b981 25%, transparent);
-  --uc-badge-off: color-mix(in oklab, #f43f5e 25%, transparent);
-  --uc-badge-border-on: color-mix(in oklab, #10b981 50%, transparent);
-  --uc-badge-border-off: color-mix(in oklab, #f43f5e 50%, transparent);
-  --speaking-color: #10b981;
-  --speaking-glow: rgba(16, 185, 129, 0.35);
+  --uc-badge-on: color-mix(in oklab, var(--palette-legacy-hex-10b981) 25%, transparent);
+  --uc-badge-off: color-mix(in oklab, var(--palette-legacy-hex-f43f5e) 25%, transparent);
+  --uc-badge-border-on: color-mix(in oklab, var(--palette-legacy-hex-10b981) 50%, transparent);
+  --uc-badge-border-off: color-mix(in oklab, var(--palette-legacy-hex-f43f5e) 50%, transparent);
+  --speaking-color: var(--palette-legacy-hex-10b981);
+  --speaking-glow: var(--palette-legacy-rgba-16-185-129-0-35);
 }
 
 .uc-container {
@@ -640,16 +636,16 @@ body {
 }
 .btn-primary {
   background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent));
-  color: #fff;
+  color: var(--palette-legacy-hex-fff);
   border: none;
 }
 .btn-ghost {
   background: var(--glass);
 }
 .btn-danger {
-  background: rgba(244, 63, 94, 0.15);
-  border-color: rgba(244, 63, 94, 0.45);
-  color: #fff;
+  background: var(--palette-legacy-rgba-244-63-94-0-15);
+  border-color: var(--palette-legacy-rgba-244-63-94-0-45);
+  color: var(--palette-legacy-hex-fff);
 }
 
 .panel {
@@ -710,16 +706,16 @@ body,
   transform: scale(0.98);
 }
 .menu-item.active {
-  background: rgba(16, 185, 129, 0.18);
-  border-color: rgba(16, 185, 129, 0.35);
+  background: var(--palette-legacy-rgba-16-185-129-0-18);
+  border-color: var(--palette-legacy-rgba-16-185-129-0-35);
 }
 .menu-item.danger {
-  background: rgba(244, 63, 94, 0.12);
-  border-color: rgba(244, 63, 94, 0.35);
-  color: #fff;
+  background: var(--palette-legacy-rgba-244-63-94-0-12);
+  border-color: var(--palette-legacy-rgba-244-63-94-0-35);
+  color: var(--palette-legacy-hex-fff);
 }
 .menu-item.danger:hover {
-  background: rgba(244, 63, 94, 0.25);
+  background: var(--palette-legacy-rgba-244-63-94-0-25);
 }
 
 /* Device Selector Items (Small Lists) */
@@ -742,5 +738,14 @@ body,
   background: var(--glass-hover);
 }
 .device-selector-item.selected {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--palette-legacy-rgba-255-255-255-0-15);
+}
+
+/* The editor surface is always dark, so its content uses the dark theme text
+   and surface tokens regardless of the active theme. */
+.editor-surface {
+  --fg: var(--palette-legacy-hex-e5e7eb);
+  --fg-subtle: var(--palette-legacy-hex-9ca3af);
+  --glass: var(--palette-legacy-rgba-255-255-255-0-06);
+  --border: var(--palette-legacy-rgba-255-255-255-0-08);
 }

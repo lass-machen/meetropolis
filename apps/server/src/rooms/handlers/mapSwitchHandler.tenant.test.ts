@@ -49,7 +49,7 @@ vi.mock('../audioZones/runtime.js', () => ({
 
 import { handleChangeMap } from './mapSwitchHandler.js';
 import type { WorldRoom } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 
 type P = {
   mapId: string;

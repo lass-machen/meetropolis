@@ -75,6 +75,8 @@ model Membership {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   guestToken GuestToken?
+  inviteVerificationRequired Boolean @default(false)
+  lastLoginAt DateTime?
 
   @@unique([tenantId, userId])
 }
@@ -100,6 +102,7 @@ model User {
   updatedAt           DateTime            @updatedAt
   onboardingCompleted Boolean             @default(false)
   locale              String              @default("de")
+  lastLoginAt         DateTime?
   presences           Presence[]
   passwordResets      PasswordReset[]
   emailVerifications  EmailVerification[]
@@ -109,17 +112,26 @@ model User {
   customAvatar        CustomAvatar?
 }
 
+// A partial unique index on (tenantId, email) for open invites lives only in
+// migration 20261117090000_unique_open_invite, because Prisma cannot express
+// a unique index with a WHERE clause.
 model Invite {
   id        String   @id @default(cuid())
+  // stores the SHA-256 hex of the invite code
   code      String   @unique
   email     String?
   createdAt DateTime @default(now())
+  expiresAt DateTime?
+  lastSentAt DateTime?
+  sendCount Int      @default(0)
+  lastSendError String?
   createdBy String?
   usedAt    DateTime?
   usedById  String?
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   tenantId  String
   role      Role     @default(member)
+  emailVerifications EmailVerification[]
 }
 
 model PasswordReset {
@@ -138,9 +150,19 @@ model EmailVerification {
   user      User     @relation(fields: [userId], references: [id])
   userId    String
   email     String
+  purpose   String   @default("verify")
+  sourceEmail String?
+  invite    Invite?  @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  inviteId  String?
+  readyAt   DateTime?
   usedAt    DateTime?
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+enum ApiTokenScope {
+  read
+  write
 }
 
 model ApiToken {
@@ -148,6 +170,8 @@ model ApiToken {
   user       User     @relation(fields: [userId], references: [id])
   userId     String
   name       String?
+  // read tokens may only use safe methods (GET, HEAD, OPTIONS); write tokens may also change data; neither reaches account, token management or platform administration routes.
+  scope      ApiTokenScope @default(read)
   hash       String   @unique
   lastUsedAt DateTime?
   createdAt  DateTime @default(now())
@@ -166,6 +190,21 @@ model Session {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model AuthEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  tenantId  String?
+  type      String
+  success   Boolean
+  ipAddress String?
+  userAgent String?
+  emailHmac String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 model Map {
@@ -311,6 +350,9 @@ model AssetPack {
   objects      Json
   autotiles    Json               @default("[]")
   archived     Boolean            @default(false)
+  // Active generation id. NULL = legacy pack whose files live
+  // directly under the pack directory; no backfill by design.
+  currentGeneration String?
   tenantId     String?
   tenant       Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt    DateTime           @default(now())
@@ -349,6 +391,17 @@ model AssetPack {
 // is SetNull, which would PUBLISH a private pack to the whole platform the
 // moment its owning tenant is deleted — a fail-open leak. Restrict would block
 // tenant offboarding instead. Cascade is the only fail-closed option.
+//
+// `archived` is independent of ownership. It removes a pack from collection
+// endpoints and therefore from every avatar picker/registry list, including the
+// platform owner's list. Direct lookups stay available, as do wear/resolve
+// reads used to preserve existing selections. Archiving is reversible and never
+// deletes the pack row or its files.
+//
+// The single ownership exception is the platform super-admin (owner of the
+// `internal` tenant), which can administer every pack. The picker list still
+// excludes archived packs for this caller; direct lookup and the archive write
+// route keep them manageable.
 model AvatarPack {
   id           Int                 @id @default(autoincrement())
   uuid         String              @unique
@@ -358,6 +411,7 @@ model AvatarPack {
   version      String
   type         String              @default("full")
   avatars      Json
+  archived     Boolean             @default(false)
   tenantId     String?
   tenant       Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt    DateTime            @default(now())
@@ -577,5 +631,68 @@ model NpcMediaFile {
   @@index([npcId])
 }
 
+enum DeletionJournalStatus {
+  blocked
+  requested
+  db_deleted
+  cleanup_pending
+  completed
+}
+
+enum DeletionTaskStatus {
+  pending
+  leased
+  retry
+  manual_required
+  done
+  failed
+}
+
+// References intentionally survive removal of tenant and user rows.
+model DeletionJournal {
+  id             String                @id @default(cuid())
+  idempotencyKey String                @unique
+  generation     BigInt                @unique @default(autoincrement())
+  scope          String
+  tenantRef      String?
+  accountRefs    String[]              @default([])
+  objectRefs     String[]              @default([])
+  policyVersion  String
+  requestedAt    DateTime              @default(now())
+  dbDeletedAt    DateTime?
+  accessStatus   String                @default("pending") @db.VarChar(64)
+  cleanupStatus  String                @default("pending") @db.VarChar(64)
+  status         DeletionJournalStatus @default(requested)
+  completedAt    DateTime?
+  journalUntil   DateTime
+  lastErrorCode  String?               @db.VarChar(64)
+  tasks          DeletionTask[]
+
+  @@index([status, journalUntil])
+}
+
+model DeletionTask {
+  id               String             @id @default(cuid())
+  journalId        String
+  journal          DeletionJournal    @relation(fields: [journalId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  kind             String             @db.VarChar(64)
+  targetSystem     String             @db.VarChar(64)
+  objectId         String
+  objectGeneration String
+  storageKey       String?
+  dedupeKey        String             @unique
+  status           DeletionTaskStatus @default(pending)
+  attempts         Int                @default(0)
+  nextAttemptAt    DateTime           @default(now())
+  leaseToken       String?
+  leaseUntil       DateTime?
+  lastErrorCode    String?            @db.VarChar(64)
+  completedAt      DateTime?
+  receiptCode      String?            @db.VarChar(64)
+
+  @@index([journalId])
+  @@index([status, nextAttemptAt])
+}
+
 // Optional commercial modules can extend this schema at build time via
-// their own tooling. See docs/enterprise.md.
+// their own tooling.

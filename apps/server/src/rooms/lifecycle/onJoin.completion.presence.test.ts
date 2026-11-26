@@ -17,6 +17,17 @@ interface MemberRow {
 }
 
 const fakePrisma = {
+  session: {
+    findMany: vi.fn((args: { where?: { id?: { in?: string[] }; userId?: string } }) =>
+      Promise.resolve([
+        {
+          id: args.where?.id?.in?.[0] ?? 'db-session',
+          userId: args.where?.userId ?? 'user-1',
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]),
+    ),
+  },
   tenant: { findUnique: vi.fn(() => Promise.resolve({ defaultMapName: 'office' })) },
   map: {
     findFirst: vi.fn(() => Promise.resolve({ id: 'map-1', name: 'office' })),
@@ -25,6 +36,8 @@ const fakePrisma = {
   membership: {
     findMany: vi.fn((): Promise<MemberRow[]> => Promise.resolve([])),
     findFirst: vi.fn(() => Promise.resolve(null)),
+    // The admit gate re-proves the verified tenant; the double stays a member.
+    findUnique: vi.fn(() => Promise.resolve({ role: 'member', expiresAt: null })),
   },
   presence: { findMany: vi.fn(() => Promise.resolve([])) },
   user: { findUnique: vi.fn(() => Promise.resolve({ name: 'Alice', email: 'alice@example.test', avatarId: null })) },
@@ -47,6 +60,7 @@ vi.mock('../audioZones/runtime.js', () => ({
 
 import { completePendingJoin } from './onJoin.completion.js';
 import { MAX_JOIN_TEXT_LENGTH } from './joinFields.js';
+import { WorldAccessRegistry } from './worldAccess.js';
 import type { WorldRoom, Player as PlayerCtor } from '../WorldRoom.js';
 
 type CompletionClient = Parameters<typeof completePendingJoin>[1];
@@ -91,11 +105,21 @@ async function seededList(members: MemberRow[]): Promise<SeededMember[]> {
     tileHeightPx: 32,
     defaultSpawn: { x: 10, y: 10 },
   } as unknown as WorldRoom;
+  room.worldAccess = new WorldAccessRegistry(room);
+  // The onAuth entry the admit gate needs for this session.
+  room.worldAccess.register('sid-1', {
+    identity: 'user-1',
+    sessionId: 'db-session',
+    tenantId: 'tenant-1',
+    tenantSlug: 'tenant-1',
+    isNpc: false,
+    zonePrivacyVersion: 1,
+  });
   const client = {
     sessionId: 'sid-1',
     send,
     view: { add() {}, remove() {}, has: () => false },
-    auth: { identity: 'user-1', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-1' },
+    auth: { identity: 'user-1', sessionId: 'db-session', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-1' },
   } as unknown as CompletionClient;
 
   await completePendingJoin(room, client, {}, 'user-1', FakePlayer as unknown as typeof PlayerCtor);
@@ -130,10 +154,21 @@ describe('presence_recent seed', () => {
 
   it('leaves ordinary names, umlauts and addresses unchanged', async () => {
     const list = await seededList([
-      { userId: 'u-1', user: { id: 'u-1', email: 'jörg@example.test', name: 'Jörg Müller-Lüdenscheidt' } },
+      {
+        userId: 'u-1',
+        user: {
+          id: 'u-1',
+          email: 'j\u00f6rg@example.test',
+          name: 'J\u00f6rg M\u00fcller-L\u00fcdenscheidt',
+        },
+      },
     ]);
 
-    expect(list[0]?.user).toEqual({ id: 'u-1', email: 'jörg@example.test', name: 'Jörg Müller-Lüdenscheidt' });
+    expect(list[0]?.user).toEqual({
+      id: 'u-1',
+      email: 'j\u00f6rg@example.test',
+      name: 'J\u00f6rg M\u00fcller-L\u00fcdenscheidt',
+    });
   });
 
   it('keeps a missing name null and a missing user empty, as before', async () => {

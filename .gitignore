@@ -25,6 +25,9 @@ coverage/
 apps/web/test-results/
 apps/web/playwright-report/
 apps/web/blob-report/
+# The visual baselines of the visual test suite stay local: the golden PNGs are
+# generated per slot and must not end up in the history.
+/apps/web/e2e/visual/__screenshots__/
 
 # --- Local environment ---
 .env

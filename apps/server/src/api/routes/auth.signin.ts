@@ -6,19 +6,32 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import {
   requireAuth,
+  requireVerificationAuth,
   getTenantFromReq,
   requireMembership,
   normalizeEmailForStorage,
-  normalizeEmailForMatching,
 } from '../utils/authHelpers.js';
+import { buildPublicWebLink, requirePublicWebBase } from '../utils/publicLinks.js';
 import { establishSession, revokeSessionByToken } from '../utils/sessionAuth.js';
 import { displayNameSchema, invalidNameBodyFor } from '../utils/displayName.js';
-import { startEmailVerification } from './auth.verify.js';
+import { deliveringEmailModule } from '../utils/emailProof.js';
+import { manualConfirmationEnabled } from '../utils/manualConfirmation.js';
+import {
+  beginInviteVerification,
+  pendingInviteForUser,
+  verificationPending,
+  verificationBindingRequired,
+} from '../utils/inviteVerification.js';
+import { isInternalOwner as checkInternalOwner } from '../utils/tenantMembership.js';
 import { hasBillingModule } from '../../billingLoader.js';
 import { hasAdminEnterpriseModule } from '../../adminLoader.js';
 import { getTenancyModule } from '../../tenancyLoader.js';
-import { sendIfAvailable } from '../../emailLoader.js';
 import { isNativeClientRequest, getRequestToken, buildSigninResponseBody } from './auth.helpers.js';
+import { recordAuthEvent } from '../../services/authEvents.js';
+import { getDeniedTenant, isTenantAccessDenied } from '../utils/tenantAccessState.js';
+import * as inviteLifecycle from '../utils/inviteLifecycle.js';
+import { hashInviteCode, newInviteCode } from '../utils/inviteCode.js';
+import { createOpenInvite } from '../utils/openInvite.js';
 
 const inviteSchema = z.object({
   email: z.string().email(),
@@ -52,46 +65,52 @@ export async function handleAuthInvite(
   }
   const requestedRole = parse.data.role;
   const allowedRole = membership.role === 'owner' ? requestedRole : 'member';
-  const code = crypto.randomBytes(12).toString('hex');
+  const baseUrl = requirePublicWebBase(res, 'auth.invite');
+  if (!baseUrl) return;
+
   const normalizedEmail = normalizeEmailForStorage(parse.data.email);
-  const inv = await prisma.invite.create({
-    data: { code, email: normalizedEmail, createdBy: auth.userId, tenantId: tenant.id, role: allowedRole },
+  const existingMember = await prisma.user.findFirst({
+    where: {
+      email: { equals: normalizedEmail, mode: 'insensitive' },
+      memberships: { some: { tenantId: tenant.id, inviteVerificationRequired: false } },
+    },
+    select: { id: true },
   });
-
-  // Best-effort email when a mail module is loaded (EE-tenancy or
-  // OSS-SMTP). In the OSS-console-fallback case this becomes a logged
-  // no-op: the code is returned in the JSON response below and shared
-  // manually by the admin.
-  //
-  // Locale chain (Block C): params.locale (not exposed on /auth/invite) →
-  // inviter.locale (DB) → MAIL_DEFAULT_LOCALE / 'de' (resolver default).
-  // The invitee is not a known user yet, so we fall back to the
-  // inviter's UI locale — closer to "what language did the admin see
-  // when they sent this" than guessing the recipient's.
-  const inviter = await prisma.user.findUnique({
-    where: { id: auth.userId },
-    select: { name: true, email: true, locale: true },
+  if (existingMember) {
+    res.status(409).json({ error: 'already_member' });
+    return;
+  }
+  const openInvite = await prisma.invite.findFirst({
+    where: { tenantId: tenant.id, email: normalizedEmail, usedAt: null },
+    orderBy: { createdAt: 'desc' },
   });
-  const inviterName = inviter?.name || inviter?.email || 'Someone';
-  const inviterLocale = inviter?.locale === 'en' ? 'en' : inviter?.locale === 'de' ? 'de' : undefined;
-  const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || '';
-  const inviteUrl = baseUrl ? `${baseUrl.replace(/\/$/, '')}/#/?invite=${inv.code}` : `/#/?invite=${inv.code}`;
-  void sendIfAvailable(
-    (mod) =>
-      mod.sendInvite({
-        to: normalizedEmail,
-        inviterName,
-        // The company NAME, not the slug: the slug is a routing key ("acme-2")
-        // and the invite mail's subject line puts this in front of a human.
-        tenantName: tenant.name,
-        inviteUrl,
-        locale: inviterLocale,
-      }),
-    'invite.email_failed',
-    { tenantId: tenant.id, inviteCode: inv.code },
-  );
-
-  res.json({ code: inv.code, role: allowedRole, inviteUrl });
+  let invite;
+  let rawCode: string;
+  if (openInvite) {
+    const rotated = newInviteCode();
+    rawCode = rotated.code;
+    invite = await prisma.invite.update({
+      where: { id: openInvite.id },
+      data: { code: rotated.codeHash, expiresAt: inviteLifecycle.inviteExpiry(), role: allowedRole },
+    });
+  } else {
+    const created = await createOpenInvite(prisma, {
+      tenantId: tenant.id,
+      email: normalizedEmail,
+      createdBy: auth.userId,
+      role: allowedRole,
+    });
+    invite = created.invite;
+    rawCode = created.rawCode;
+  }
+  const inviteUrl = buildPublicWebLink(baseUrl, `?invite=${rawCode}`);
+  const emailSent = await inviteLifecycle.deliverInvite(prisma, {
+    invite: { id: invite.id, email: invite.email, tenantId: invite.tenantId, expiresAt: invite.expiresAt },
+    inviterUserId: auth.userId,
+    tenantName: tenant.name,
+    inviteUrl,
+  });
+  res.json(inviteLifecycle.inviteResponse(invite, rawCode, inviteUrl, emailSent));
 }
 
 const registerSchema = z.object({
@@ -112,50 +131,60 @@ export async function handleAuthRegister(
     return;
   }
   const { code, name, email, password } = parse.data;
-  const invite = await prisma.invite.findUnique({ where: { code } });
+  const invite = await prisma.invite.findUnique({ where: { code: hashInviteCode(code) } });
   if (!invite || invite.usedAt) {
-    res.status(400).json({ error: 'invalid or used invite' });
+    res.status(400).json({ error: 'invite_unavailable' });
     return;
   }
-  if (invite.email && normalizeEmailForMatching(invite.email) !== normalizeEmailForMatching(email)) {
-    res.status(400).json({ error: 'invite does not match email' });
+  if (inviteLifecycle.deriveInviteStatus(invite) === 'expired') {
+    res.status(400).json({ error: 'invite_expired' });
     return;
   }
-  const hash = await bcrypt.hash(password, BCRYPT_COST);
+  if (!inviteLifecycle.inviteEmailMatches(invite.email, email)) {
+    res.status(403).json({ error: 'invite_email_mismatch' });
+    return;
+  }
+  if (!(await deliveringEmailModule()) && !manualConfirmationEnabled()) {
+    res.status(503).json({
+      code: 'EMAIL_DELIVERY_UNAVAILABLE',
+      error: 'This invitation requires email confirmation. Configure a delivery provider or contact an administrator.',
+    });
+    return;
+  }
+  if (!requirePublicWebBase(res, 'auth.register')) return;
+  const now = new Date();
   let user;
   try {
-    const emailForStorage = normalizeEmailForStorage(email);
-    // No `emailVerifiedAt` here: the address is unverified until the user
-    // proves it via the mail sent below. Stamping it at creation time is what
-    // made the entire verification flow (model, endpoints, badge) dead code —
-    // and password-reset links are mailed to this address, so the proof has to
-    // be real. An unverified user is not locked out; the client shows a banner
-    // (GET /auth/me -> emailVerified).
-    user = await prisma.user.create({
-      data: { email: emailForStorage, name, passwordHash: hash },
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
+    // Grant no membership or invitation role until mailbox ownership is proven.
+    user = await inviteLifecycle.registerInvitedUser(prisma, {
+      code,
+      email,
+      name,
+      passwordHash,
+      role: invite.role,
+      tenantId: invite.tenantId,
+      now,
     });
   } catch (e: unknown) {
     if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') {
-      res.status(400).json({ error: 'email already in use' });
+      res.status(409).json({
+        code: 'ACCOUNT_LOGIN_REQUIRED',
+        error: 'An account already exists for this email address. Sign in to accept the invitation.',
+      });
       return;
     }
-    res.status(400).json({ error: 'registration failed' });
+    if (e instanceof inviteLifecycle.InviteUnavailableError) {
+      res.status(400).json({ error: 'invite_unavailable' });
+      return;
+    }
+    logger.error({ event: 'auth.register.failed', errorName: e instanceof Error ? e.name : typeof e });
+    res.status(500).json({ error: 'registration failed' });
     return;
   }
-  await prisma.invite.update({ where: { code }, data: { usedAt: new Date(), usedById: user.id } });
-  try {
-    if (invite.tenantId) {
-      await prisma.membership.upsert({
-        where: { tenantId_userId: { tenantId: invite.tenantId, userId: user.id } },
-        update: {},
-        create: { tenantId: invite.tenantId, userId: user.id, role: invite.role || 'member' },
-      });
-    }
-  } catch {}
 
-  let established;
   try {
-    established = await establishSession({ prisma, req, res, userId: user.id, tenantId: invite.tenantId });
+    await establishSession({ prisma, req, res, userId: user.id, tenantId: invite.tenantId, verificationOnly: true });
   } catch (e: unknown) {
     // No session row means no revocable session, so we do not hand out a
     // cookie either. The account and the redeemed invite survive; the user
@@ -165,13 +194,8 @@ export async function handleAuthRegister(
     return;
   }
 
-  // Detached: a slow or dead mail provider must not fail a registration that
-  // already succeeded. The user can re-trigger via POST /auth/verify/request.
-  void startEmailVerification({ prisma, userId: user.id, req }).catch((e: unknown) =>
-    logger.warn({ event: 'auth.register.verification_start_failed', userId: user.id, error: String(e) }),
-  );
-
-  res.json(buildSigninResponseBody(user, established.token, isNativeClientRequest(req)));
+  // Allow the cookie to perform verification actions without granting tenant access.
+  verificationPending(res, await beginInviteVerification(prisma, user.id, invite.id));
 }
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(8) });
@@ -245,6 +269,72 @@ async function resolveTenantForLogin(prisma: PrismaClient, userId: string, req: 
   return { ok: true as const, tenant, membership };
 }
 
+// Returns true when the response was sent.
+async function respondPendingInviteLogin(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+  userId: string,
+  requestedTenant: { id: string } | null | undefined,
+): Promise<boolean> {
+  const pendingInvite = await pendingInviteForUser(prisma, userId, requestedTenant?.id);
+  const marked = requestedTenant
+    ? await prisma.membership.findUnique({
+        where: { tenantId_userId: { tenantId: requestedTenant.id, userId: userId } },
+      })
+    : null;
+  if (marked?.inviteVerificationRequired || pendingInvite) {
+    if (!pendingInvite) {
+      verificationBindingRequired(res);
+      return true;
+    }
+    await establishSession({
+      prisma,
+      req,
+      res,
+      userId: userId,
+      tenantId: pendingInvite.tenantId,
+      verificationOnly: true,
+    });
+    verificationPending(res, await beginInviteVerification(prisma, userId, pendingInvite.id));
+    return true;
+  }
+  return false;
+}
+
+// Returns null when the response was sent.
+async function resolveLoginTenantOrRespond(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+  userId: string,
+  requestedTenant: { id: string } | null | undefined,
+) {
+  const tenantResolution = await resolveTenantForLogin(prisma, userId, req);
+  if (!tenantResolution.ok) {
+    // An existing account without membership needs a session to accept an invitation.
+    // The 409 response does not grant tenant access.
+    if (tenantResolution.error === 'not_member_of_tenant' && requestedTenant) {
+      await establishSession({
+        prisma,
+        req,
+        res,
+        userId: userId,
+        tenantId: requestedTenant.id,
+        verificationOnly: true,
+      });
+      res.status(409).json({
+        code: 'INVITE_ACCEPT_REQUIRED',
+        error: 'Open your invitation link to continue with this account. Request a new invitation if it has expired.',
+      });
+      return null;
+    }
+    res.status(tenantResolution.status).json({ error: tenantResolution.error });
+    return null;
+  }
+  return tenantResolution.tenant;
+}
+
 export async function handleAuthLogin(
   prisma: PrismaClient,
   req: express.Request,
@@ -262,6 +352,7 @@ export async function handleAuthLogin(
   // oracle; see DUMMY_PASSWORD_HASH.
   const passwordOk = await verifyPasswordConstantWork(password, user?.passwordHash);
   if (!user || !user.passwordHash) {
+    await recordAuthEvent(prisma, { type: 'login', success: false, userId: user?.id ?? null, email, req });
     const guestCheck = await checkGuestRedirect(prisma, user);
     if (guestCheck.guest) {
       res
@@ -273,16 +364,19 @@ export async function handleAuthLogin(
     return;
   }
   if (!passwordOk) {
+    await recordAuthEvent(prisma, { type: 'login', success: false, userId: user.id, req });
     res.status(401).json({ error: 'invalid credentials' });
     return;
   }
 
-  const tenantResolution = await resolveTenantForLogin(prisma, user.id, req);
-  if (!tenantResolution.ok) {
-    res.status(tenantResolution.status).json({ error: tenantResolution.error });
+  const requestedTenant = getTenantFromReq(req) ?? getDeniedTenant(req);
+  if (await respondPendingInviteLogin(prisma, req, res, user.id, requestedTenant)) {
     return;
   }
-  const { tenant } = tenantResolution;
+  const tenant = await resolveLoginTenantOrRespond(prisma, req, res, user.id, requestedTenant);
+  if (!tenant) {
+    return;
+  }
 
   let established;
   try {
@@ -293,6 +387,8 @@ export async function handleAuthLogin(
     return;
   }
 
+  await recordAuthEvent(prisma, { type: 'login', success: true, userId: user.id, tenantId: tenant.id, req });
+
   res.json(buildSigninResponseBody(user, established.token, isNativeClientRequest(req)));
 }
 
@@ -301,6 +397,7 @@ export async function handleAuthLogout(
   req: express.Request,
   res: express.Response,
 ): Promise<void> {
+  const auth = requireAuth(req);
   try {
     const currentToken = getRequestToken(req);
     if (currentToken) await revokeSessionByToken(prisma, currentToken);
@@ -308,65 +405,90 @@ export async function handleAuthLogout(
     logger.warn({ event: 'auth.logout.session_delete_failed', error: String(e) });
   }
 
+  await recordAuthEvent(prisma, {
+    type: 'logout',
+    success: true,
+    userId: auth?.userId ?? null,
+    tenantId: auth?.tenantId ?? null,
+    req,
+  });
+
   res.clearCookie('auth_token', { path: '/' });
   res.json({ ok: true });
 }
 
-async function loadInternalOwnerFlag(prisma: PrismaClient, userId: string): Promise<boolean> {
-  try {
-    const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
-    if (!internal) return false;
-    const internalMember = await prisma.membership.findUnique({
-      where: { tenantId_userId: { tenantId: internal.id, userId } },
-    });
-    return internalMember?.role === 'owner';
-  } catch {
-    return false;
+// Returns true when the response was sent.
+async function respondVerificationGate(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+  auth: NonNullable<ReturnType<typeof requireVerificationAuth>>,
+): Promise<boolean> {
+  if (auth.verificationOnly) {
+    const pending = await pendingInviteForUser(prisma, auth.userId, auth.tenantId);
+    if (pending) verificationPending(res);
+    else res.status(409).json({ code: 'ACCOUNT_LOGIN_REQUIRED', error: 'Please sign in to continue.' });
+    return true;
   }
+  const resolvedTenant = getTenantFromReq(req) ?? getDeniedTenant(req);
+  if (resolvedTenant) {
+    const marked = await prisma.membership.findUnique({
+      where: {
+        tenantId_userId: {
+          tenantId: resolvedTenant.id,
+          userId: auth.userId,
+        },
+      },
+    });
+    const pending = await pendingInviteForUser(prisma, auth.userId, resolvedTenant.id);
+    if (marked?.inviteVerificationRequired || pending) {
+      if (!pending) verificationBindingRequired(res);
+      else verificationPending(res);
+      return true;
+    }
+  }
+  return false;
 }
 
-export async function handleAuthMe(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
-  const auth = requireAuth(req);
-  if (!auth) {
-    res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
-  const tenant = getTenantFromReq(req);
-  if (!tenant) {
-    res.status(400).json({ error: 'tenant_required' });
-    return;
-  }
-  const member = await prisma.membership.findUnique({
-    where: { tenantId_userId: { tenantId: tenant.id, userId: auth.userId } },
-    select: { id: true, role: true, expiresAt: true },
-  });
-  if (!member) {
-    res.status(403).json({ error: 'not_member_of_tenant' });
-    return;
-  }
-  const user = await prisma.user.findUnique({
-    where: { id: auth.userId },
-    include: {
-      presences: {
-        where: { tenantId: tenant.id },
-        orderBy: { updatedAt: 'desc' },
-        take: 1,
-      },
-    },
-  });
-  if (!user) {
-    res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
-  const isInternalOwner = await loadInternalOwnerFlag(prisma, auth.userId);
-  const lastPosition = user.presences[0];
+async function loadMeCapabilities(): Promise<{
+  hasBilling: boolean;
+  hasAdminEnterprise: boolean;
+  isMultiTenant: boolean;
+}> {
   const tenancyModule = await getTenancyModule();
-  const capabilities = {
+  return {
     hasBilling: await hasBillingModule(),
     hasAdminEnterprise: await hasAdminEnterpriseModule(),
     isMultiTenant: tenancyModule.isMultiTenantEnabled(),
   };
-  res.json({
+}
+
+function meResponseBody(
+  user: {
+    id: string;
+    email: string;
+    name: string | null;
+    avatarId: string | null;
+    emailVerifiedAt: Date | null;
+    onboardingCompleted: boolean;
+    presences: Array<{
+      x: number;
+      y: number;
+      direction: string;
+      mapName: string | null;
+    }>;
+  },
+  tenant: { slug: string },
+  member: { role: string; expiresAt: Date | null },
+  isInternalOwner: boolean,
+  capabilities: {
+    hasBilling: boolean;
+    hasAdminEnterprise: boolean;
+    isMultiTenant: boolean;
+  },
+): Record<string, unknown> {
+  const lastPosition = user.presences[0];
+  return {
     id: user.id,
     email: user.email,
     name: user.name,
@@ -394,5 +516,52 @@ export async function handleAuthMe(prisma: PrismaClient, req: express.Request, r
           mapName: lastPosition.mapName || null,
         }
       : null,
+  };
+}
+
+export async function handleAuthMe(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+  const auth = requireVerificationAuth(req);
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+  if (await respondVerificationGate(prisma, req, res, auth)) {
+    return;
+  }
+  const tenant = getTenantFromReq(req);
+  if (!tenant && isTenantAccessDenied(req)) {
+    // Same answer as before the central guard: the caller is signed in but
+    // not a member of the tenant the request names.
+    res.status(403).json({ error: 'not_member_of_tenant' });
+    return;
+  }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
+  const member = await prisma.membership.findUnique({
+    where: { tenantId_userId: { tenantId: tenant.id, userId: auth.userId } },
+    select: { id: true, role: true, expiresAt: true },
   });
+  if (!member) {
+    res.status(403).json({ error: 'not_member_of_tenant' });
+    return;
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    include: {
+      presences: {
+        where: { tenantId: tenant.id },
+        orderBy: { updatedAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+  if (!user) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+  const isInternalOwner = await checkInternalOwner(prisma, auth.userId);
+  const capabilities = await loadMeCapabilities();
+  res.json(meResponseBody(user, tenant, member, isInternalOwner, capabilities));
 }

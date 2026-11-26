@@ -51,16 +51,3 @@ apps/server/src/api/routes/maps.paint.ts  cohesive request flow, steps already e
 # function per event.
 apps/server/src/rooms/lifecycle/onJoin.completion.ts  critical-path lifecycle, single coherent function
 apps/server/src/rooms/lifecycle/onLeave.ts  critical-path lifecycle, single coherent function
-
-# Local audio/video track lifecycle state machine (mic + cam). One cohesive
-# class whose methods all operate on the same shared mutable state — the
-# desired/published/pending flags, the republish/release timers and the
-# _micOp/_camOp serialization promises — under one disposal contract (every
-# method guards on _disposed and chains on the op promises). The I/O seams
-# (getUserMedia + publish/unpublish) are ALREADY extracted into
-# microphonePublishing.ts and cameraPublishing.ts; what remains is the stateful
-# orchestration, which cannot be split without exposing that private mutable
-# state across module boundaries or duplicating the concurrency/disposal guards,
-# fracturing the very serialization guarantees the class exists to provide.
-# 828 LoC.
-apps/web/src/av/core/TrackManager.ts  av track lifecycle state machine, io seams already extracted

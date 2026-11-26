@@ -3,9 +3,11 @@ import type { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { requireAuth, requireApiToken, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
+import { requestMatchesServiceSecret } from '../utils/serviceSecret.js';
 import { logger } from '../../logger.js';
 import { npcServiceSpawn, npcServiceDespawn } from '../utils/npcServiceClient.js';
 import { isAllowedAvatarId, isCustomAvatarId } from '../../services/avatarAccess.js';
+import { npcMediaFilePath } from './npcMedia.js';
 import { resolvePackScope } from '../utils/resolvePackScope.js';
 import { MAX_DISPLAY_NAME_LENGTH } from '../utils/displayName.js';
 
@@ -109,11 +111,7 @@ const commandSchema = z.discriminatedUnion('action', [
 
 async function handleListNpcs(req: express.Request, res: express.Response, prisma: PrismaClient) {
   // Internal service auth via NPC_SERVICE_SECRET (service-to-service)
-  const npcSecret = process.env.NPC_SERVICE_SECRET;
-  const reqSecret = req.headers['x-npc-secret'] as string | undefined;
-  const isServiceAuth = !!(npcSecret && reqSecret && npcSecret === reqSecret);
-
-  if (isServiceAuth) {
+  if (requestMatchesServiceSecret(req, 'NPC_SERVICE_SECRET', 'x-npc-secret')) {
     // Service-to-service: return all enabled NPCs across all tenants
     const enabledFilter = req.query.enabled === 'true' ? { enabled: true } : {};
     const npcs = await prisma.npc.findMany({
@@ -231,10 +229,9 @@ async function handleDeleteNpc(req: express.Request, res: express.Response, pris
   try {
     const mediaFiles = await prisma.npcMediaFile.findMany({ where: { npcId: npc.id } });
     const fsp = await import('fs/promises');
-    const npcMediaDir = process.env.NPC_MEDIA_DIR || '/data/npc-media';
     for (const mf of mediaFiles) {
       try {
-        await fsp.rm(`${npcMediaDir}/${mf.storagePath}`, { force: true });
+        await fsp.rm(npcMediaFilePath(mf.storagePath), { force: true });
       } catch {
         /* ignore */
       }
@@ -333,15 +330,22 @@ async function handleNpcCommand(req: express.Request, res: express.Response, pri
     (cmd.payload as Record<string, unknown>).mimeType = mediaFile.mimeType;
   }
 
-  // Broadcast command to all active Colyseus rooms. Read the registry through
-  // its declared type (`types/global.d.ts`, typed against the real
-  // `rooms/WorldRoom.ts` class) rather than through a cast: a rename on
-  // `broadcast` or on the registry then breaks the build instead of leaving
-  // this route reporting deliveries it never made.
+  // Broadcast the command to the rooms of the NPC's own tenant only. Every
+  // world room carries its tenant slug in its metadata (rooms/WorldRoom.ts
+  // onCreate) and the NPC service joins its bot under that slug. A room of
+  // another tenant must not receive the command: its clients would read the
+  // payload, and a bot there with the same identity would act on it. A room
+  // without a tenant gets nothing. Read the registry through its declared
+  // type (`types/global.d.ts`, typed against the real `rooms/WorldRoom.ts`
+  // class) rather than through a cast: a rename on `broadcast` or on the
+  // registry then breaks the build instead of leaving this route reporting
+  // deliveries it never made.
   const activeWorldRooms = global.activeWorldRooms;
   let delivered = 0;
   if (activeWorldRooms) {
     for (const room of activeWorldRooms) {
+      const roomTenant = (room.metadata as { tenant?: unknown } | undefined)?.tenant;
+      if (roomTenant !== tenant.slug) continue;
       try {
         room.broadcast('npc_command', { npcIdentity: npc.identity, ...cmd });
         delivered++;

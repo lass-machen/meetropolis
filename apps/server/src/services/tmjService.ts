@@ -56,9 +56,12 @@ export const TmjLayerSchema = z.object({
   height: z.number().int().optional(),
 });
 
+// Upper bound for map dimensions in tiles, shared with the map editor.
+export const MAX_MAP_TILES = 512;
+
 export const TmjSchema = z.object({
-  width: z.number().int().positive(),
-  height: z.number().int().positive(),
+  width: z.number().int().positive().max(MAX_MAP_TILES),
+  height: z.number().int().positive().max(MAX_MAP_TILES),
   tilewidth: z.number().int().positive(),
   tileheight: z.number().int().positive(),
   tilesets: z.array(TmjTilesetSchema),

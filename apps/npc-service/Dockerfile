@@ -29,6 +29,8 @@ WORKDIR /workspace/apps/npc-service
 
 ENV NODE_ENV=production
 
+LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
+
 EXPOSE 3100
 
 CMD ["node", "--enable-source-maps", "dist/index.js"]

@@ -213,6 +213,103 @@ describe('setupPlayerHandlers', () => {
     expect(onFullStateReceived).toHaveBeenCalledTimes(1);
   });
 
+  describe('initial hero position', () => {
+    function localPlayer(x: number, y: number) {
+      return {
+        id: 'session-local',
+        x,
+        y,
+        direction: 'down',
+        identity: 'local-user',
+        name: 'Local User',
+        mapId: 'map-1',
+        mapName: 'office',
+      };
+    }
+
+    function argsWithPosition(position: { x?: number; y?: number }) {
+      const args = makeArgs({
+        localPosRef: makeRef<{ id: string; x?: number; y?: number }>({ id: 'session-local', ...position }),
+      });
+      (args.gameBridge as unknown as { setHeroPosition: ReturnType<typeof vi.fn> }).setHeroPosition = vi.fn();
+      return args;
+    }
+
+    it('places the hero at the server position when the join sent no position', () => {
+      const room = makeMockRoom();
+      const args = argsWithPosition({});
+      setupPlayerHandlers(room, args, vi.fn(), vi.fn());
+
+      room.trigger('full_state', { players: [localPlayer(40, 40)] });
+
+      expect(args.gameBridge.setHeroPosition).toHaveBeenCalledOnce();
+      expect(args.gameBridge.setHeroPosition).toHaveBeenCalledWith({ x: 40, y: 40 });
+      expect(args.localPosRef.current).toMatchObject({ x: 40, y: 40 });
+    });
+
+    it('keeps a saved join position', () => {
+      const room = makeMockRoom();
+      const args = argsWithPosition({ x: 300, y: 200 });
+      setupPlayerHandlers(room, args, vi.fn(), vi.fn());
+
+      room.trigger('full_state', { players: [localPlayer(300, 200)] });
+
+      expect(args.gameBridge.setHeroPosition).not.toHaveBeenCalled();
+      expect(args.localPosRef.current).toMatchObject({ x: 300, y: 200 });
+    });
+
+    it('does not move the hero again on a later full_state', () => {
+      const room = makeMockRoom();
+      const args = argsWithPosition({});
+      setupPlayerHandlers(room, args, vi.fn(), vi.fn());
+
+      room.trigger('full_state', { players: [localPlayer(40, 40)] });
+      room.trigger('full_state', { players: [localPlayer(400, 400)] });
+
+      expect(args.gameBridge.setHeroPosition).toHaveBeenCalledOnce();
+      expect(args.localPosRef.current).toMatchObject({ x: 40, y: 40 });
+    });
+
+    it('does not move the hero again after a reconnect', () => {
+      const args = argsWithPosition({});
+      const first = makeMockRoom();
+      setupPlayerHandlers(first, args, vi.fn(), vi.fn());
+      first.trigger('full_state', { players: [localPlayer(40, 40)] });
+
+      const second = makeMockRoom();
+      setupPlayerHandlers(second, args, vi.fn(), vi.fn());
+      second.trigger('full_state', { players: [localPlayer(400, 400)] });
+
+      expect(args.gameBridge.setHeroPosition).toHaveBeenCalledOnce();
+    });
+  });
+
+  it('applies a movement correction to the hero and his current position', () => {
+    const room = makeMockRoom();
+    const args = makeArgs();
+    args.gameBridge.setHeroPosition = vi.fn();
+    setupPlayerHandlers(room, args, vi.fn(), vi.fn());
+
+    room.trigger('move_correction', { mapId: 'map-1', x: 20, y: 30 });
+
+    expect(args.gameBridge.setHeroPosition).toHaveBeenCalledWith({ x: 20, y: 30 });
+    expect(args.localPosRef.current).toEqual({ id: 'session-local', x: 20, y: 30 });
+  });
+
+  it('keeps the confirmed spawn when an old-map correction arrives', () => {
+    const room = makeMockRoom();
+    const args = makeArgs();
+    args.gameBridge.setHeroPosition = vi.fn();
+    setupPlayerHandlers(room, args, vi.fn(), vi.fn());
+
+    room.trigger('map_changed', { mapId: 'map-2', x: 400, y: 300 });
+    useMapStore.getState().setCurrentMap('map-2', 'lobby');
+    room.trigger('move_correction', { mapId: 'map-1', x: 20, y: 30 });
+
+    expect(args.gameBridge.setHeroPosition).not.toHaveBeenCalled();
+    expect(args.localPosRef.current).toEqual({ id: 'session-local', x: 400, y: 300 });
+  });
+
   it('stores and applies the authoritative local avatar from full_state', () => {
     const room = makeMockRoom();
     const args = makeArgs();

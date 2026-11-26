@@ -1,8 +1,10 @@
+import { VerificationPendingView } from './VerificationPendingView';
 import { LoginView } from './LoginView';
 import { RegisterView } from './RegisterView';
 import { RegisterStep2View } from './RegisterStep2View';
 import { RegisterStep3View } from './RegisterStep3View';
 import { RegisterStep4View } from './RegisterStep4View';
+import { InviteAcceptView } from './InviteAcceptView';
 import { InviteCodeView } from './InviteCodeView';
 import { ForgotPasswordView } from './ForgotPasswordView';
 import { ResetPasswordView } from './ResetPasswordView';
@@ -43,6 +45,7 @@ export interface AuthRenderArgs {
   onForgot: (email: string) => Promise<boolean>;
   onReset: (email: string, token: string, password: string) => Promise<void>;
   onInvite: (code: string) => Promise<void>;
+  onRegisterWithInvite: (code: string) => void;
   onCreateTenant: (submission: TenantSignupSubmission) => Promise<void>;
   setRegStep: (step: number) => void;
   setRegData: (updater: (prev: RegistrationData) => RegistrationData) => void;
@@ -158,7 +161,10 @@ function renderRegisterFlow(args: AuthRenderArgs) {
 }
 
 function renderInvite(args: AuthRenderArgs) {
-  const { onInvite, switchView, initialInvite, error, registrationEnabled } = args;
+  const { apiBase, onInvite, onRegisterWithInvite, switchView, initialInvite, error, registrationEnabled } = args;
+  if (initialInvite) {
+    return <InviteAcceptView apiBase={apiBase} code={initialInvite} onRegisterWithInvite={onRegisterWithInvite} />;
+  }
   return (
     <InviteCodeView
       onSubmit={onInvite}
@@ -205,6 +211,8 @@ function renderGuest(args: AuthRenderArgs) {
 
 export function renderAuthView(args: AuthRenderArgs) {
   switch (args.view) {
+    case 'pending':
+      return <VerificationPendingView apiBase={args.apiBase} />;
     case 'login':
       return renderLogin(args);
     case 'register':

@@ -12,11 +12,10 @@ import { createOssEmailModule } from './email/index.js';
  *   2. OSS-SMTP (`./email/index.ts`) when the EE module is unavailable but
  *      `SMTP_HOST` + `SMTP_FROM` are configured.
  *   3. OSS-Console fallback (`./email/index.ts`) when neither EE nor SMTP is
- *      configured. Logs a one-time warn at boot and reports `false` from
- *      `send()` so callers (verify-request etc.) keep surfacing tokens.
+ *      configured. Reports false without logging message data.
  *
- * Sensitive tokens (e.g. password reset) are never routed through this
- * module — they remain admin-triggered and surface in the admin UI.
+ * Require known delivery metadata before issuing confirmation or reset tokens.
+ * Do not send links to console or unknown providers.
  */
 
 export type EmailLocale = 'de' | 'en';
@@ -27,6 +26,8 @@ export interface SendInviteParams {
   tenantName: string;
   inviteUrl: string;
   locale?: EmailLocale;
+  /** Already formatted for the mail locale. */
+  expiresAt?: string;
 }
 
 export interface SendGuestInviteParams {
@@ -86,6 +87,8 @@ export interface SendRawParams {
 
 export interface EmailModule {
   readonly version: 1;
+  /** Delivering provider as reported by the module (e.g. `ee-resend`, `ee-smtp`, `ee-console`). */
+  readonly providerName?: string;
   sendInvite(params: SendInviteParams): Promise<boolean>;
   sendGuestInvite(params: SendGuestInviteParams): Promise<boolean>;
   sendWelcome(params: SendWelcomeParams): Promise<boolean>;
@@ -137,10 +140,15 @@ export async function getEmailModule(): Promise<EmailModule | null> {
       const candidate = factory();
       if (isEmailModule(candidate)) {
         cached = candidate;
-        logger.info({
-          event: 'email.module_loaded',
-          provider: process.env.RESEND_API_KEY ? 'ee-resend' : 'ee-console',
-        });
+        const provider = typeof candidate.providerName === 'string' ? candidate.providerName : 'ee-unknown';
+        logger.info({ event: 'email.module_loaded', provider });
+        if (provider === 'ee-console' && process.env.NODE_ENV === 'production') {
+          logger.error({
+            event: 'email.no_delivery_configured',
+            provider,
+            message: 'Neither RESEND_API_KEY/RESEND_FROM nor SMTP_HOST/SMTP_FROM is set: mails are NOT delivered',
+          });
+        }
         return cached;
       }
       logger.warn({ event: 'email.module_invalid_shape', source: 'ee-tenancy' });
@@ -151,7 +159,7 @@ export async function getEmailModule(): Promise<EmailModule | null> {
     logger.debug({
       event: 'email.module_not_available',
       reason: 'import_failed',
-      error: e instanceof Error ? e.message : String(e),
+      errorName: e instanceof Error ? e.name : typeof e,
     });
   }
 
@@ -165,12 +173,36 @@ export async function getEmailModule(): Promise<EmailModule | null> {
   } catch (e: unknown) {
     logger.error({
       event: 'email.oss_module_init_failed',
-      error: e instanceof Error ? e.message : String(e),
+      errorName: e instanceof Error ? e.name : typeof e,
     });
   }
 
   cached = null;
   return null;
+}
+
+/**
+ * Name of the mail provider backing the resolved email module.
+ *
+ * Returns the module's `providerName` (e.g. `oss-smtp`, `oss-console`,
+ * `ee-resend`), `ee-unknown` when a module is loaded but reports no name,
+ * or `null` when no module is available at all.
+ */
+export async function loadedEmailProviderName(): Promise<string | null> {
+  const mod = await getEmailModule();
+  return mod ? (mod.providerName ?? 'ee-unknown') : null;
+}
+
+/**
+ * Whether the given provider name (see {@link loadedEmailProviderName})
+ * delivers nothing and only logs to the console.
+ *
+ * This covers the no-module case (`null`) as well as both known console
+ * fallbacks, so callers keep their documented out-of-band behaviour
+ * wherever no real delivery happens.
+ */
+export function isConsoleDelivery(name: string | null): boolean {
+  return name === null || name === 'oss-console' || name === 'ee-console';
 }
 
 /**
@@ -191,7 +223,7 @@ export async function sendIfAvailable(
     logger.error({
       event: errorEvent,
       ...context,
-      error: e instanceof Error ? e.message : String(e),
+      errorName: e instanceof Error ? e.name : typeof e,
     });
     return false;
   }

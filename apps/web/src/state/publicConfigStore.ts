@@ -1,9 +1,11 @@
 import { create } from 'zustand';
+import type { PublicAdsConfig } from '../lib/brandLoader';
 
 export interface PublicConfig {
   registrationEnabled: boolean;
   billingEnabled: boolean;
   avatarEditorEnabled: boolean;
+  ads: PublicAdsConfig | null;
   loaded: boolean;
 }
 
@@ -24,12 +26,20 @@ interface PublicConfigResponse {
    * to document the OSS-facing contract and keep the response shape typed.
    */
   telemetry?: { enabled?: boolean; environment?: string };
+  /**
+   * Optional ads consent block, present only when the server is configured
+   * for ads measurement. Normalization (id/label/mode rules) happens on the
+   * providing side; this store keeps the block as received when it is an
+   * object and falls back to null otherwise.
+   */
+  ads?: unknown;
 }
 
 const DEFAULTS: PublicConfig = {
   registrationEnabled: true,
   billingEnabled: false,
   avatarEditorEnabled: false,
+  ads: null,
   loaded: false,
 };
 
@@ -46,6 +56,7 @@ export const usePublicConfigStore = create<PublicConfigState>((set, get) => ({
           typeof data.publicRegistrationEnabled === 'boolean' ? data.publicRegistrationEnabled : true,
         billingEnabled: typeof data.billingEnabled === 'boolean' ? data.billingEnabled : false,
         avatarEditorEnabled: typeof data.avatarEditorEnabled === 'boolean' ? data.avatarEditorEnabled : false,
+        ads: typeof data.ads === 'object' && data.ads !== null ? (data.ads as PublicAdsConfig) : null,
         loaded: true,
       });
     } catch {

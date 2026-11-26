@@ -8,53 +8,44 @@ vi.mock('./runtimeConfig', () => ({
   getApiBaseFromWindow: () => 'http://api.test',
 }));
 
+vi.mock('../game/services/assetLoader', () => ({
+  loadMemberImage: vi.fn(),
+  loadMemberSpritesheet: vi.fn(),
+}));
+
 import { preloadTilesetImages, type V2Tileset } from './mapV2';
 import { logger } from './logger';
+import { loadMemberImage } from '../game/services/assetLoader';
 
-type Handler = (...args: unknown[]) => void;
+const loadMemberImageMock = vi.mocked(loadMemberImage);
 
 /**
- * Minimal fake of the Phaser loader/texture surface used by
- * preloadTilesetImages. `start()` synchronously emits `loaderror` for every
- * queued key in `failKeys`, marks the rest as existing textures, and then
- * fires the `complete` handlers, mirroring the Phaser loader contract where
- * `complete` fires even when individual files failed.
+ * Minimal fake of the texture surface used by preloadTilesetImages. The
+ * Phaser loader itself is intentionally absent: every image must travel
+ * through the loadMemberImage helper (mocked above), so any direct
+ * `scene.load.image` call would throw here instead of loading.
  */
 function makeFakeScene(opts: { existing?: string[]; failKeys?: string[]; createCanvasThrows?: boolean } = {}) {
   const existing = new Set(opts.existing ?? []);
   const failKeys = new Set(opts.failKeys ?? []);
-  const queued: Array<{ key: string; url: string }> = [];
-  const onHandlers: Record<string, Handler[]> = {};
-  const onceHandlers: Record<string, Handler[]> = {};
+  const calls: Array<{ key: string; ref: string }> = [];
   const createdPlaceholders: string[] = [];
+  loadMemberImageMock.mockImplementation((_scene: unknown, key: string, ref: string) => {
+    calls.push({ key, ref });
+    if (failKeys.has(key)) return Promise.reject(new Error(`member load failed for ${key}`));
+    existing.add(key);
+    return Promise.resolve();
+  });
 
   const scene = {
     load: {
-      image: (key: string, url: string) => {
-        queued.push({ key, url });
-      },
-      on: (event: string, fn: Handler) => {
-        (onHandlers[event] ??= []).push(fn);
-      },
-      once: (event: string, fn: Handler) => {
-        (onceHandlers[event] ??= []).push(fn);
-      },
-      off: (event: string, fn: Handler) => {
-        onHandlers[event] = (onHandlers[event] ?? []).filter((h) => h !== fn);
-        onceHandlers[event] = (onceHandlers[event] ?? []).filter((h) => h !== fn);
-      },
-      start: () => {
-        for (const q of queued) {
-          if (failKeys.has(q.key)) {
-            for (const h of [...(onHandlers['loaderror'] ?? [])]) h({ key: q.key });
-          } else {
-            existing.add(q.key);
-          }
-        }
-        const completes = [...(onceHandlers['complete'] ?? [])];
-        onceHandlers['complete'] = [];
-        for (const h of completes) h();
-      },
+      image: vi.fn((_key: string, _url: string) => {
+        throw new Error('direct scene.load.image is forbidden for tileset images');
+      }),
+      on: vi.fn(),
+      once: vi.fn(),
+      off: vi.fn(),
+      start: vi.fn(),
     },
     textures: {
       exists: (key: string) => existing.has(key),
@@ -69,51 +60,67 @@ function makeFakeScene(opts: { existing?: string[]; failKeys?: string[]; createC
 
   return {
     scene: scene as unknown as Phaser.Scene,
-    queued,
+    calls,
     createdPlaceholders,
     existing,
   };
 }
 
-function makeTileset(key: string, slot: number): V2Tileset {
-  return { id: `id-${key}`, slot, key, imageUrl: `/packs/${key}.png`, tileWidth: 16, tileHeight: 16 };
+function makeTileset(key: string, slot: number, imageUrl?: string): V2Tileset {
+  return { id: `id-${key}`, slot, key, imageUrl: imageUrl ?? `/packs/${key}.png`, tileWidth: 16, tileHeight: 16 };
 }
 
 describe('preloadTilesetImages', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    loadMemberImageMock.mockReset();
   });
 
-  it('loads all missing tileset images and resolves', async () => {
-    const { scene, queued, createdPlaceholders, existing } = makeFakeScene();
+  it('loads all missing tileset images through loadMemberImage and resolves', async () => {
+    const { scene, calls, createdPlaceholders, existing } = makeFakeScene();
     await preloadTilesetImages(scene, [makeTileset('a', 0), makeTileset('b', 1)]);
-    expect(queued.map((q) => q.key)).toEqual(['a', 'b']);
+    expect(calls.map((c) => c.key)).toEqual(['a', 'b']);
     expect(existing.has('a')).toBe(true);
     expect(existing.has('b')).toBe(true);
     expect(createdPlaceholders).toEqual([]);
   });
 
   it('resolves relative image urls against the api base', async () => {
-    const { scene, queued } = makeFakeScene();
+    const { scene, calls } = makeFakeScene();
     await preloadTilesetImages(scene, [makeTileset('a', 0)]);
-    expect(queued[0]?.url).toBe('http://api.test/packs/a.png');
+    expect(calls[0]?.ref).toBe('http://api.test/packs/a.png');
+  });
+
+  it('passes absolute member urls to the helper unchanged', async () => {
+    const { scene, calls } = makeFakeScene();
+    await preloadTilesetImages(scene, [makeTileset('a', 0, 'http://api.test/packs/a.png')]);
+    expect(calls[0]?.ref).toBe('http://api.test/packs/a.png');
+  });
+
+  it('never loads a /packs ref through scene.load.image directly', async () => {
+    const { scene } = makeFakeScene();
+    const loadImage = (scene as unknown as { load: { image: ReturnType<typeof vi.fn> } }).load.image;
+    await preloadTilesetImages(scene, [makeTileset('a', 0)]);
+    expect(loadImage).not.toHaveBeenCalledWith(expect.anything(), expect.stringContaining('/packs/'));
   });
 
   it('skips tilesets whose textures already exist', async () => {
-    const { scene, queued } = makeFakeScene({ existing: ['a'] });
+    const { scene, calls } = makeFakeScene({ existing: ['a'] });
     await preloadTilesetImages(scene, [makeTileset('a', 0), makeTileset('b', 1)]);
-    expect(queued.map((q) => q.key)).toEqual(['b']);
+    expect(calls.map((c) => c.key)).toEqual(['b']);
   });
 
   it('is a no-op when every texture already exists', async () => {
-    const { scene, queued } = makeFakeScene({ existing: ['a', 'b'] });
+    const { scene, calls } = makeFakeScene({ existing: ['a', 'b'] });
     await preloadTilesetImages(scene, [makeTileset('a', 0), makeTileset('b', 1)]);
-    expect(queued).toEqual([]);
+    expect(calls).toEqual([]);
   });
 
   it('continues past a failing image and installs a placeholder texture', async () => {
     const { scene, createdPlaceholders, existing } = makeFakeScene({ failKeys: ['broken'] });
-    await preloadTilesetImages(scene, [makeTileset('a', 0), makeTileset('broken', 1), makeTileset('b', 2)]);
+    await expect(
+      preloadTilesetImages(scene, [makeTileset('a', 0), makeTileset('broken', 1), makeTileset('b', 2)]),
+    ).resolves.toBeUndefined();
     expect(existing.has('a')).toBe(true);
     expect(existing.has('b')).toBe(true);
     expect(createdPlaceholders).toEqual(['broken']);
@@ -122,23 +129,11 @@ describe('preloadTilesetImages', () => {
   });
 
   it('does not refetch a failed image on the next run once the placeholder exists', async () => {
-    const { scene, queued } = makeFakeScene({ failKeys: ['broken'] });
+    const { scene, calls } = makeFakeScene({ failKeys: ['broken'] });
     await preloadTilesetImages(scene, [makeTileset('broken', 0)]);
-    const queuedAfterFirstRun = queued.length;
+    const callsAfterFirstRun = calls.length;
     await preloadTilesetImages(scene, [makeTileset('broken', 0)]);
-    expect(queued.length).toBe(queuedAfterFirstRun);
-  });
-
-  it('ignores loaderror events for keys outside the current batch', async () => {
-    const { scene, createdPlaceholders } = makeFakeScene({ failKeys: [] });
-    const sceneLoad = (scene as unknown as { load: { on: (ev: string, fn: Handler) => void } }).load;
-    const originalOn = sceneLoad.on.bind(sceneLoad);
-    sceneLoad.on = (event: string, fn: Handler) => {
-      originalOn(event, fn);
-      if (event === 'loaderror') fn({ key: 'unrelated' });
-    };
-    await preloadTilesetImages(scene, [makeTileset('a', 0)]);
-    expect(createdPlaceholders).toEqual([]);
+    expect(calls.length).toBe(callsAfterFirstRun);
   });
 
   it('still resolves when placeholder creation fails', async () => {

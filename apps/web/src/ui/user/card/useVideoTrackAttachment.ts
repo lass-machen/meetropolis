@@ -259,6 +259,10 @@ export function useVideoTrackAttachment(
     const isLocalNow = found.isLocal;
     setIsLocal(isLocalNow);
     setHasRemoteParticipant(!!p && !isLocalNow);
+    // Publishing participant's sid on remote tiles only, for tooling that maps
+    // a rendered track back to its sender; no visible effect.
+    if (p && !isLocalNow && p.sid) el.dataset.participantSid = p.sid;
+    else delete el.dataset.participantSid;
     if (!p || !p.trackPublications) return;
 
     const initialCleanup = attachInitialTrack(p, part, el, attachedTrackIdRef);
@@ -320,6 +324,7 @@ export function useVideoTrackAttachment(
       try {
         if (node) {
           (node as HTMLVideoElement & { srcObject?: MediaStream | null }).srcObject = null;
+          delete node.dataset.participantSid;
         }
       } catch {}
     };

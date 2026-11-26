@@ -1,10 +1,16 @@
 Sprite catalog provenance
 =========================
 
-`catalog.json` in this directory is generated output of the Meetropolis
-sprite generator located at `tools/sprite-generator/` (engine.py, poses.py,
-generate.py, export_catalog.py and the `catalogs/` package). Those generator
-sources carry `SPDX-License-Identifier: AGPL-3.0-only` and stay AGPL-3.0-only.
+`catalog.json` in this directory (schema `meetropolis-sprite-catalog/v6`)
+is produced through the asset-atelier catalog path in `tools/asset-lab/`
+(`scripts/sprite-catalog.ts`, which reads the existing catalog as its base
+and applies `buildAtelierCatalog` from `src/avatar-catalog.ts` with the
+Atelier raster additions). The underlying pixel lineage comes from the
+Meetropolis sprite generator at `tools/sprite-generator/` (engine.py,
+poses.py, generate.py, export_catalog.py and the `catalogs/` package),
+whose sources carry `SPDX-License-Identifier: AGPL-3.0-only` and stay
+AGPL-3.0-only. The six character PNGs remain the Python generator's
+output (`generate.py`).
 
 This generated `catalog.json` is licensed under the MIT License, consistent
 with the surrounding `@meetropolis/shared` package (see ../package.json and
@@ -17,13 +23,19 @@ It is vendored here so the shared composer, the AGPL-3.0 server and the web
 editor all read one identical contract (guaranteeing preview == the
 server-composited sheet).
 
-Do not hand-edit `catalog.json`. Regenerate it from the generator, then
-format it so the diff stays minimal:
+Do not hand-edit `catalog.json`. Regenerate the current v6 catalog
+through the asset-atelier path from the repository root (the legacy
+Python v5 export below is no longer authoritative for this file):
 
-    cd tools/sprite-generator
-    python3 export_catalog.py                          # -> packages/shared/sprite/catalog.json
-    cd ../.. && npx prettier --write packages/shared/sprite/catalog.json
+    npm --prefix tools/asset-lab run catalog:build    # -> packages/shared/sprite/catalog.json (v6)
+    npm --prefix tools/asset-lab run catalog:check    # verify it is up to date
 
-All pixel data is authored procedurally from the grid templates in
+The legacy Python v5 export (`python3 export_catalog.py` in
+`tools/sprite-generator/`) remains documented in
+`tools/sprite-generator/README.md` and is no longer the authoritative
+generation for the current v6 catalog.
+
+The pixel basis is authored procedurally from the grid templates in
 `tools/sprite-generator/catalogs/`; no third-party pixel data is read,
-sampled, or referenced.
+sampled, or referenced. The current v6 catalog additionally contains the
+Atelier raster additions from the atelier path above.

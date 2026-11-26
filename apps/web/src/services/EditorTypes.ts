@@ -97,6 +97,9 @@ export type MapObjectRecord = {
   collisionBaseHeight?: number;
   renderLayer?: 'floor' | 'sorted' | 'overhead';
   _pending?: 'add'; // Marker for objects that have not been saved yet
+  // Purely client-side instance reference to the asset created by stamp/drag
+  // Asset. Loaded server records lack this field and stay valid.
+  clientAssetId?: string;
 };
 
 export type TerrainPaintOp = {
@@ -114,6 +117,7 @@ export type PendingChanges = {
   objectUpdates: Array<{ id: number | string; updates: Partial<MapObjectRecord> }>;
   zonesModified: boolean;
   spawnUpdate: { x: number; y: number } | null;
+  spawnRemoved: boolean;
 };
 
 export type ViewToggles = {

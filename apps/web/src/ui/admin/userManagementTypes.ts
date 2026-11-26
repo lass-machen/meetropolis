@@ -20,6 +20,8 @@ export interface ResetTokenResponse {
 
 export interface InviteResponse {
   code?: string | null;
+  inviteUrl?: string | null;
+  emailSent?: boolean;
 }
 
 export interface UserManagementWindow {

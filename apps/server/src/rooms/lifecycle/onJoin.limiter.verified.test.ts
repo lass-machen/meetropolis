@@ -58,7 +58,7 @@ vi.mock('../handlers/sessionHandlers.js', () => ({ takeOverExistingSessions: vi.
 const completePendingJoin = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 vi.mock('./onJoin.completion.js', () => ({ completePendingJoin }));
 
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { collectActiveIdentitiesForVerifiedTenant, enforceTenantLimits, type RoomMetadata } from './onJoin.limiter.js';
 import { performOnJoin } from './onJoin.js';
 import { createPrismaClient } from '../../db.js';
@@ -89,7 +89,7 @@ function makeRoom(roomTenant: string | undefined, players: SeatedPlayer[] = []):
 
 /** A client whose JWT verified `tenant` (or none: a token-less staged join). */
 function makeClient(tenant: Row | null, identity = 'joiner'): Client {
-  const auth: WorldAuth = { identity, isNpc: false, zonePrivacyVersion: 1 };
+  const auth: WorldAuth = { identity, sessionId: null, isNpc: false, zonePrivacyVersion: 1 };
   if (tenant) {
     auth.tenantId = tenant.id;
     auth.tenantSlug = tenant.slug;

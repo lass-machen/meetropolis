@@ -46,11 +46,11 @@ function stubApi(user: StoredUser, reply: PatchReply) {
 
 // The real i18n instance, in English: the texts below come from the shipped locale files.
 const nameField = () => screen.getByPlaceholderText<HTMLInputElement>('Your name');
-const emailField = () => screen.getByPlaceholderText<HTMLInputElement>('your@email.com');
+const emailField = () => screen.getByLabelText<HTMLInputElement>('New email address');
 
 async function renderLoaded(): Promise<void> {
   render(<ProfileSettings onClose={vi.fn()} />);
-  await waitFor(() => expect(emailField().value).not.toBe(''));
+  await screen.findByLabelText('New email address');
 }
 
 function save(): void {
@@ -76,17 +76,28 @@ describe('ProfileSettings name field', () => {
   it('lets an account without a name change its e-mail address: no name is sent', async () => {
     const patches = stubApi(
       { id: 'u1', email: 'old@example.test', name: null },
-      { status: 200, body: { id: 'u1', email: 'new@example.test', name: null } },
+      {
+        status: 202,
+        body: {
+          id: 'u1',
+          email: 'old@example.test',
+          name: null,
+          emailChangePending: true,
+          pendingEmail: 'new@example.test',
+          sent: true,
+        },
+      },
     );
     await renderLoaded();
     expect(nameField().value).toBe('');
 
     fireEvent.change(emailField(), { target: { value: 'new@example.test' } });
-    save();
+    fireEvent.click(screen.getByRole('button', { name: 'Request email change' }));
 
     await waitFor(() => expect(patches).toHaveLength(1));
     expect(patches[0]).toEqual({ email: 'new@example.test' });
-    expect(await screen.findByText('Profile updated successfully')).toBeTruthy();
+    expect(await screen.findByText(/A confirmation link was sent/)).toBeTruthy();
+    expect(screen.getByText('old@example.test')).toBeTruthy();
   });
 
   it('sends no name when the field only holds whitespace', async () => {
@@ -99,23 +110,23 @@ describe('ProfileSettings name field', () => {
     fireEvent.change(nameField(), { target: { value: '   ' } });
     save();
 
-    await waitFor(() => expect(patches).toHaveLength(1));
-    expect(patches[0]).toEqual({ email: 'a@example.test' });
+    await screen.findByText('Profile updated successfully');
+    expect(patches).toHaveLength(0);
   });
 
   it('sends the trimmed name and shows the stored one afterwards', async () => {
     const patches = stubApi(
       { id: 'u1', email: 'a@example.test', name: null },
-      { status: 200, body: { id: 'u1', email: 'a@example.test', name: 'Jörg Müller' } },
+      { status: 200, body: { id: 'u1', email: 'a@example.test', name: 'Jorg Muller' } },
     );
     await renderLoaded();
 
-    fireEvent.change(nameField(), { target: { value: '  Jörg Müller  ' } });
+    fireEvent.change(nameField(), { target: { value: '  Jorg Muller  ' } });
     save();
 
     await waitFor(() => expect(patches).toHaveLength(1));
-    expect(patches[0]).toEqual({ name: 'Jörg Müller', email: 'a@example.test' });
-    await waitFor(() => expect(nameField().value).toBe('Jörg Müller'));
+    expect(patches[0]).toEqual({ name: 'Jorg Muller' });
+    await waitFor(() => expect(nameField().value).toBe('Jorg Muller'));
   });
 
   it('keeps the stored name when the field was cleared: the field shows it again after the save', async () => {
@@ -129,8 +140,8 @@ describe('ProfileSettings name field', () => {
     fireEvent.change(nameField(), { target: { value: '' } });
     save();
 
-    await waitFor(() => expect(patches).toHaveLength(1));
-    expect(patches[0]).toEqual({ email: 'a@example.test' });
+    await screen.findByText('Profile updated successfully');
+    expect(patches).toHaveLength(0);
     await waitFor(() => expect(nameField().value).toBe('Alice'));
   });
 

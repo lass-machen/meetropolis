@@ -20,7 +20,7 @@ vi.mock('../../db.js', () => ({ createPrismaClient: () => ({}) }));
 
 import { WorldState, Player } from '../WorldRoom.js';
 import type { WorldRoom } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { isPlayerVisibleToTenant, tenantKeyForClient, syncTenantViewsOnJoin, NO_TENANT_KEY } from './tenantView.js';
 
 function makeRoom(): WorldRoom {

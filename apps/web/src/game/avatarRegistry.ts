@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { DEFAULT_AVATARS, fallbackAvatarSpriteUrl } from '../lib/defaultAvatars';
 import { getApiBaseFromWindow } from '../lib/apiBase';
 import { logger } from '../lib/logger';
+import { isMemberAssetRef } from '../lib/memberAssets';
+import { loadMemberSpritesheet } from './services/assetLoader';
 
 interface AvatarState {
   directions: ('down' | 'left' | 'right' | 'up')[];
@@ -220,16 +222,42 @@ export class AvatarRegistry {
     return url;
   }
 
-  preloadAvatar(scene: Phaser.Scene, avatarId: string): void {
+  async preloadAvatar(scene: Phaser.Scene, avatarId: string): Promise<void> {
     const manifest = this.getManifest(avatarId);
     if (!manifest) return;
     const textureKey = this.getTextureKey(avatarId);
-    if (this.loadedTextures.has(textureKey)) return;
-    scene.load.spritesheet(textureKey, this.resolveAssetUrl(manifest.spriteUrl), {
-      frameWidth: manifest.frameWidth,
-      frameHeight: manifest.frameHeight,
-    });
+    if (scene.textures.exists(textureKey)) return;
+    if (this.loadedTextures.has(textureKey)) {
+      return new Promise<void>((resolve) => {
+        scene.load.once(`filecomplete-spritesheet-${textureKey}`, () => resolve());
+      });
+    }
     this.loadedTextures.add(textureKey);
+    const url = this.resolveAssetUrl(manifest.spriteUrl);
+    // Non-member refs (bundled /assets/...) queue synchronously so callers
+    // with a sync Phaser preload phase observe a filled load queue; the
+    // promise fulfills on the filecomplete event. Protected member refs
+    // (/packs/...) load through the authenticated helper instead. A failed
+    // member load rejects after warning so promise-based callers can keep
+    // their current state; a failed queued load simply never fulfills.
+    if (!isMemberAssetRef(url)) {
+      scene.load.spritesheet(textureKey, url, {
+        frameWidth: manifest.frameWidth,
+        frameHeight: manifest.frameHeight,
+      });
+      return new Promise<void>((resolve) => {
+        scene.load.once(`filecomplete-spritesheet-${textureKey}`, () => resolve());
+      });
+    }
+    try {
+      await loadMemberSpritesheet(scene, textureKey, url, {
+        frameWidth: manifest.frameWidth,
+        frameHeight: manifest.frameHeight,
+      });
+    } catch (err) {
+      logger.warn('[AvatarRegistry] Failed to load avatar spritesheet:', textureKey, err);
+      throw err;
+    }
   }
 
   createAnimations(anims: Phaser.Animations.AnimationManager, avatarId: string): void {

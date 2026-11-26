@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { baseUrl } from '../../../lib/mapV2';
 import { logger } from '../../../lib/logger';
 import { lookupDirectionalImage } from '../../../lib/directionalImageRegistry';
+import { loadMemberImage } from '../../services/assetLoader';
 import {
   DEPTH_FLOOR_OBJECT,
   mapHeightPx,
@@ -245,16 +246,20 @@ export class ObjectManager {
     this.pendingTextureLoads.set(key, [onReady]);
 
     const resolvedUrl = url.startsWith('/') ? `${baseUrl()}${url}` : url;
-    if (!resolvedUrl.startsWith('data:')) {
-      this.scene.load.setCORS('anonymous');
-    }
-    this.scene.load.image(key, resolvedUrl);
-    this.scene.load.once('complete', () => {
-      const callbacks = this.pendingTextureLoads.get(key);
-      this.pendingTextureLoads.delete(key);
-      if (callbacks) callbacks.forEach((cb) => cb());
-    });
-    this.scene.load.start();
+    // Protected object files (/packs/...) load through the authenticated
+    // member-asset helper; other refs pass through it unchanged. Callbacks
+    // run on success and on failure (the loader 'complete' event used to
+    // fire in both cases); createSprite drops missing textures as before.
+    void loadMemberImage(this.scene, key, resolvedUrl).then(
+      () => this.flushTextureLoad(key),
+      () => this.flushTextureLoad(key),
+    );
+  }
+
+  private flushTextureLoad(key: string): void {
+    const callbacks = this.pendingTextureLoads.get(key);
+    this.pendingTextureLoads.delete(key);
+    if (callbacks) callbacks.forEach((cb) => cb());
   }
 
   private async fetchObjectsByChunks(keys: string[]): Promise<MapObjectData[]> {

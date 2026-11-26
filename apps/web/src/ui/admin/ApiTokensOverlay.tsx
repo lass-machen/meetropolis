@@ -4,7 +4,13 @@ import { Button } from '../system/Button';
 import { useTranslation } from 'react-i18next';
 import { useApiTokenActions } from '../../features/admin/useApiTokenActions';
 
-type ApiToken = { id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null };
+type ApiToken = {
+  id: string;
+  name?: string | null;
+  createdAt: string;
+  lastUsedAt?: string | null;
+  scope?: 'read' | 'write';
+};
 
 type ApiTokensOverlayProps = {
   open: boolean;
@@ -77,6 +83,11 @@ function TokenRow({
     >
       <div>
         <div style={{ fontWeight: 600 }}>{token.name || 'Token'}</div>
+        {token.scope && (
+          <div className="sys-api-token__meta">
+            {token.scope === 'write' ? t('admin.api.scopeWrite') : t('admin.api.scopeRead')}
+          </div>
+        )}
         <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
           {t('admin.api.createdAt')}: {new Date(token.createdAt).toLocaleString()}{' '}
           {token.lastUsedAt ? `· ${t('admin.api.lastUsed')}: ${new Date(token.lastUsedAt).toLocaleString()}` : ''}
@@ -172,8 +183,18 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
   const { open, onClose, apiBase, apiTokens, setApiTokens, newTokenName, setNewTokenName, freshToken, setFreshToken } =
     props;
   const { t } = useTranslation();
-  const { error, setError, listState, busy, pendingDeleteId, setPendingDeleteId, createToken, deleteToken } =
-    useApiTokenActions({ open, apiBase, newTokenName, setApiTokens, setNewTokenName, setFreshToken });
+  const {
+    error,
+    setError,
+    listState,
+    busy,
+    pendingDeleteId,
+    setPendingDeleteId,
+    createToken,
+    deleteToken,
+    newTokenScope,
+    setNewTokenScope,
+  } = useApiTokenActions({ open, apiBase, newTokenName, setApiTokens, setNewTokenName, setFreshToken });
 
   return (
     <Modal
@@ -204,6 +225,30 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
             {t('admin.api.createToken')}
           </Button>
         </div>
+        <fieldset className="sys-api-token-scope">
+          <legend className="sys-api-token-scope__legend">{t('admin.api.scope')}</legend>
+          <div className="sys-api-token-scope__options">
+            <label className="sys-api-token-scope__option">
+              <input
+                type="radio"
+                name="api-token-scope"
+                checked={newTokenScope === 'read'}
+                onChange={() => setNewTokenScope('read')}
+              />
+              {t('admin.api.scopeRead')}
+            </label>
+            <label className="sys-api-token-scope__option">
+              <input
+                type="radio"
+                name="api-token-scope"
+                checked={newTokenScope === 'write'}
+                onChange={() => setNewTokenScope('write')}
+              />
+              {t('admin.api.scopeWrite')}
+            </label>
+          </div>
+          <div className="sys-api-token-scope__hint">{t('admin.api.scopeHint')}</div>
+        </fieldset>
         {freshToken && (
           <div
             style={{

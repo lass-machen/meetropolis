@@ -18,7 +18,7 @@ function Avatar({ name, online, size = 28 }: { name: string; online: boolean; si
 
   // Subtle hue derived from the name.
   const hue = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
-  const bgColor = online ? `hsla(${hue}, 45%, 40%, 0.9)` : `hsla(${hue}, 15%, 28%, 0.7)`;
+  const bgColor = online ? `hsla(${hue}, 45%, 30%, 0.9)` : `hsla(${hue}, 15%, 28%, 0.7)`;
 
   return (
     <div
@@ -32,7 +32,7 @@ function Avatar({ name, online, size = 28 }: { name: string; online: boolean; si
         justifyContent: 'center',
         fontSize: size * 0.38,
         fontWeight: 600,
-        color: online ? 'var(--panel-fg, #e5e7eb)' : 'rgba(229,231,235,0.5)',
+        color: online ? 'var(--panel-fg, #e5e7eb)' : 'rgba(229,231,235,0.7)',
         flexShrink: 0,
         position: 'relative',
         border: `1px solid ${online ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)'}`,
@@ -90,6 +90,8 @@ function CollapsedRoster({
   const { t } = useTranslation();
   return (
     <div
+      role="complementary"
+      aria-label={t('roster.team')}
       style={{
         width: 44,
         height: '100%',
@@ -407,7 +409,7 @@ function OfflineRow({
         >
           {r.name || r.identity}
         </div>
-        <div style={{ fontSize: 10, color: 'rgba(229,231,235,0.35)' }}>{formatLastSeen(r.lastSeen)}</div>
+        <div style={{ fontSize: 10, color: 'rgba(229,231,235,0.6)' }}>{formatLastSeen(r.lastSeen)}</div>
       </div>
     </div>
   );
@@ -493,6 +495,7 @@ export function RosterPanel(props: {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }) {
+  const { t } = useTranslation();
   const { roster, onJumpTo, collapsed, onToggleCollapse } = props;
   const [hoveredId, setHoveredId] = React.useState<string | null>(null);
   const formatLastSeen = useFormatLastSeen();
@@ -511,6 +514,8 @@ export function RosterPanel(props: {
 
   return (
     <div
+      role="complementary"
+      aria-label={t('roster.team')}
       style={{
         width: 240,
         height: '100%',

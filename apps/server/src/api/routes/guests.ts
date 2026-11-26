@@ -4,12 +4,16 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership, normalizeEmailForStorage } from '../utils/authHelpers.js';
+import { buildPublicWebLink, requirePublicWebBase } from '../utils/publicLinks.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { displayNameSchema, invalidNameBodyFor } from '../utils/displayName.js';
-import { establishSession, revokeSessionsForUser } from '../utils/sessionAuth.js';
+import { establishSession } from '../utils/sessionAuth.js';
+import { MembershipNotFoundError, removeMemberFromTenant } from '../../services/accountDeletion.js';
 import { getTenancyModule } from '../../tenancyLoader.js';
 import { sendIfAvailable } from '../../emailLoader.js';
 import { guestLoginRateLimiter } from '../middleware/rateLimit.js';
+import { credentialRoute } from '../middleware/tenantAccess.js';
+import { formatInviteExpiry } from '../utils/inviteLifecycle.js';
 
 type GuestAdminGate =
   | {
@@ -104,17 +108,14 @@ async function sendGuestInviteEmail(
   tenantSlug: string,
   user: { name: string | null; email: string },
   name: string | undefined,
+  baseUrl: string,
   rawToken: string,
   expiresAt: Date,
   normalizedEmail: string,
 ): Promise<string> {
   const tenantRecord = await prisma.tenant.findUnique({ where: { id: tenantId } });
   const slug = tenantRecord?.slug || tenantSlug;
-  // Public base URL: self-hosters set `PUBLIC_BASE_URL` or
-  // `BILLING_PUBLIC_URL`. The brand domain (`*.meetropolis.me`) is only set
-  // in enterprise brand setups, with no fallback in OSS.
-  const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || '';
-  const magicLink = baseUrl ? `${baseUrl.replace(/\/$/, '')}/#/guest?token=${rawToken}` : `/#/guest?token=${rawToken}`;
+  const magicLink = buildPublicWebLink(baseUrl, `guest?token=${rawToken}`);
 
   const inviter = await prisma.user.findUnique({
     where: { id: inviterId },
@@ -142,13 +143,7 @@ async function sendGuestInviteEmail(
         tenantName,
         guestName: name || user.name || '',
         magicLinkUrl: magicLink,
-        expiresAt: expiresAt.toLocaleDateString(localeForMail === 'en' ? 'en-GB' : 'de-DE', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        expiresAt: formatInviteExpiry(expiresAt, localeForMail),
         locale: localeForMail,
       }),
     'guest.invite.email_failed',
@@ -180,6 +175,9 @@ async function handleCreateGuest(prisma: PrismaClient, req: express.Request, res
   }
 
   const normalizedEmail = normalizeEmailForStorage(email);
+  const baseUrl = requirePublicWebBase(res, 'guests.create');
+  if (!baseUrl) return;
+
   const user = await ensureGuestUser(prisma, normalizedEmail, name);
 
   const upsert = await upsertGuestMembership(prisma, tenant.id, user.id, expiresAt);
@@ -197,6 +195,7 @@ async function handleCreateGuest(prisma: PrismaClient, req: express.Request, res
     tenant.slug,
     user,
     name,
+    baseUrl,
     rawToken,
     expiresAt,
     normalizedEmail,
@@ -252,14 +251,25 @@ async function handleRevokeGuest(prisma: PrismaClient, req: express.Request, res
     return;
   }
 
-  await prisma.guestToken.deleteMany({ where: { membershipId } });
-  // Via the helper, never a raw `session.deleteMany`: deleting the rows alone
-  // leaves the resolved session in the in-process cache, and a revoked guest
-  // stayed authenticated for up to SESSION_CACHE_TTL_MS — long enough to enter
-  // the world (presence, camera, microphone), which onAuth admits on the same
-  // cache. revokeSessionsForUser drops the cache entries with the rows.
-  await revokeSessionsForUser(prisma, guestMembership.userId);
-  await prisma.membership.delete({ where: { id: membershipId } });
+  // The shared removal (services/accountDeletion.ts) signs the guest out
+  // everywhere, deletes the account with its last membership and ends open
+  // world and AV connections after the commit. Guest tokens go with the
+  // membership (ON DELETE CASCADE).
+  try {
+    await removeMemberFromTenant(prisma, { userId: guestMembership.userId, tenantId: tenant.id });
+  } catch (e: unknown) {
+    if (e instanceof MembershipNotFoundError) {
+      res.status(404).json({ error: 'guest_not_found' });
+      return;
+    }
+    logger.error({
+      event: 'guests.revoke_failed',
+      tenantId: tenant.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    res.status(500).json({ error: 'revoke_failed' });
+    return;
+  }
 
   res.json({ ok: true });
 }
@@ -336,5 +346,5 @@ export function registerGuestRoutes(app: express.Application, prisma: PrismaClie
   app.delete('/guests/:membershipId', (req, res) => handleRevokeGuest(prisma, req, res));
   // Public, unauthenticated magic-link redemption: throttled per client IP to
   // curb guest-token brute-force (see middleware/rateLimit.ts).
-  app.post('/auth/guest', guestLoginRateLimiter, (req, res) => handleGuestLogin(prisma, req, res));
+  app.post('/auth/guest', credentialRoute, guestLoginRateLimiter, (req, res) => handleGuestLogin(prisma, req, res));
 }

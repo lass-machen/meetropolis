@@ -91,9 +91,9 @@
     "q3Question": "Which license does the software use?",
     "q3Answer": "The server is licensed under AGPL-3.0, the web frontend under MIT. You are free to self-host, modify and integrate the software — as long as you respect the license terms.",
     "q4Question": "Can we cancel anytime?",
-    "q4Answer": "Yes. Monthly plans cancel at the end of the month, annual plans at the end of the year. No minimum term, no lock-in.",
+    "q4Answer": "Yes. You can cancel a subscription at any time, effective at the end of the current billing period. No minimum term, no lock-in.",
     "q5Question": "What happens to our custom maps if we cancel?",
-    "q5Answer": "You can export all maps as files anytime — even during the read-only period after cancellation. Your worlds belong to you.",
+    "q5Answer": "You can export all maps as files at any time while you have access to your workspace, so export them before your access ends. Your worlds belong to you.",
     "q6Question": "Do we need the desktop app?",
     "q6Answer": "No. The app runs fully in the browser. The desktop app is optional and adds a floating mini mode for background use."
   },
@@ -198,7 +198,21 @@
     "successText": "Your email has been successfully confirmed. You will be redirected shortly...",
     "errorTitle": "Verification Failed",
     "noToken": "No verification token provided.",
-    "backButton": "Back to Home"
+    "backButton": "Back to Home",
+    "invite": {
+      "title": "Invitation confirmed",
+      "text": "Your email address is confirmed and the invitation was accepted."
+    },
+    "verify": {
+      "title": "Email address confirmed",
+      "text": "Your email address was confirmed successfully."
+    },
+    "email_change": {
+      "title": "Email address changed",
+      "text": "Your new email address is now active and confirmed."
+    },
+    "continue": "Continue to sign in or your office",
+    "invalidLink": "This link is invalid, expired or already used. Please request a new confirmation."
   },
   "auth": {
     "brandingHeadline": "Your virtual office, your rules.",
@@ -225,7 +239,7 @@
     "registerPassword": "Password",
     "registerPasswordPlaceholder": "••••••••",
     "registerSubmit": "Continue",
-    "registerTermsHint": "By signing up, you agree to our Terms of Service and Privacy Policy.",
+    "registerTermsHint": "By signing up, you accept our Terms of Service. You have read our Privacy Policy.",
     "registerHasAccount": "Already have an account?",
     "registerLoginLink": "Sign In",
     "inviteBadge": "Invitation",
@@ -239,6 +253,15 @@
     "inviteLoginLink": "Sign In",
     "inviteNoAccount": "No account?",
     "inviteRegisterLink": "Sign Up",
+    "inviteAccept": {
+      "loading": "Loading invitation …",
+      "notFound": "This invitation does not exist or has been revoked.",
+      "alreadyUsed": "This invitation has already been used.",
+      "acceptTitle": "Accept the invitation to {{tenant}}",
+      "acceptButton": "Accept invitation",
+      "inviteTitle": "Invitation to {{tenant}}",
+      "inviteForEmail": "The invitation is for {{email}}."
+    },
     "forgotTitle": "Forgot Password",
     "forgotSubtitle": "Enter your email address. We'll send you a link to set a new password.",
     "forgotSentTitle": "Check your inbox",
@@ -264,6 +287,7 @@
     "dividerOr": "or",
     "emailLabel": "Email Address",
     "passwordLabel": "Password",
+    "requiredFieldsMissing": "Please fill in all required fields.",
     "setupTeamTitle": "Set up your team",
     "setupTeamSubtitle": "What's your team called and how big is it?",
     "teamName": "Team Name",
@@ -315,7 +339,7 @@
     "vatIdPlaceholder": "e.g. DE123456789",
     "vatIdHint": "Recommended for intra-EU services (reverse charge).",
     "b2bDeclaration": "I confirm that I am entering into this contract as an entrepreneur within the meaning of § 14 BGB, not as a consumer.",
-    "agbAccept": "I accept the <termsLink>Terms of Service</termsLink> and the <privacyLink>Privacy Policy</privacyLink>.",
+    "agbAccept": "I accept the <termsLink>Terms of Service</termsLink>. I have read the <privacyLink>Privacy Policy</privacyLink>.",
     "transparencyTitle": "Your order at a glance",
     "transparencyPackage": "Package",
     "transparencyPrice": "Price",
@@ -336,7 +360,21 @@
     "errB2bDeclaration": "Please confirm the entrepreneur declaration.",
     "errAgb": "Please accept the Terms of Service.",
     "errB2bRequired": "A company name, legal form and the entrepreneur declaration are required for paid use.",
-    "back": "Back"
+    "back": "Back",
+    "emailProof": {
+      "title": "Please confirm your email address",
+      "description": "Open the separate confirmation email. You can use this invitation after confirming your address.",
+      "idle": "Your invitation is kept for you.",
+      "sending": "Requesting confirmation email …",
+      "sent": "A confirmation email was sent.",
+      "cooldown": "Please wait {{seconds}} seconds before requesting another email.",
+      "failed": "The email could not be delivered. Please contact your administrator.",
+      "loginRequired": "Please sign in again to request a confirmation email.",
+      "adminPending": "Your account is waiting for confirmation by an administrator.",
+      "resend": "Request another confirmation email",
+      "login": "Back to sign in",
+      "check": "Check confirmation"
+    }
   },
   "billing": {
     "reconcilingTitle": "Setting up your workspace …",

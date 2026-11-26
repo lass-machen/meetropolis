@@ -7,6 +7,16 @@ set -e
 # container.
 PRISMA_SCHEMA="${PRISMA_SCHEMA:-/workspace/apps/server/prisma/schema.prisma}"
 
+# Production credential policy: same checker the server runs at startup.
+# Runs before migrations, seeding, or the server command. Fails closed when
+# the compiled checker is missing, so a broken build never starts silently.
+if [ -f dist/ops/startupCredentials.js ]; then
+  node dist/ops/startupCredentials.js || exit 1
+else
+  echo '[entrypoint] credential checker missing at dist/ops/startupCredentials.js; refusing to start' >&2
+  exit 1
+fi
+
 if [ "$RUN_MIGRATIONS" = "true" ]; then
   echo "[entrypoint] prisma migrate deploy --schema $PRISMA_SCHEMA"
   npx prisma migrate deploy --schema "$PRISMA_SCHEMA"

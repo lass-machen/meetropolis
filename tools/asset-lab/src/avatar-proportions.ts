@@ -69,8 +69,7 @@ function head(shape: Shape, view: View): Grid {
     if (row < h - 1) p.rect(x + inset + 1, y + row, w - inset * 2 - 2, 1, 'b');
   }
   p.rect(x + 2, y + 2, w - 5, 1, 'a');
-  if (view === 'side')
-    p.rect(x - 1, y + Math.floor(h * 0.6), 2, 2, 'b').rect(x + w - 3, y + Math.floor(h / 2), 2, 2, 'a');
+  if (view === 'side') p.rect(x + w - 3, y + Math.floor(h / 2), 2, 2, 'a');
   return p.grid();
 }
 

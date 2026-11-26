@@ -4,7 +4,7 @@ import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { INTERNAL_MAP_LAYER_NAMES } from '../utils/mapLayerPolicy.js';
-import { buildTmjFromV2 } from '../../services/tmjService.js';
+import { buildTmjFromV2, type Tmj } from '../../services/tmjService.js';
 import { handleTmjImport, registerTmjImportRoute } from './tmj.import.js';
 
 export { handleTmjImport };
@@ -36,6 +36,78 @@ async function loadLayersWithChunks(prisma: PrismaClient, mapId: string) {
   return layersWithChunks;
 }
 
+/** Options of `buildTmjDocument`, mirroring the export route query flags. */
+export interface BuildTmjOptions {
+  includeZones?: boolean;
+  includeSpawn?: boolean;
+}
+
+/**
+ * Builds the TMJ document of `mapId` for `tenantId`. Returns null when the map
+ * does not belong to the tenant. Shared with the tenant export.
+ */
+export async function buildTmjDocument(
+  prisma: PrismaClient,
+  tenantId: string,
+  mapId: string,
+  options?: BuildTmjOptions,
+): Promise<Tmj | null> {
+  const includeZones = options?.includeZones ?? false;
+  const includeSpawn = options?.includeSpawn ?? false;
+  const map = await prisma.map.findFirst({ where: { id: mapId, tenantId } });
+  if (!map) {
+    return null;
+  }
+
+  const mapWidth = map.width ?? 32;
+  const mapHeight = map.height ?? 32;
+  const tileWidth = map.tileWidth ?? 16;
+  const tileHeight = map.tileHeight ?? 16;
+  const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
+  for (const tileset of tilesets) {
+    if (!tileset.tileCount) {
+      logger.warn('[TMJ Export] Tileset missing tileCount, using fallback 1024', {
+        key: tileset.key,
+        slot: tileset.slot,
+      });
+    }
+  }
+  const layers = await loadLayersWithChunks(prisma, map.id);
+  const dbZones = includeZones ? await prisma.zone.findMany({ where: { mapId: map.id } }) : [];
+  const zones = includeZones
+    ? dbZones.map((zone) => ({
+        name: zone.name,
+        capacity: zone.capacity,
+        polygon: zone.polygon as Array<{ x: number; y: number }>,
+      }))
+    : undefined;
+  const meta = (map.meta as { spawn?: { x?: unknown; y?: unknown } } | null) || {};
+  const spawn =
+    includeSpawn && meta.spawn && typeof meta.spawn.x === 'number' && typeof meta.spawn.y === 'number'
+      ? { x: meta.spawn.x, y: meta.spawn.y }
+      : null;
+
+  return buildTmjFromV2({
+    mapWidth,
+    mapHeight,
+    tileWidth,
+    tileHeight,
+    tilesets: tilesets.map((tileset) => ({
+      slot: tileset.slot,
+      key: tileset.key,
+      imageUrl: tileset.imageUrl,
+      tileWidth: tileset.tileWidth,
+      tileHeight: tileset.tileHeight,
+      margin: tileset.margin,
+      spacing: tileset.spacing,
+      tileCount: tileset.tileCount,
+    })),
+    layers,
+    zones,
+    spawn,
+  });
+}
+
 export async function handleTmjExport(
   prisma: PrismaClient,
   req: express.Request,
@@ -53,61 +125,19 @@ export async function handleTmjExport(
       return;
     }
 
-    const includeZones = req.query.includeZones === 'true';
-    const includeSpawn = req.query.includeSpawn === 'true';
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
     if (!map) {
       res.status(404).json({ error: 'map_not_found' });
       return;
     }
-
-    const mapWidth = map.width ?? 32;
-    const mapHeight = map.height ?? 32;
-    const tileWidth = map.tileWidth ?? 16;
-    const tileHeight = map.tileHeight ?? 16;
-    const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
-    for (const tileset of tilesets) {
-      if (!tileset.tileCount) {
-        logger.warn('[TMJ Export] Tileset missing tileCount, using fallback 1024', {
-          key: tileset.key,
-          slot: tileset.slot,
-        });
-      }
-    }
-    const layers = await loadLayersWithChunks(prisma, map.id);
-    const dbZones = includeZones ? await prisma.zone.findMany({ where: { mapId: map.id } }) : [];
-    const zones = includeZones
-      ? dbZones.map((zone) => ({
-          name: zone.name,
-          capacity: zone.capacity,
-          polygon: zone.polygon as Array<{ x: number; y: number }>,
-        }))
-      : undefined;
-    const meta = (map.meta as { spawn?: { x?: unknown; y?: unknown } } | null) || {};
-    const spawn =
-      includeSpawn && meta.spawn && typeof meta.spawn.x === 'number' && typeof meta.spawn.y === 'number'
-        ? { x: meta.spawn.x, y: meta.spawn.y }
-        : null;
-
-    const tmj = buildTmjFromV2({
-      mapWidth,
-      mapHeight,
-      tileWidth,
-      tileHeight,
-      tilesets: tilesets.map((tileset) => ({
-        slot: tileset.slot,
-        key: tileset.key,
-        imageUrl: tileset.imageUrl,
-        tileWidth: tileset.tileWidth,
-        tileHeight: tileset.tileHeight,
-        margin: tileset.margin,
-        spacing: tileset.spacing,
-        tileCount: tileset.tileCount,
-      })),
-      layers,
-      zones,
-      spawn,
+    const tmj = await buildTmjDocument(prisma, tenant.id, map.id, {
+      includeZones: req.query.includeZones === 'true',
+      includeSpawn: req.query.includeSpawn === 'true',
     });
+    if (!tmj) {
+      res.status(404).json({ error: 'map_not_found' });
+      return;
+    }
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="${map.name}.tmj"`);
     res.json(tmj);

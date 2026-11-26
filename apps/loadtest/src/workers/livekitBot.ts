@@ -7,144 +7,217 @@ import {
   TrackPublishOptions,
   TrackSource,
   type RemoteParticipant,
-  type RemoteTrackPublication,
 } from '@livekit/rtc-node';
-import { AccessToken } from 'livekit-server-sdk';
+import { ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
+import { apiHttpBase, authHeaders, readResponseJson } from './session.js';
 
 const SAMPLE_RATE = 48_000;
 const NUM_CHANNELS = 1;
 const FRAME_DURATION_MS = 20;
-const SAMPLES_PER_FRAME = Math.floor((SAMPLE_RATE * FRAME_DURATION_MS) / 1000); // 960
+const SAMPLES_PER_FRAME = Math.floor((SAMPLE_RATE * FRAME_DURATION_MS) / 1000);
+const PARTICIPANT_FIELD = 'identity';
 
-export async function spawnLivekitBot(opts: {
+export type LivekitBotOptions = {
   apiBase: string;
-  livekitUrl: string;
+  tenant: string;
+  token: string;
   roomName: string;
-  identity: string;
-}): Promise<{ stop: () => Promise<void> }> {
-  // Generate server-side token (same flow as before, livekit-server-sdk stays).
-  const apiKey = process.env.LIVEKIT_API_KEY || 'devkey';
-  const apiSecret = process.env.LIVEKIT_API_SECRET || 'secret';
-  const at = new AccessToken(apiKey, apiSecret, { identity: opts.identity });
-  at.addGrant({
-    room: opts.roomName,
-    roomJoin: true,
-    canPublish: true,
-    canSubscribe: true,
-  });
-  const token = await at.toJwt();
+};
 
-  const t0 = Date.now();
+type LivekitRun = {
+  alive: boolean;
+  samples: number;
+  lastInboundAudio: number;
+  lastRemoteParticipants: number;
+};
+
+type ConnectedRoom = {
+  room: Room;
+  audioSource: AudioSource;
+  trackSid: string | undefined;
+  timeToConnectMs: number;
+};
+
+export async function spawnLivekitBot(opts: LivekitBotOptions): Promise<{ stop: () => Promise<void> }> {
+  const userId = subjectFromSessionToken(opts.token);
+  const url = await resolveLivekitUrl(opts.apiBase, opts.tenant, opts.token);
+  const participantToken = await requestParticipantToken(opts, userId);
+  const connected = await connectRoom(url, participantToken);
+  const run: LivekitRun = { alive: true, samples: 0, lastInboundAudio: 0, lastRemoteParticipants: 0 };
+  const silence = pushSilence(connected.audioSource, run);
+  const sampler = sampleRoom(connected.room, run);
+  return {
+    stop: () => finishLivekitBot(connected, run, silence, sampler, opts.roomName, userId),
+  };
+}
+
+function subjectFromSessionToken(token: string): string {
+  const payload = token.split('.')[1];
+  if (!payload) throw new Error('session token has no subject');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as unknown;
+  } catch {
+    throw new Error('session token has no subject');
+  }
+  if (typeof parsed !== 'object' || parsed === null || !('sub' in parsed)) {
+    throw new Error('session token has no subject');
+  }
+  const subject = parsed.sub;
+  if (typeof subject !== 'string' || subject.length === 0) throw new Error('session token has no subject');
+  return subject;
+}
+
+async function resolveLivekitUrl(apiBase: string, tenant: string, token: string): Promise<string> {
+  const fromEnv = process.env.LIVEKIT_URL;
+  if (fromEnv && fromEnv.trim()) return normalizeLivekitUrl(fromEnv);
+  const response = await fetch(`${apiHttpBase(apiBase)}/livekit/url`, {
+    method: 'GET',
+    headers: authHeaders(tenant, token),
+  });
+  if (!response.ok) throw new Error(`livekit url request failed with status ${response.status}`);
+  const url = readUrlField(await readResponseJson(response));
+  if (!url) throw new Error('livekit url missing');
+  return normalizeLivekitUrl(url);
+}
+
+function readUrlField(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null || !('url' in body)) return null;
+  const url = body.url;
+  return typeof url === 'string' && url.trim() ? url : null;
+}
+
+function normalizeLivekitUrl(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed.startsWith('ws://') || trimmed.startsWith('wss://')) return trimmed;
+  if (trimmed.startsWith('http://')) return `ws://${trimmed.slice('http://'.length)}`;
+  if (trimmed.startsWith('https://')) return `wss://${trimmed.slice('https://'.length)}`;
+  return trimmed;
+}
+
+async function requestParticipantToken(opts: LivekitBotOptions, userId: string): Promise<string> {
+  const response = await fetch(`${apiHttpBase(opts.apiBase)}/livekit/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(opts.tenant, opts.token),
+    },
+    body: JSON.stringify({
+      roomName: opts.roomName,
+      name: userId,
+      zonePrivacyVersion: ZONE_PRIVACY_PROTOCOL_VERSION,
+      [PARTICIPANT_FIELD]: userId,
+    }),
+  });
+  if (!response.ok) throw new Error(`livekit token request failed with status ${response.status}`);
+  const participantToken = (await response.text()).trim();
+  if (!participantToken) throw new Error(`livekit token request failed with status ${response.status}`);
+  return participantToken;
+}
+
+async function connectRoom(url: string, participantToken: string): Promise<ConnectedRoom> {
+  const started = Date.now();
   const room = new Room();
-  await room.connect(opts.livekitUrl, token, {
-    autoSubscribe: false,
-    dynacast: false,
-  });
-  const timeToConnectMs = Date.now() - t0;
-
-  // Publish silence audio so the bot looks like a normal participant with a mic track.
+  await room.connect(url, participantToken, { autoSubscribe: false, dynacast: false });
+  const publisher = room.localParticipant;
+  if (!publisher) throw new Error('livekit room has no local participant');
   const audioSource = new AudioSource(SAMPLE_RATE, NUM_CHANNELS);
   const audioTrack = LocalAudioTrack.createAudioTrack('loadtest-audio', audioSource);
   const publishOptions = new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE });
-  const publication = await room.localParticipant!.publishTrack(audioTrack, publishOptions);
-  const trackSid = publication.sid;
+  const publication = await publisher.publishTrack(audioTrack, publishOptions);
+  return { room, audioSource, trackSid: publication.sid, timeToConnectMs: Date.now() - started };
+}
 
-  // Periodically push silent frames (zero PCM) to keep the publication alive
-  // and provide realistic upstream traffic for SFU stress testing.
-  let alive = true;
-  const silenceFramePromise = (async () => {
-    const silentSamples = new Int16Array(SAMPLES_PER_FRAME * NUM_CHANNELS); // initialised to 0
-    while (alive) {
+async function pushSilence(audioSource: AudioSource, run: LivekitRun): Promise<void> {
+  const silentSamples = new Int16Array(SAMPLES_PER_FRAME * NUM_CHANNELS);
+  while (run.alive) {
+    try {
+      const frame = new AudioFrame(silentSamples, SAMPLE_RATE, NUM_CHANNELS, SAMPLES_PER_FRAME);
+      await audioSource.captureFrame(frame);
+    } catch {
+      break;
+    }
+  }
+}
+
+async function sampleRoom(room: Room, run: LivekitRun): Promise<void> {
+  while (run.alive) {
+    try {
+      const participants = Array.from(room.remoteParticipants.values());
+      subscribeFirstAudio(participants);
+      run.lastRemoteParticipants = participants.length;
+      run.lastInboundAudio = countAudioTracks(participants);
+      run.samples += 1;
+    } catch {
+      // Sampling must not abort the bot.
+    }
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1000);
+    });
+  }
+}
+
+function subscribeFirstAudio(participants: RemoteParticipant[]): void {
+  for (const participant of participants.slice(0, 5)) {
+    for (const publication of participant.trackPublications.values()) {
+      if (publication.kind !== TrackKind.KIND_AUDIO) continue;
       try {
-        const frame = new AudioFrame(silentSamples, SAMPLE_RATE, NUM_CHANNELS, SAMPLES_PER_FRAME);
-        await audioSource.captureFrame(frame);
+        publication.setSubscribed(true);
       } catch {
-        // If capture fails (e.g. track was unpublished), stop.
-        break;
+        // A publication can disappear between the snapshot and the subscribe call.
       }
     }
-  })();
+  }
+}
 
-  let samples = 0;
-  let lastInboundAudio = 0;
-  let lastRemoteParticipants = 0;
-
-  // Periodically subscribe to a few participants (simulate proximity) and
-  // sample basic metrics. rtc-node exposes `room.remoteParticipants` as a Map
-  // and each RemoteTrackPublication has `setSubscribed(boolean)`.
-  const samplerPromise = (async () => {
-    while (alive) {
-      try {
-        const parts: RemoteParticipant[] = Array.from(room.remoteParticipants.values());
-        const firstN = parts.slice(0, 5);
-        for (const p of firstN) {
-          const pubs: RemoteTrackPublication[] = Array.from(p.trackPublications.values());
-          for (const pub of pubs) {
-            if (pub.kind === TrackKind.KIND_AUDIO) {
-              try {
-                pub.setSubscribed(true);
-              } catch {
-                /* ignore */
-              }
-            }
-          }
-        }
-        // Basic metrics
-        lastRemoteParticipants = parts.length;
-        let inboundAudio = 0;
-        for (const p of parts) {
-          const pubs: RemoteTrackPublication[] = Array.from(p.trackPublications.values());
-          for (const pub of pubs) {
-            if (pub.kind === TrackKind.KIND_AUDIO) inboundAudio++;
-          }
-        }
-        lastInboundAudio = inboundAudio;
-        samples++;
-      } catch {
-        // Ignore sampling errors: they should not abort the bot.
-      }
-      await new Promise((r) => setTimeout(r, 1000));
+function countAudioTracks(participants: RemoteParticipant[]): number {
+  let inboundAudio = 0;
+  for (const participant of participants) {
+    for (const publication of participant.trackPublications.values()) {
+      if (publication.kind === TrackKind.KIND_AUDIO) inboundAudio += 1;
     }
-  })();
+  }
+  return inboundAudio;
+}
 
-  return {
-    async stop() {
-      alive = false;
-      // Wait for background loops so we don't capture frames after disconnect.
-      await Promise.allSettled([silenceFramePromise, samplerPromise]);
-      try {
-        if (trackSid) {
-          await room.localParticipant?.unpublishTrack(trackSid);
-        }
-      } catch {
-        /* ignore */
-      }
-      try {
-        await audioSource.close();
-      } catch {
-        /* ignore */
-      }
-      try {
-        await room.disconnect();
-      } catch {
-        /* ignore */
-      }
-      // Emit summary line for ingestion
-      try {
-        console.log(
-          JSON.stringify({
-            event: 'livekit_bot_summary',
-            identity: opts.identity,
-            room: opts.roomName,
-            timeToConnectMs,
-            samples,
-            lastRemoteParticipants,
-            lastInboundAudio,
-          }),
-        );
-      } catch {
-        /* ignore */
-      }
-    },
-  };
+async function finishLivekitBot(
+  connected: ConnectedRoom,
+  run: LivekitRun,
+  silence: Promise<void>,
+  sampler: Promise<void>,
+  roomName: string,
+  userId: string,
+): Promise<void> {
+  run.alive = false;
+  await Promise.allSettled([silence, sampler]);
+  await releaseRoom(connected);
+  console.log(
+    JSON.stringify({
+      event: 'livekit_bot_summary',
+      userId,
+      room: roomName,
+      timeToConnectMs: connected.timeToConnectMs,
+      samples: run.samples,
+      lastRemoteParticipants: run.lastRemoteParticipants,
+      lastInboundAudio: run.lastInboundAudio,
+    }),
+  );
+}
+
+async function releaseRoom(connected: ConnectedRoom): Promise<void> {
+  try {
+    if (connected.trackSid) await connected.room.localParticipant?.unpublishTrack(connected.trackSid);
+  } catch {
+    // Unpublish is best-effort during shutdown.
+  }
+  try {
+    await connected.audioSource.close();
+  } catch {
+    // The source may already be closed.
+  }
+  try {
+    await connected.room.disconnect();
+  } catch {
+    // Disconnect is best-effort during shutdown.
+  }
 }

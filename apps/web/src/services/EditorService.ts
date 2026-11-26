@@ -109,6 +109,7 @@ function createInitialState(): EditorState {
       objectUpdates: [],
       zonesModified: false,
       spawnUpdate: null,
+      spawnRemoved: false,
     },
     viewToggles: { collision: false, zones: false, objects: true, grid: false },
   };
@@ -135,9 +136,15 @@ function reduceCore(state: EditorState, action: EditorAction): Partial<EditorSta
       };
     case 'SET_SPAWN':
       logger.debug('[EditorService] SET_SPAWN', action);
-      return { spawn: { x: action.x, y: action.y } };
+      return {
+        spawn: { x: action.x, y: action.y },
+        pendingChanges: { ...state.pendingChanges, spawnRemoved: false },
+      };
     case 'CLEAR_SPAWN':
-      return { spawn: null };
+      return {
+        spawn: null,
+        pendingChanges: { ...state.pendingChanges, spawnRemoved: true },
+      };
     case 'SET_TERRAIN_COLOR':
       return { terrainColor: action.color };
     case 'TOGGLE_GRID':
@@ -221,7 +228,8 @@ class EditorServiceClass {
       p.objectsToDelete.length > 0 ||
       p.objectUpdates.length > 0 ||
       p.zonesModified ||
-      p.spawnUpdate !== null
+      p.spawnUpdate !== null ||
+      p.spawnRemoved
     );
   }
 
@@ -233,7 +241,8 @@ class EditorServiceClass {
       p.objectsToDelete.length +
       p.objectUpdates.length +
       (p.zonesModified ? 1 : 0) +
-      (p.spawnUpdate ? 1 : 0)
+      (p.spawnUpdate ? 1 : 0) +
+      (p.spawnRemoved ? 1 : 0)
     );
   }
 

@@ -1,13 +1,19 @@
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '../src/generated/prisma/index.js';
 import { PrismaPg } from '@prisma/adapter-pg';
-import bcrypt from 'bcryptjs';
+import { applySeedAdminCredentials, enforceSeedAdminCredentials } from '../src/ops/seedAdminCredentials.js';
 import { importTmjIntoMap } from '../src/scripts/importMapV2.lib.js';
 import { resolveTemplateTenantSlug } from '../src/services/templateTenant.js';
 import { ATELIER_STANDARD_MAP_FILE, ATELIER_STANDARD_MAP_NAME } from '../src/services/atelierStandardMap.js';
 import { ATELIER_PACK_UUID, loadAtelierProductData } from './atelierCatalog.js';
+import { acquirePackAdvisoryLock } from '../src/api/utils/advisoryLocks.js';
+
+// Production seed-admin policy: fail closed on missing or public-template
+// credentials before the driver adapter is constructed and before any write.
+enforceSeedAdminCredentials(process.env);
 
 // Prisma 7 requires a driver-adapter. The seed runs via `prisma db seed`
 // (outside the application's normal entrypoint) so we construct one here.
@@ -123,25 +129,7 @@ async function main() {
     update: {},
   });
 
-  // Seed Root Admin (env-configurable)
-  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@meetropolis.local';
-  const adminPass = process.env.SEED_ADMIN_PASSWORD || 'admin123';
-  const adminName = process.env.SEED_ADMIN_NAME || 'Root Admin';
-
-  let admin = await prisma.user.findUnique({ where: { email: adminEmail } });
-  const hash = await bcrypt.hash(adminPass, 10);
-  if (!admin) {
-    admin = await prisma.user.create({
-      data: { email: adminEmail, name: adminName, passwordHash: hash, emailVerifiedAt: new Date() },
-    });
-
-    console.log('Seeded admin user:', adminEmail);
-  } else {
-    // Update password hash (so seed always sets the expected password)
-    admin = await prisma.user.update({ where: { email: adminEmail }, data: { passwordHash: hash } });
-
-    console.log('Admin user exists, password updated:', adminEmail);
-  }
+  const admin = await applySeedAdminCredentials(prisma, process.env);
 
   // Ensure memberships
   if (admin) {
@@ -308,56 +296,62 @@ async function main() {
         'Check that the image build copies apps/web/public into the seed stage.',
     );
   }
-  await prisma.assetPack.upsert({
-    where: { uuid: 'pixel-agents-furniture' },
-    create: {
-      uuid: 'pixel-agents-furniture',
-      name: 'Pixel Agents Furniture',
-      description:
-        'Built-in office furniture set snapshotted from pablodelucca/pixel-agents (MIT). See THIRD_PARTY_LICENSES/MIT-pixel-agents.txt and tools/map-builder/ for the build pipeline.',
-      author: 'pablodelucca (snapshotted by Meetropolis)',
-      version: '1.0.0',
-      terrain: [],
-      structures: [],
-      objects: furnitureItems,
-      autotiles: [],
-    },
-    update: {
-      version: '1.0.0',
-      // Refresh the shipped object list — but never overwrite a populated pack
-      // with an empty one. If the asset directory is absent (a build stage that
-      // does not copy apps/web/public), an unconditional write would wipe every
-      // furniture entry on the very next deploy and orphan all placed objects.
-      ...(furnitureItems.length > 0 ? { objects: furnitureItems } : {}),
-    },
+  await prisma.$transaction(async (tx) => {
+    await acquirePackAdvisoryLock(tx, 'pixel-agents-furniture');
+    await tx.assetPack.upsert({
+      where: { uuid: 'pixel-agents-furniture' },
+      create: {
+        uuid: 'pixel-agents-furniture',
+        name: 'Pixel Agents Furniture',
+        description:
+          'Built-in office furniture set snapshotted from pablodelucca/pixel-agents (MIT). See THIRD_PARTY_LICENSES/MIT-pixel-agents.txt and tools/map-builder/ for the build pipeline.',
+        author: 'pablodelucca (snapshotted by Meetropolis)',
+        version: '1.0.0',
+        terrain: [],
+        structures: [],
+        objects: furnitureItems,
+        autotiles: [],
+      },
+      update: {
+        version: '1.0.0',
+        // Refresh the shipped object list — but never overwrite a populated pack
+        // with an empty one. If the asset directory is absent (a build stage that
+        // does not copy apps/web/public), an unconditional write would wipe every
+        // furniture entry on the very next deploy and orphan all placed objects.
+        ...(furnitureItems.length > 0 ? { objects: furnitureItems } : {}),
+      },
+    });
   });
 
   // Atelier v1 is shipped catalog content. Existing operator customizations
   // remain untouched except for the one-time A28 autotile backfill: the old
   // seed intentionally wrote an empty list while walls_auto identities were
   // unstable, so an empty list is the unambiguous pre-A28 state.
-  const existingAtelierPack = await prisma.assetPack.findUnique({ where: { uuid: ATELIER_PACK_UUID } });
   const { catalog, pack } = loadAtelierProductData(repoRoot);
-  if (!existingAtelierPack) {
-    await prisma.assetPack.create({
-      data: {
-        uuid: ATELIER_PACK_UUID,
-        name: `${catalog.palette.name} (Atelier v1)`,
-        description: 'Eigene Pixelgrafiken der Atelier-Generation v1 für helle Bürowelten.',
-        author: pack.author,
-        version: catalog.palette.packVersion,
-        terrain: pack.terrain,
-        structures: pack.structures,
-        objects: pack.objects,
-        autotiles: pack.autotiles,
-      },
-    });
-  } else if (Array.isArray(existingAtelierPack.autotiles) && existingAtelierPack.autotiles.length === 0) {
-    await prisma.assetPack.update({
-      where: { uuid: ATELIER_PACK_UUID },
-      data: { autotiles: pack.autotiles },
-    });
-  }
+  await prisma.$transaction(async (tx) => {
+    await acquirePackAdvisoryLock(tx, ATELIER_PACK_UUID);
+    const current = await tx.assetPack.findUnique({ where: { uuid: ATELIER_PACK_UUID } });
+    if (!current) {
+      await tx.assetPack.create({
+        data: {
+          uuid: ATELIER_PACK_UUID,
+          name: `${catalog.palette.name} (Atelier v1)`,
+          description: 'Eigene Pixelgrafiken der Atelier-Generation v1 für helle Bürowelten.',
+          author: pack.author,
+          version: catalog.palette.packVersion,
+          terrain: pack.terrain,
+          structures: pack.structures,
+          objects: pack.objects,
+          autotiles: pack.autotiles,
+        },
+      });
+    } else if (Array.isArray(current.autotiles) && current.autotiles.length === 0) {
+      await tx.assetPack.update({
+        where: { uuid: ATELIER_PACK_UUID },
+        data: { autotiles: pack.autotiles },
+      });
+    }
+  });
 
   // ---------------------------------------------------------------------
   // Starter map for the `default` tenant. Without a Map row the frontend's
@@ -436,14 +430,15 @@ async function main() {
   }
 
   // Create a default invite (for onboarding teammates)
-  const existingInvite = await prisma.invite.findFirst({ where: { email: adminEmail, tenantId: def.id } });
+  const existingInvite = await prisma.invite.findFirst({ where: { email: admin.email, tenantId: def.id } });
   if (!existingInvite) {
     const code = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
     await prisma.invite.create({
-      data: { code, email: adminEmail, createdBy: admin.id, tenantId: def.id, role: 'admin' as any },
+      data: { code: codeHash, email: admin.email, createdBy: admin.id, tenantId: def.id, role: 'admin' as any },
     });
 
-    console.log('Seeded invite for admin email (can be shared to teammates):', code);
+    console.log('Seeded invite for admin email');
   }
 }
 

@@ -29,7 +29,7 @@ vi.mock('../utils/broadcast.js', () => ({ broadcastMapUpdate: vi.fn() }));
 
 import { registerMapObjectRoutes } from './mapObjects.js';
 import { createSessionAuthMiddleware, hashSessionToken } from '../utils/sessionAuth.js';
-import type { PrismaClient, Tenant } from '../../generated/prisma/index.js';
+import type { MapObject, PrismaClient, Tenant } from '../../generated/prisma/index.js';
 
 const TEST_SECRET = 'map-objects-access-test-secret';
 const INTERNAL_TENANT_ID = 'internal-tenant';
@@ -57,16 +57,22 @@ const OBJECT_ROW = {
   dataUrl: '/packs/pixel-agents-furniture/desk.png',
 };
 
+// Partial test double: the route only reads placement fields, so the
+// remaining MapObject columns are intentionally omitted.
+const STORED_ROW = OBJECT_ROW as unknown as MapObject;
+
 /** `${tenantId}:${userId}` memberships. `lonely-user` deliberately holds none. */
 const MEMBERSHIPS: ReadonlySet<string> = new Set([`${TENANT_LM}:lm-user`, `${TENANT_OTHER}:other-user`]);
 
 interface PrismaOpts {
   apiTokenUserId?: string;
+  /** Scope stored on the mocked token row; an absent scope counts as read. */
+  apiTokenScope?: 'read' | 'write';
   membershipThrows?: boolean;
 }
 
 function makePrisma(opts: PrismaOpts = {}): PrismaClient {
-  const { apiTokenUserId, membershipThrows = false } = opts;
+  const { apiTokenUserId, apiTokenScope, membershipThrows = false } = opts;
   const prisma = {
     $queryRaw: vi.fn(() => Promise.resolve([])),
     tenant: {
@@ -78,11 +84,15 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
       findUnique: vi.fn(({ where }: { where: { tenantId_userId: { tenantId: string; userId: string } } }) => {
         if (membershipThrows) return Promise.reject(new Error('db down'));
         const { tenantId, userId } = where.tenantId_userId;
-        return Promise.resolve(MEMBERSHIPS.has(`${tenantId}:${userId}`) ? { role: 'member' } : null);
+        return Promise.resolve(MEMBERSHIPS.has(`${tenantId}:${userId}`) ? { role: 'admin' } : null);
       }),
     },
     apiToken: {
-      findUnique: vi.fn(() => Promise.resolve(apiTokenUserId ? { userId: apiTokenUserId } : null)),
+      findUnique: vi.fn(() =>
+        Promise.resolve(
+          apiTokenUserId ? { userId: apiTokenUserId, ...(apiTokenScope ? { scope: apiTokenScope } : {}) } : null,
+        ),
+      ),
       update: vi.fn(() => Promise.resolve({})),
     },
     session: {
@@ -331,7 +341,7 @@ describe('map object mutations: membership-scoped, not merely authenticated', ()
     expect(prisma.mapObject.delete).not.toHaveBeenCalled();
   });
 
-  it('lets a member of the owning tenant place an object', async () => {
+  it('lets an admin of the owning tenant place an object', async () => {
     const prisma = makePrisma();
     const app = makeApp(prisma);
     const res = await request(app)
@@ -347,8 +357,8 @@ describe('map object mutations: membership-scoped, not merely authenticated', ()
   it('re-reads the object and derives chunk coordinates from retry-fresh state', async () => {
     const prisma = makePrisma();
     vi.mocked(prisma.mapObject.findFirst)
-      .mockResolvedValueOnce(OBJECT_ROW)
-      .mockResolvedValueOnce({ ...OBJECT_ROW, tileX: 40, chunkX: 1 });
+      .mockResolvedValueOnce(STORED_ROW)
+      .mockResolvedValueOnce({ ...STORED_ROW, tileX: 40, chunkX: 1 });
     vi.mocked(prisma.$transaction)
       .mockImplementationOnce(async (callback) => {
         await callback(prisma);
@@ -372,7 +382,7 @@ describe('map object mutations: membership-scoped, not merely authenticated', ()
 
   it('turns a retry that observes a concurrent delete into a clean 404', async () => {
     const prisma = makePrisma();
-    vi.mocked(prisma.mapObject.findFirst).mockResolvedValueOnce(OBJECT_ROW).mockResolvedValueOnce(null);
+    vi.mocked(prisma.mapObject.findFirst).mockResolvedValueOnce(STORED_ROW).mockResolvedValueOnce(null);
     vi.mocked(prisma.$transaction)
       .mockImplementationOnce(async (callback) => {
         await callback(prisma);
@@ -402,7 +412,9 @@ describe('API tokens reach exactly as far as their owning user', () => {
   });
 
   it('refuses a token whose owner holds no membership in the resolved tenant', async () => {
-    const prisma = makePrisma({ apiTokenUserId: 'lonely-user' });
+    // Write scope carries the token past the method gate, so this case keeps
+    // testing the membership check rather than the scope gate.
+    const prisma = makePrisma({ apiTokenUserId: 'lonely-user', apiTokenScope: 'write' });
     const app = makeApp(prisma);
     const res = await request(app)
       .post('/maps/map-1/objects')
@@ -411,5 +423,51 @@ describe('API tokens reach exactly as far as their owning user', () => {
       .send(OBJECT_BODY);
     expect(res.status).toBe(403);
     expect(prisma.mapObject.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /maps/:id/objects/:objId: collisionBaseHeight', () => {
+  async function patchHeight(prisma: PrismaClient, body: Record<string, unknown>) {
+    return request(makeApp(prisma))
+      .patch('/maps/map-1/objects/7')
+      .set('Authorization', sessionBearer('lm-user'))
+      .set('X-Tenant', 'lass-machen')
+      .send(body);
+  }
+
+  it('accepts 0 and persists the stored value', async () => {
+    const prisma = makePrisma();
+    const res = await patchHeight(prisma, { collisionBaseHeight: 0 });
+    expect(res.status).toBe(200);
+    expect(prisma.mapObject.update).toHaveBeenCalledWith({
+      where: { id: 7 },
+      data: expect.objectContaining({ collisionBaseHeight: 0 }),
+    });
+    expect(res.body.collisionBaseHeight).toBe(0);
+  });
+
+  it('accepts a positive integer and persists it', async () => {
+    const prisma = makePrisma();
+    const res = await patchHeight(prisma, { collisionBaseHeight: 2 });
+    expect(res.status).toBe(200);
+    expect(prisma.mapObject.update).toHaveBeenCalledWith({
+      where: { id: 7 },
+      data: expect.objectContaining({ collisionBaseHeight: 2 }),
+    });
+    expect(res.body.collisionBaseHeight).toBe(2);
+  });
+
+  it('rejects a negative height and updates nothing', async () => {
+    const prisma = makePrisma();
+    const res = await patchHeight(prisma, { collisionBaseHeight: -1 });
+    expect(res.status).toBe(400);
+    expect(prisma.mapObject.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a fractional height and updates nothing', async () => {
+    const prisma = makePrisma();
+    const res = await patchHeight(prisma, { collisionBaseHeight: 1.5 });
+    expect(res.status).toBe(400);
+    expect(prisma.mapObject.update).not.toHaveBeenCalled();
   });
 });

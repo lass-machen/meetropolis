@@ -60,6 +60,7 @@ function createCollisionPrisma(params: {
   autotile?: { slot: number; collide: boolean };
   autotileValues?: number[];
   collisionValues?: number[];
+  manualCollisionValues?: number[];
 }) {
   const layers: LayerRow[] = [];
   const chunks: ChunkRow[] = [];
@@ -86,6 +87,7 @@ function createCollisionPrisma(params: {
   };
   if (params.autotileValues) addLayer('walls_auto', params.autotileValues);
   if (params.collisionValues) addLayer('collision', params.collisionValues, true);
+  if (params.manualCollisionValues) addLayer('collision_manual', params.manualCollisionValues, true);
   if (params.autotile) {
     palette.push({
       id: 'palette-existing',
@@ -184,7 +186,17 @@ function createCollisionPrisma(params: {
       findMany: vi.fn(({ where }: { where: { collide?: boolean } }) =>
         objects.filter((object) => where.collide === undefined || object.collide === where.collide),
       ),
-      findFirst: vi.fn(({ where }: { where: { id: number } }) => objects.find((object) => object.id === where.id)),
+      findFirst: vi.fn(({ where }: { where: { id: number } }) => {
+        const found = objects.find((object) => object.id === where.id);
+        return found ? { ...found } : undefined;
+      }),
+      update: vi.fn(({ where, data }: { where: { id: number }; data: Record<string, unknown> }) => {
+        const index = objects.findIndex((candidate) => candidate.id === where.id);
+        if (index < 0) throw new Error('object missing');
+        const next = { ...objects[index], ...data };
+        objects[index] = next;
+        return next;
+      }),
       delete: vi.fn(({ where }: { where: { id: number } }) => {
         const index = objects.findIndex((object) => object.id === where.id);
         return objects.splice(index, 1)[0];
@@ -213,12 +225,29 @@ function appFor(prisma: PrismaClient): express.Application {
   return app;
 }
 
-function collisionCell(state: ReturnType<typeof createCollisionPrisma>): boolean {
+function collisionCells(state: ReturnType<typeof createCollisionPrisma>): boolean[] {
   const layer = state.layers.find((candidate) => candidate.name === 'collision');
   const chunk = state.chunks.find((candidate) => candidate.layerId === layer?.id);
-  if (!chunk) return false;
-  return rleDecodeToBooleans(decodeRlePairsFromBuffer(Buffer.from(chunk.data)), 4)[0];
+  if (!chunk) return [false, false, false, false];
+  return rleDecodeToBooleans(decodeRlePairsFromBuffer(Buffer.from(chunk.data)), 4);
 }
+
+function collisionCell(state: ReturnType<typeof createCollisionPrisma>): boolean {
+  return collisionCells(state)[0];
+}
+
+/** 1x2 object at (0,0): tiles (0,0)+(0,1) → chunk indices 0 and 2. */
+const TALL_OBJECT = {
+  id: 1,
+  mapId: MAP.id,
+  tileX: 0,
+  tileY: 0,
+  width: 16,
+  height: 32,
+  collide: true,
+  scaleFactor: 1,
+  collisionBaseHeight: 0,
+};
 
 describe('collision reconciliation through map routes', () => {
   it('keeps an object footprint solid when a non-colliding autotile is painted over it', async () => {
@@ -295,5 +324,39 @@ describe('collision reconciliation through map routes', () => {
       200,
     );
     expect(collisionCell(state)).toBe(true);
+  });
+
+  it('re-rasters old and new footprints when only collisionBaseHeight changes', async () => {
+    // Full height solid on (0,0) and (0,1); after foot=1 only the bottom row stays.
+    const state = createCollisionPrisma({
+      objects: [{ ...TALL_OBJECT }],
+      collisionValues: [1, 0, 1, 0],
+    });
+    const app = appFor(state.prisma);
+
+    const response = await request(app).patch('/maps/map/objects/1').send({ collisionBaseHeight: 1 });
+
+    expect(response.status).toBe(200);
+    expect(response.body.collisionBaseHeight).toBe(1);
+    expect(collisionCells(state)).toEqual([false, false, true, false]);
+
+    const restore = await request(app).patch('/maps/map/objects/1').send({ collisionBaseHeight: 0 });
+
+    expect(restore.status).toBe(200);
+    expect(restore.body.collisionBaseHeight).toBe(0);
+    expect(collisionCells(state)).toEqual([true, false, true, false]);
+  });
+
+  it('keeps hand-painted collision solid when shrinking collisionBaseHeight', async () => {
+    const state = createCollisionPrisma({
+      objects: [{ ...TALL_OBJECT }],
+      collisionValues: [1, 0, 1, 0],
+      manualCollisionValues: [1, 0, 0, 0],
+    });
+
+    const response = await request(appFor(state.prisma)).patch('/maps/map/objects/1').send({ collisionBaseHeight: 1 });
+
+    expect(response.status).toBe(200);
+    expect(collisionCells(state)).toEqual([true, false, true, false]);
   });
 });

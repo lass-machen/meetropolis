@@ -9,7 +9,7 @@
 /** AGB version the user accepts at signup. The authoritative legal text and its
  * versioning are a legal/ops concern; this constant is the machine-recorded tag
  * mirrored server-side (E6.9). */
-export const CURRENT_AGB_VERSION = '2026-07-01';
+export const CURRENT_AGB_VERSION = 'SET-AT-RELEASE-YYYY-MM-DD';
 
 export interface B2BSignupFields {
   companyLegalName: string;

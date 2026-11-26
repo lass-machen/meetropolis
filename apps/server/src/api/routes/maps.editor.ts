@@ -4,9 +4,11 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireApiToken, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
+import { isTenantAccessDenied } from '../utils/tenantAccessState.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { findMapById } from './maps.read.js';
-import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
+import { acquireMapAdvisoryLock, acquirePackLocksForAssetUrls } from '../utils/advisoryLocks.js';
+import { normalizeTilesetImageUrl } from '../utils/tilesetImageUrl.js';
 
 export interface EditorAuthInfo {
   userId: string;
@@ -67,6 +69,10 @@ export async function resolveEditorMemberTenant(
     return null;
   }
   const tenant = getTenantFromReq(req);
+  if (!tenant && isTenantAccessDenied(req)) {
+    res.status(403).json({ error: 'forbidden' });
+    return null;
+  }
   if (!tenant) {
     res.status(400).json({ error: 'tenant_required' });
     return null;
@@ -102,6 +108,7 @@ const tilesetSchema = z.object({
 async function addTilesetWithMapLock(prisma: PrismaClient, mapId: string, data: z.infer<typeof tilesetSchema>) {
   return prisma.$transaction(async (tx) => {
     await acquireMapAdvisoryLock(tx, mapId);
+    await acquirePackLocksForAssetUrls(tx, [data.imageUrl]);
     const existing = await tx.mapTileset.findFirst({ where: { mapId, key: data.key } });
     if (existing) {
       const tilesets = await tx.mapTileset.findMany({ where: { mapId }, orderBy: { slot: 'asc' } });
@@ -140,6 +147,12 @@ export async function handleAddTileset(
       res.status(400).json({ error: 'invalid payload' });
       return;
     }
+    const imageUrl = normalizeTilesetImageUrl(parse.data.imageUrl);
+    if (!imageUrl) {
+      res.status(400).json({ error: 'invalid_tileset_image' });
+      return;
+    }
+    const tileset = { ...parse.data, imageUrl };
 
     const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
     if (!map) {
@@ -147,7 +160,7 @@ export async function handleAddTileset(
       return;
     }
 
-    const result = await addTilesetWithMapLock(prisma, map.id, parse.data);
+    const result = await addTilesetWithMapLock(prisma, map.id, tileset);
     const { tilesets } = result;
     try {
       if (result.created) {
@@ -155,7 +168,7 @@ export async function handleAddTileset(
           mapId: map.id,
           slot: result.slot,
           key: parse.data.key,
-          url: parse.data.imageUrl,
+          url: tileset.imageUrl,
         });
       } else {
         logger.debug('[Tilesets] already registered, skipping', { mapId: map.id, key: parse.data.key });

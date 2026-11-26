@@ -1,11 +1,12 @@
 import type express from 'express';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
-import multer from 'multer';
+import { uploadGuard, uploadParser, boundedMultipart } from '../middleware/uploadPolicy.js';
 import { logger } from '../../logger.js';
 import { requireSuperAdmin } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { copyMapToTenant, TargetPackAccessError } from './adminMaps.copy.js';
+import { sendFootprintError } from '../utils/mapObjectWriteLimits.js';
 import { handleImportAdminMap } from './adminMaps.tiledImport.js';
 import { INTERNAL_MAP_LAYER_NAMES } from '../utils/mapLayerPolicy.js';
 import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
@@ -26,7 +27,7 @@ const copyMapSchema = z.object({
   newName: z.string().min(1).optional(),
 });
 
-const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const importUpload = uploadParser('admin_map');
 
 async function handleListAdminMaps(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
@@ -236,6 +237,7 @@ async function handleCopyAdminMap(prisma: PrismaClient, req: express.Request, re
       });
       return;
     }
+    if (sendFootprintError(res, e)) return;
     logger.error({ event: 'admin_maps.copy.error', error: msg });
     res.status(500).json({ error: 'internal_error' });
   }
@@ -247,5 +249,10 @@ export function registerAdminMapRoutes(app: express.Application, prisma: PrismaC
   app.post('/admin/maps', (req, res) => handleCreateAdminMap(prisma, req, res));
   app.delete('/admin/maps/:id', (req, res) => handleDeleteAdminMap(prisma, req, res));
   app.post('/admin/maps/:id/copy', (req, res) => handleCopyAdminMap(prisma, req, res));
-  app.post('/admin/maps/import', importUpload.single('file'), (req, res) => handleImportAdminMap(prisma, req, res));
+  app.post(
+    '/admin/maps/import',
+    uploadGuard(prisma, 'admin_map'),
+    boundedMultipart(importUpload.single('file')),
+    (req, res) => handleImportAdminMap(prisma, req, res),
+  );
 }

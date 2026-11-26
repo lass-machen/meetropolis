@@ -1,5 +1,6 @@
 import type { NpcSpawnCommand } from '@meetropolis/shared';
 import { logger } from '../index.js';
+import { npcRoomConnectOptions, npcVideoGrant } from './livekitGrant.js';
 import { parseWavFrames, transcodeToPcm } from './mediaPlayer.js';
 
 // Lazy imports for @livekit/rtc-node (may not be available in all environments)
@@ -18,6 +19,8 @@ async function getLkServerSdk(): Promise<typeof import('livekit-server-sdk')> {
 
 interface LivekitTrackHandle {
   stop?: () => void | Promise<void>;
+  // Set for video handles so a new publish of the same source replaces the old one
+  source?: number;
 }
 
 export class LivekitPublisher {
@@ -41,18 +44,12 @@ export class LivekitPublisher {
       const sdk = await getLkServerSdk();
 
       const at = new sdk.AccessToken(livekitApiKey, livekitApiSecret, { identity });
-      // canSubscribe must be true: the Rust SDK's wait_pc_connection() waits for
-      // the subscriber PeerConnection to reach "connected" state. With canSubscribe: false,
-      // the server never sends a subscriber offer, causing a 15s timeout.
-      at.addGrant({ room: roomName, roomJoin: true, canPublish: true, canSubscribe: true });
+      at.addGrant(npcVideoGrant(roomName));
       const token = await at.toJwt();
 
       this.room = new lk.Room();
       logger.info(`[LivekitPublisher ${identity}] Connecting to ${livekitUrl} room=${roomName}...`);
-      await this.room.connect(livekitUrl, token, {
-        autoSubscribe: false,
-        dynacast: false,
-      });
+      await this.room.connect(livekitUrl, token, npcRoomConnectOptions);
       this.connected = true;
       logger.info(`[LivekitPublisher ${identity}] Connected to room ${roomName}`);
     } catch (e) {
@@ -162,19 +159,49 @@ export class LivekitPublisher {
   }
 
   async publishVideo(filePath: string, loop?: boolean, _mimeType?: string): Promise<void> {
-    if (!this.connected) await this.connect();
-    const identity = this.command.npc.identity;
-    logger.info(`[LivekitPublisher ${identity}] publishVideo: ${filePath} loop=${!!loop}`);
-    // TODO: Implement video frame pipeline
-    logger.warn(`[LivekitPublisher ${identity}] Video publishing not yet implemented (requires FFmpeg pipeline)`);
+    const lk = await getLkRtcNode();
+    await this.publishVideoFile(filePath, loop, lk.TrackSource.SOURCE_CAMERA, 'npc-video');
   }
 
   async publishScreenshare(filePath: string, loop?: boolean, _mimeType?: string): Promise<void> {
+    const lk = await getLkRtcNode();
+    await this.publishVideoFile(filePath, loop, lk.TrackSource.SOURCE_SCREENSHARE, 'npc-screenshare');
+  }
+
+  private async publishVideoFile(
+    filePath: string,
+    loop: boolean | undefined,
+    source: import('@livekit/rtc-node').TrackSource,
+    trackName: string,
+  ): Promise<void> {
     if (!this.connected) await this.connect();
     const identity = this.command.npc.identity;
-    logger.info(`[LivekitPublisher ${identity}] publishScreenshare: ${filePath} loop=${!!loop}`);
-    // TODO: Implement screenshare pipeline (similar to video but as screen source)
-    logger.warn(`[LivekitPublisher ${identity}] Screenshare publishing not yet implemented`);
+    logger.info(`[LivekitPublisher ${identity}] ${trackName}: ${filePath} loop=${!!loop}`);
+    await this.stopTracksBySource(source);
+    const lk = await getLkRtcNode();
+    // Loaded lazily like the LiveKit SDK above; keeps the module's import block unchanged
+    const { startVideoTrack } = await import('./videoTrack.js');
+    const playback = await startVideoTrack(lk, this.room!.localParticipant!, filePath, { source, trackName, loop });
+    const handle: LivekitTrackHandle = { source, stop: playback.stop };
+    this.activeTracks.push(handle);
+    try {
+      await playback.done;
+    } finally {
+      const idx = this.activeTracks.indexOf(handle);
+      if (idx >= 0) this.activeTracks.splice(idx, 1);
+    }
+  }
+
+  private async stopTracksBySource(source: import('@livekit/rtc-node').TrackSource): Promise<void> {
+    const matching = this.activeTracks.filter((t) => t.source === source);
+    this.activeTracks = this.activeTracks.filter((t) => t.source !== source);
+    for (const track of matching) {
+      try {
+        await track.stop?.();
+      } catch {
+        /* ignore track stop errors */
+      }
+    }
   }
 
   async stopAllMedia(): Promise<void> {

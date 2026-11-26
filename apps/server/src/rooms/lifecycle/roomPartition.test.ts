@@ -7,9 +7,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import { ServerError, matchMaker, type AuthContext, type Client } from 'colyseus';
+import { ServerError, matchMaker, type AuthContext } from '@colyseus/core';
 
 const warn = vi.hoisted(() => vi.fn());
+const freshSessionMock = vi.hoisted(() => vi.fn());
+vi.mock('../../api/utils/sessionAuth.js', () => ({ validateTenantSessionFresh: freshSessionMock }));
 vi.mock('../../logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
 }));
@@ -27,10 +29,11 @@ import {
 } from '../../testUtils/matchmakeHarness.js';
 import { enforceRoomPartition } from './roomPartition.js';
 import { AUTH_REJECTED_CODE, type WorldAuth } from './onAuth.js';
-import type { WorldRoom } from '../WorldRoom.js';
+import { WorldRoom } from '../WorldRoom.js';
 
 const verified = (tenantSlug?: string): WorldAuth => ({
   identity: 'user-1',
+  sessionId: 'db-session-1',
   isNpc: false,
   zonePrivacyVersion: 1,
   ...(tenantSlug ? { tenantId: `tid-${tenantSlug}`, tenantSlug } : {}),
@@ -47,7 +50,8 @@ describe('enforceRoomPartition', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('admits a tenant-less join into another tenant’s room with a warning while enforcement is off', () => {
+  it('admits a tenant-less join into another tenant’s room with a warning while enforcement is false', () => {
+    vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'false');
     expect(() => enforceRoomPartition({}, verified('beta'), 'acme')).not.toThrow();
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('no tenant requested'),
@@ -84,7 +88,7 @@ describe('WorldRoom.onAuth with a verified session', () => {
   const SECRET = 'x'.repeat(40);
   let server: MatchmakeTestServer;
 
-  const tenantRows: Record<string, { slug: string }> = { 'tid-beta': { slug: 'beta' } };
+  const tenantRows: Record<string, { id: string; slug: string }> = { 'tid-beta': { id: 'tid-beta', slug: 'beta' } };
 
   /** A signed token for `userId` of tenant beta plus the session row the room's prisma will return. */
   function sessionFor(userId: string): { token: string; context: AuthContext } {
@@ -105,14 +109,27 @@ describe('WorldRoom.onAuth with a verified session', () => {
     createPrismaClientMock.mockImplementation(() => ({
       ...makeFakePrisma(),
       tenant: {
-        findUnique: ({ where }: { where: { id?: string } }) => Promise.resolve(tenantRows[where.id ?? ''] ?? null),
+        findUnique: ({ where }: { where: { id?: string; slug?: string } }) =>
+          Promise.resolve(tenantRows[where.id ?? (where.slug === 'beta' ? 'tid-beta' : '')] ?? null),
       },
       session: {
         findUnique: ({ where }: { where: { tokenHash: string } }) =>
           Promise.resolve(sessions.get(where.tokenHash) ?? null),
         update: () => Promise.resolve({}),
       },
+      // Every session here belongs to a member of its own tenant; the
+      // membership gate has its own tests (worldAccess.integration.test.ts).
+      membership: { findUnique: () => Promise.resolve({ expiresAt: null, role: 'member' }) },
     }));
+    freshSessionMock.mockImplementation((_prisma: unknown, _rawToken: string, tenantId: string) =>
+      Promise.resolve({
+        status: 'allowed',
+        userId: 'user-1',
+        sessionId: 'db-session-1',
+        tenantId,
+        access: 'member',
+      }),
+    );
     server = await startMatchmakeServer();
   });
 
@@ -136,32 +153,36 @@ describe('WorldRoom.onAuth with a verified session', () => {
     const room = matchMaker.getLocalRoomById(res.body.roomId ?? '');
     return room as WorldRoom;
   }
-  const client = {} as Client;
 
-  it('admits a member of another tenant that sent no tenant into acme’s room while enforcement is off', async () => {
-    const room = await acmeRoom();
+  it('admits a member of another tenant that sent no tenant into acme’s room while enforcement is false', async () => {
+    vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'false');
+    await acmeRoom();
     const { context } = sessionFor('user-1');
-    const auth = await room.onAuth(client, { zonePrivacyVersion: 1 }, context);
+    const auth = await WorldRoom.onAuth(context.token ?? '', { zonePrivacyVersion: 1 }, context);
     expect(auth.tenantSlug).toBe('beta');
+    enforceRoomPartition(undefined, auth, 'acme');
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('no tenant requested'), expect.anything());
   });
 
-  it('refuses it once ZONE_PRIVACY_TENANT_ENFORCE is on', async () => {
-    const room = await acmeRoom();
+  it('refuses a tenant-less member from another room once enforcement is on', async () => {
+    await acmeRoom();
     const { context } = sessionFor('user-2');
     vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'true');
-    await expect(room.onAuth(client, { zonePrivacyVersion: 1 }, context)).rejects.toMatchObject({
-      code: AUTH_REJECTED_CODE,
-      message: 'tenant_mismatch',
-    });
+    const auth = await WorldRoom.onAuth(context.token ?? '', { zonePrivacyVersion: 1 }, context);
+    try {
+      enforceRoomPartition(undefined, auth, 'acme');
+      expect.unreachable('expected a refusal');
+    } catch (error) {
+      expect(error).toMatchObject({ code: AUTH_REJECTED_CODE, message: 'tenant_mismatch' });
+    }
   });
 
-  it('keeps refusing a named foreign tenant when enforcement is on (existing check)', async () => {
-    const room = await acmeRoom();
+  it('keeps refusing a named foreign tenant when enforcement is on', async () => {
+    await acmeRoom();
     const { context } = sessionFor('user-3');
     vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'true');
-    await expect(room.onAuth(client, { tenant: 'acme', zonePrivacyVersion: 1 }, context)).rejects.toMatchObject({
-      message: 'tenant_mismatch',
-    });
+    await expect(
+      WorldRoom.onAuth(context.token ?? '', { tenant: 'acme', zonePrivacyVersion: 1 }, context),
+    ).rejects.toMatchObject({ code: 401, message: 'tenant_mismatch' });
   });
 });

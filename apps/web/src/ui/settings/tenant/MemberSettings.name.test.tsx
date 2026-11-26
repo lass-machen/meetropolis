@@ -18,6 +18,7 @@ function renderEditScreen(onEditMember = vi.fn(() => Promise.resolve(true))) {
       onRemoveMember={vi.fn()}
       onInvite={vi.fn()}
       onSuccess={vi.fn()}
+      onError={vi.fn()}
       onResetPassword={vi.fn()}
       onEditMember={onEditMember}
     />,

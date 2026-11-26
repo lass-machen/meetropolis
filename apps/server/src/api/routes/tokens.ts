@@ -15,14 +15,19 @@ export function registerApiTokenRoutes(
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const list = await prisma.apiToken.findMany({ where: { userId: auth.userId }, orderBy: { createdAt: 'desc' } });
-    res.json(list.map((t) => ({ id: t.id, name: t.name, createdAt: t.createdAt, lastUsedAt: t.lastUsedAt })));
+    res.json(
+      list.map((t) => ({ id: t.id, name: t.name, scope: t.scope, createdAt: t.createdAt, lastUsedAt: t.lastUsedAt })),
+    );
   });
 
   // POST /api-tokens
   app.post('/api-tokens', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const schema = z.object({ name: z.string().min(1).max(100).optional() });
+    const schema = z.object({
+      name: z.string().min(1).max(100).optional(),
+      scope: z.enum(['read', 'write']).default('read'),
+    });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
     const raw = crypto.randomBytes(32).toString('hex');
@@ -30,8 +35,10 @@ export function registerApiTokenRoutes(
       .createHash('sha256')
       .update(apiTokenPepper + raw)
       .digest('hex');
-    const rec = await prisma.apiToken.create({ data: { userId: auth.userId, name: parse.data.name, hash } });
-    res.json({ id: rec.id, token: raw, name: rec.name, createdAt: rec.createdAt });
+    const rec = await prisma.apiToken.create({
+      data: { userId: auth.userId, name: parse.data.name, hash, scope: parse.data.scope },
+    });
+    res.json({ id: rec.id, token: raw, name: rec.name, scope: rec.scope, createdAt: rec.createdAt });
   });
 
   // DELETE /api-tokens/:id

@@ -141,6 +141,9 @@ function createTmjPrisma() {
     mapAutotile: { findMany: vi.fn().mockResolvedValue([]) },
     mapObject: { findMany: vi.fn().mockResolvedValue([]) },
     zone: { findMany: vi.fn().mockResolvedValue([]) },
+    membership: {
+      findUnique: vi.fn().mockResolvedValue({ role: 'admin', expiresAt: null }),
+    },
     $transaction: vi.fn(async (work: (tx: unknown) => Promise<unknown>) => {
       const savedLayers = layers.map((layer) => ({ ...layer }));
       const savedChunks = chunks.map((chunk) => ({ ...chunk, data: new Uint8Array(chunk.data) }));
@@ -179,11 +182,11 @@ function routeRequest(body?: unknown): express.Request {
 function routeResponse(): express.Response & { body?: unknown; statusCode: number } {
   const res = {
     statusCode: 200,
-    status(code: number) {
+    status(this: { statusCode: number }, code: number) {
       this.statusCode = code;
       return this;
     },
-    json(body: unknown) {
+    json(this: { body?: unknown }, body: unknown) {
       this.body = body;
       return this;
     },
@@ -193,10 +196,13 @@ function routeResponse(): express.Response & { body?: unknown; statusCode: numbe
 }
 
 function importRequest(tmj: unknown): express.Request {
-  const req = routeRequest() as express.Request & {
-    files: { file: Array<{ buffer: Buffer }>; images: never[] };
+  const req = routeRequest();
+  // Partial test double: the importer only reads file buffers, so the
+  // remaining multipart file fields are intentionally omitted.
+  (req as unknown as { files: unknown }).files = {
+    file: [{ buffer: Buffer.from(JSON.stringify(tmj)) }],
+    images: [],
   };
-  req.files = { file: [{ buffer: Buffer.from(JSON.stringify(tmj)) }], images: [] };
   return req;
 }
 

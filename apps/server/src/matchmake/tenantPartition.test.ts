@@ -13,7 +13,7 @@ vi.mock('../logger.js', () => ({
 const createPrismaClientMock = vi.hoisted(() => vi.fn());
 vi.mock('../db.js', () => ({ createPrismaClient: createPrismaClientMock }));
 
-import { ServerError } from 'colyseus';
+import { ServerError, type AuthContext } from '@colyseus/core';
 import {
   disposeAllRooms,
   makeFakePrisma,
@@ -24,6 +24,7 @@ import {
   worldRooms,
   type MatchmakeTestServer,
 } from '../testUtils/matchmakeHarness.js';
+import { stubWorldAuth } from '../testUtils/worldAuthStub.js';
 import {
   TENANT_SLUG_PATTERN,
   assertTenantExists,
@@ -129,19 +130,31 @@ describe('assertValidDefaultTenantSlug', () => {
     },
   );
 
-  it('shortens a huge value in the message', () => {
+  it('keeps a huge value out of the message', () => {
     expect.hasAssertions();
     try {
       assertValidDefaultTenantSlug('A'.repeat(5000));
+      expect.unreachable();
     } catch (error) {
-      expect((error as Error).message.length).toBeLessThan(500);
+      expect((error as Error).message).not.toContain('A'.repeat(10));
+    }
+  });
+
+  it('never reports the rejected value in the message', () => {
+    expect.hasAssertions();
+    try {
+      assertValidDefaultTenantSlug('Bad-Slug-Marker-7f3');
+      expect.unreachable();
+    } catch (error) {
+      expect((error as Error).message).toContain('DEFAULT_TENANT_SLUG');
+      expect((error as Error).message).not.toContain('Bad-Slug-Marker-7f3');
     }
   });
 
   it('reads DEFAULT_TENANT_SLUG when called without an argument', () => {
     vi.stubEnv('DEFAULT_TENANT_SLUG', 'Not.Valid');
     try {
-      expect(() => assertValidDefaultTenantSlug()).toThrow(/Not\.Valid/);
+      expect(() => assertValidDefaultTenantSlug()).toThrow(/DEFAULT_TENANT_SLUG/);
       vi.stubEnv('DEFAULT_TENANT_SLUG', 'valid-slug');
       expect(() => assertValidDefaultTenantSlug()).not.toThrow();
     } finally {
@@ -279,6 +292,9 @@ describe('createTenantExistsLookup', () => {
 describe('installPartitionKeyValidation', () => {
   type Controller = NonNullable<Parameters<typeof installPartitionKeyValidation>[1]>;
 
+  /** Minimal auth context for the pass-through argument: the guard only reads the options. */
+  const authContext: AuthContext = { headers: new Headers(), ip: '127.0.0.1' };
+
   /** A controller whose `invokeMethod` is a spy standing for "Colyseus builds or finds a room". */
   function fakeController() {
     const reached = vi.fn((..._args: unknown[]) => Promise.resolve({ room: { roomId: 'r1' } }));
@@ -290,9 +306,9 @@ describe('installPartitionKeyValidation', () => {
     const { controller, reached } = fakeController();
     const lookup = vi.fn<TenantExists>().mockResolvedValue(true);
     installPartitionKeyValidation(lookup, controller);
-    await controller.invokeMethod('joinOrCreate', 'world', { tenant: 'acme' }, {});
+    await controller.invokeMethod('joinOrCreate', 'world', { tenant: 'acme' }, authContext);
     expect(lookup).toHaveBeenCalledWith('acme');
-    expect(reached).toHaveBeenCalledWith('joinOrCreate', 'world', { tenant: 'acme' }, {});
+    expect(reached).toHaveBeenCalledWith('joinOrCreate', 'world', { tenant: 'acme' }, authContext);
   });
 
   it('never reaches Colyseus with a prototype key in the options, and passes on the object it checked', async () => {
@@ -300,7 +316,7 @@ describe('installPartitionKeyValidation', () => {
     const lookup = vi.fn<TenantExists>().mockResolvedValue(true);
     installPartitionKeyValidation(lookup, controller);
     const hostile: unknown = JSON.parse('{"__proto__":{"tenant":"zz-evil-1"}}');
-    await expect(controller.invokeMethod('joinOrCreate', 'world', hostile, {})).rejects.toMatchObject({
+    await expect(controller.invokeMethod('joinOrCreate', 'world', hostile, authContext)).rejects.toMatchObject({
       code: 400,
       message: 'invalid_options',
     });
@@ -309,14 +325,16 @@ describe('installPartitionKeyValidation', () => {
 
     // What reaches Colyseus is the very object that passed the check (no copy that could differ).
     const fine = { tenant: 'acme', identity: 'u1' };
-    await controller.invokeMethod('joinOrCreate', 'world', fine, {});
+    await controller.invokeMethod('joinOrCreate', 'world', fine, authContext);
     expect(reached.mock.calls[0]?.[2]).toBe(fine);
   });
 
   it('never reaches Colyseus for an unknown tenant', async () => {
     const { controller, reached } = fakeController();
     installPartitionKeyValidation(vi.fn<TenantExists>().mockResolvedValue(false), controller);
-    await expect(controller.invokeMethod('joinOrCreate', 'world', { tenant: 'nope' }, {})).rejects.toMatchObject({
+    await expect(
+      controller.invokeMethod('joinOrCreate', 'world', { tenant: 'nope' }, authContext),
+    ).rejects.toMatchObject({
       code: 400,
       message: 'invalid_tenant',
     });
@@ -327,17 +345,17 @@ describe('installPartitionKeyValidation', () => {
     const { controller, reached } = fakeController();
     const lookup = vi.fn<TenantExists>().mockResolvedValue(false);
     installPartitionKeyValidation(lookup, controller);
-    await controller.invokeMethod('joinOrCreate', 'world', { tenant: '', identity: 'u1' }, {});
+    await controller.invokeMethod('joinOrCreate', 'world', { tenant: '', identity: 'u1' }, authContext);
     expect(lookup).not.toHaveBeenCalled();
-    expect(reached).toHaveBeenCalledWith('joinOrCreate', 'world', { tenant: 'default', identity: 'u1' }, {});
+    expect(reached).toHaveBeenCalledWith('joinOrCreate', 'world', { tenant: 'default', identity: 'u1' }, authContext);
   });
 
   it('stops checking once it is uninstalled', async () => {
     const { controller, reached } = fakeController();
     const uninstall = installPartitionKeyValidation(vi.fn<TenantExists>().mockResolvedValue(false), controller);
-    await expect(controller.invokeMethod('joinOrCreate', 'world', { tenant: 'nope' }, {})).rejects.toThrow();
+    await expect(controller.invokeMethod('joinOrCreate', 'world', { tenant: 'nope' }, authContext)).rejects.toThrow();
     uninstall();
-    await controller.invokeMethod('joinOrCreate', 'world', { tenant: 'nope' }, {});
+    await controller.invokeMethod('joinOrCreate', 'world', { tenant: 'nope' }, authContext);
     expect(reached).toHaveBeenCalledTimes(1);
   });
 });
@@ -347,6 +365,10 @@ describe('partition key against a real Colyseus server', () => {
   /** The tenants that "exist" in this suite; everything else is a well-formed slug nobody owns. */
   const knownTenants = new Set(['acme', 'acme-corp', 'team_42', 'a', 'a'.repeat(64), '0', '-']);
   const tenantExists = vi.fn<TenantExists>((slug) => Promise.resolve(knownTenants.has(slug)));
+  // Matchmaking authenticates before it reserves a seat. These cases are
+  // about the partition key, so they act as a member of the tenant they
+  // ask for; the refusal without a session has its own case below.
+  let authSpy: ReturnType<typeof stubWorldAuth>;
 
   beforeAll(async () => {
     createPrismaClientMock.mockImplementation(makeFakePrisma);
@@ -361,6 +383,11 @@ describe('partition key against a real Colyseus server', () => {
     await disposeAllRooms();
     createPrismaClientMock.mockClear();
     tenantExists.mockClear();
+    authSpy = stubWorldAuth();
+  });
+
+  afterEach(() => {
+    authSpy.mockRestore();
   });
 
   it.each([
@@ -524,5 +551,13 @@ describe('partition key against a real Colyseus server', () => {
   it('still answers an unknown room name with the Colyseus error', async () => {
     const res = await matchmake(server, JSON.stringify({}), { path: '/matchmake/joinOrCreate/nope' });
     expect(res.status).toBe(520);
+  });
+
+  it('refuses a request without a session with HTTP 401 and builds no room', async () => {
+    authSpy.mockRestore();
+    const res = await matchmake(server, JSON.stringify({ tenant: 'acme' }));
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ code: 401, error: 'unauthorized' });
+    expect(await worldRooms()).toHaveLength(0);
   });
 });

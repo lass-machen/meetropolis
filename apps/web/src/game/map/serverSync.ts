@@ -156,7 +156,7 @@ function applyZonesFromServer(scene: MainSceneLike, data: ServerEditorState): vo
           };
         })
       : [];
-    if (zones.length > 0) {
+    if (Array.isArray(data.zones)) {
       try {
         scene.setZoneOverlay(zones);
       } catch {}

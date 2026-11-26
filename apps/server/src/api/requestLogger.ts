@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { logger } from '../logger.js';
+import { getRequestRouteTemplate } from './utils/requestRoute.js';
 import crypto from 'crypto';
 
 function genId(): string {
@@ -18,7 +19,6 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
       event: 'http.request',
       id: reqId,
       method: req.method,
-      path: req.path,
       ua: (req.headers['user-agent'] || '').toString(),
     });
   } catch {}
@@ -29,7 +29,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction) {
         event: 'http.response',
         id: reqId,
         method: req.method,
-        path: req.path,
+        path: getRequestRouteTemplate(req),
         status: res.statusCode,
         durationMs: ms,
       });

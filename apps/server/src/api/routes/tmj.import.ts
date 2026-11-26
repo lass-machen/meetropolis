@@ -3,16 +3,18 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import type express from 'express';
 import type { PrismaClient } from '../../generated/prisma/index.js';
-import multer from 'multer';
+import { uploadGuard, uploadParser, boundedMultipart } from '../middleware/uploadPolicy.js';
 import { logger } from '../../logger.js';
-import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
+import { resolveEditorMemberTenant } from './maps.editor.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { reconcileCollisionTiles, rectCollisionTiles } from '../utils/collisionReconciler.js';
 import { importedLayerStorageName, isReservedImportLayer } from '../utils/mapLayerPolicy.js';
 import type { MapDb } from '../utils/mapChunkMutations.js';
 import type { MulterFile, RequestWithMulterFields } from '../../types/multer.js';
-import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
+import { acquireMapAdvisoryLock, acquirePackLocksForAssetUrls } from '../utils/advisoryLocks.js';
+import { assertObjectFootprints, sendFootprintError } from '../utils/mapObjectWriteLimits.js';
+import { normalizeTilesetImageUrl } from '../utils/tilesetImageUrl.js';
 import {
   TmjSchema,
   buildGidToSlotMapping,
@@ -27,10 +29,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-});
+const upload = uploadParser('tmj');
 
 const importUpload = upload.fields([
   { name: 'file', maxCount: 1 },
@@ -55,11 +54,44 @@ function computeTileCount(t: {
   return columns * rows;
 }
 
+/** Directory where imported tileset images are stored; shared with the tenant export. */
+export function importedTilesetsDir(): string {
+  return path.resolve(__dirname, '../../../../public/assets/tilesets');
+}
+
+function findUploadedTilesetImage(images: MulterFile[], tilesetImage: string): MulterFile | undefined {
+  const baseName = path.basename(tilesetImage);
+  return images.find((candidate) => candidate.originalname === baseName);
+}
+
+/**
+ * Tilesets without an uploaded image keep the path from the TMJ file, which every
+ * client of the tenant fetches later. Those paths follow the rule of the editor's
+ * tileset registration: plain asset paths only, absolute URLs reduced to their path.
+ * Returns the tilesets with normalized paths, or the name of the first rejected one.
+ */
+function normalizeTilesetImages(
+  tilesets: Tmj['tilesets'],
+  images: MulterFile[],
+): { tilesets: Tmj['tilesets'] } | { rejected: string } {
+  const normalized: Tmj['tilesets'] = [];
+  for (const tileset of tilesets) {
+    if (findUploadedTilesetImage(images, tileset.image)) {
+      normalized.push(tileset);
+      continue;
+    }
+    const image = normalizeTilesetImageUrl(tileset.image);
+    if (!image) return { rejected: tileset.name };
+    normalized.push({ ...tileset, image });
+  }
+  return { tilesets: normalized };
+}
+
 function saveTilesetImage(images: MulterFile[], tilesetImage: string): string | null {
   const baseName = path.basename(tilesetImage);
-  const file = images.find((candidate) => candidate.originalname === baseName);
+  const file = findUploadedTilesetImage(images, tilesetImage);
   if (!file) return null;
-  const tilesetsDir = path.resolve(__dirname, '../../../../public/assets/tilesets');
+  const tilesetsDir = importedTilesetsDir();
   if (!fs.existsSync(tilesetsDir)) fs.mkdirSync(tilesetsDir, { recursive: true });
   fs.writeFileSync(path.join(tilesetsDir, baseName), file.buffer);
   return `/assets/tilesets/${baseName}`;
@@ -209,11 +241,26 @@ function parseImport(req: express.Request, res: express.Response): ParsedImport 
     res.status(400).json({ error: 'duplicate_mapped_layer' });
     return null;
   }
+  const images = request.files?.images ?? [];
+  const tilesetImages = normalizeTilesetImages(parsed.data.tilesets, images);
+  if ('rejected' in tilesetImages) {
+    res.status(400).json({ error: 'invalid_tileset_image', tileset: tilesetImages.rejected });
+    return null;
+  }
   return {
-    tmj: parsed.data,
-    images: request.files?.images ?? [],
+    tmj: { ...parsed.data, tilesets: tilesetImages.tilesets },
+    images,
     mode: (req.query.mode as string) === 'merge' ? 'merge' : 'replace',
   };
+}
+
+function assertZoneFootprints(tmj: Tmj): void {
+  const footprints = extractZonesFromObjectLayers(tmj.layers).map((zone) => {
+    const xs = zone.polygon.map((point) => point.x);
+    const ys = zone.polygon.map((point) => point.y);
+    return { width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+  });
+  assertObjectFootprints(footprints, { tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight });
 }
 
 async function persistImport(
@@ -223,10 +270,15 @@ async function persistImport(
   parsed: ParsedImport,
 ) {
   const { tmj, images, mode } = parsed;
+  assertZoneFootprints(tmj);
   const chunkSize = 32;
   const spawnPoint = extractSpawnFromObjectLayers(tmj.layers);
   const result = await prisma.$transaction(async (tx) => {
     await acquireMapAdvisoryLock(tx, map.id);
+    await acquirePackLocksForAssetUrls(
+      tx,
+      tmj.tilesets.map((tileset) => tileset.image),
+    );
     await tx.map.update({
       where: { id: map.id },
       data: { width: tmj.width, height: tmj.height, tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight, chunkSize },
@@ -258,10 +310,8 @@ export async function handleTmjImport(
   res: express.Response,
 ): Promise<void> {
   try {
-    const auth = requireAuth(req);
-    if (!auth) return void res.status(401).json({ error: 'unauthorized' });
-    const tenant = getTenantFromReq(req);
-    if (!tenant) return void res.status(400).json({ error: 'tenant_required' });
+    const tenant = await resolveEditorMemberTenant(prisma, req, res, { requireAdmin: true });
+    if (!tenant) return;
     const parsed = parseImport(req, res);
     if (!parsed) return;
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
@@ -285,11 +335,14 @@ export async function handleTmjImport(
       warnings: result.warnings,
     });
   } catch (error: unknown) {
+    if (sendFootprintError(res, error)) return;
     logger.error('[TMJ] import failed', error);
     res.status(500).json({ error: 'internal_error' });
   }
 }
 
 export function registerTmjImportRoute(app: express.Application, prisma: PrismaClient): void {
-  app.post('/maps/:id/import-tmj', importUpload, (req, res) => handleTmjImport(prisma, req, res));
+  app.post('/maps/:id/import-tmj', uploadGuard(prisma, 'tmj'), boundedMultipart(importUpload), (req, res) =>
+    handleTmjImport(prisma, req, res),
+  );
 }

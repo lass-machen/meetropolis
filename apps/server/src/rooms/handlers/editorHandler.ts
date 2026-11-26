@@ -1,41 +1,90 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { logger } from '../../logger.js';
-import { createPrismaClient } from '../../db.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { broadcastToMap } from '../utils/broadcastHelpers.js';
 import { invalidateZoneCache } from './zoneLockHandler.js';
 import { refreshZonesAndRecompute } from '../audioZones/runtime.js';
+import { requireWorldAuth, type WorldAuth } from '../lifecycle/onAuth.js';
+import { authorizeEditorUpdate, editorUpdateSchema } from './editorAuthorization.js';
 
 export function handleEditorUpdate(
   room: WorldRoom,
   client: Client,
   data: { type: string; [key: string]: unknown },
 ): void {
-  logger.debug('[WorldRoom] Editor update from:', client.sessionId, 'type:', data.type);
+  const parsed = editorUpdateSchema.safeParse(data);
+  if (!parsed.success) {
+    logger.debug('[WorldRoom] Dropped editor_update with an unknown type');
+    return;
+  }
   const player = room.state.players.get(client.sessionId);
-  const mapId = typeof data.mapId === 'string' ? data.mapId : player?.mapId;
-  if (mapId) {
-    broadcastToMap(room, mapId, 'editor_update', data, client);
-  } else {
-    // No resolvable mapId: cannot tenant-scope (broadcastToMap filters
-    // recipients by their player.mapId). Drop rather than room-broadcast so one
-    // tenant's editor geometry never bleeds to another in a shared room. Every
-    // real edit carries the editor's map (data.mapId or the player's current
-    // mapId), so this only drops anomalous player-less/mapless events.
-    logger.debug('[WorldRoom] Dropped editor_update without a resolvable mapId (cannot tenant-scope)');
+  if (!player || player.isNpc) {
+    logger.debug('[WorldRoom] Dropped editor_update without a human player seat');
+    return;
   }
-  // Invalidate zone cache on editor updates so locks use fresh zone data
-  invalidateZoneCache(room.zoneLockState);
-  // H4: zone polygons may have moved -- recompute audio-zone islands for
-  // everyone on this map against the fresh geometry. Fire-and-forget: this
-  // handler is synchronous (Colyseus onMessage), and a brief delay before
-  // recomputation is acceptable (the reconciler heals any window).
-  if (mapId) {
-    const prisma = room.prismaForPresence ?? createPrismaClient();
-    void refreshZonesAndRecompute(room, mapId, prisma).catch((e) =>
-      logger.debug('[WorldRoom] Failed to recompute audio zones after editor_update', e),
-    );
+  let auth: WorldAuth;
+  try {
+    auth = requireWorldAuth(client);
+  } catch {
+    logger.debug('[WorldRoom] Dropped editor_update without proven world auth');
+    return;
   }
+  if (auth.isNpc) {
+    logger.debug('[WorldRoom] Dropped editor_update from a service seat');
+    return;
+  }
+  const tenantId = auth.tenantId;
+  if (!tenantId) {
+    logger.debug('[WorldRoom] Dropped editor_update without a proven tenant');
+    return;
+  }
+  // The server-side player map is authoritative. A sender-declared mapId that
+  // names a different map is dropped; it is never forwarded (see below).
+  const mapId = player.mapId;
+  if (!mapId) {
+    logger.debug('[WorldRoom] Dropped editor_update without a server-side map');
+    return;
+  }
+  if (parsed.data.mapId !== undefined && parsed.data.mapId !== mapId) {
+    logger.debug('[WorldRoom] Dropped editor_update for a foreign map');
+    return;
+  }
+  // The room's own database handle proves the role below. Without it there is
+  // no fresh proof, so the update is dropped instead of opening a new handle.
+  const prisma = room.prismaForPresence;
+  if (!prisma) {
+    logger.debug('[WorldRoom] Dropped editor_update without room database state');
+    return;
+  }
+  const userId = auth.identity;
+  void authorizeEditorUpdate(prisma, userId, tenantId, mapId)
+    .then((allowed) => {
+      if (!allowed) {
+        logger.debug('[WorldRoom] Dropped editor_update without owner/admin proof');
+        return;
+      }
+      // Re-check the seat after the database round trip: the sender may have
+      // left or switched maps while the proof was loading. Only the same
+      // player on the same map receives the broadcast below.
+      const current = room.state.players.get(client.sessionId);
+      if (current !== player || current.mapId !== mapId || current.isNpc) {
+        logger.debug('[WorldRoom] Dropped editor_update after the sender seat changed');
+        return;
+      }
+      // The canonical map always wins: a sender-declared mapId is never
+      // forwarded, so geometry cannot leak onto another map. Only parsed
+      // data is broadcast, never the raw sender payload.
+      broadcastToMap(room, mapId, 'editor_update', { ...parsed.data, mapId }, client);
+      // Zone locks cache per map, so only this map is invalidated; the
+      // recompute below then refreshes exactly the islands on this map.
+      invalidateZoneCache(room.zoneLockState, mapId);
+      void refreshZonesAndRecompute(room, mapId, prisma).catch((e) =>
+        logger.debug('[WorldRoom] Failed to recompute audio zones after editor_update', e),
+      );
+    })
+    .catch((e: unknown) => {
+      logger.debug('[WorldRoom] Failed to authorize editor_update', e);
+    });
 }
 
 // Subscribe to map updates via Presence (works across processes if Redis

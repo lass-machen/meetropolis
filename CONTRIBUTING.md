@@ -106,6 +106,10 @@ packages/
 npm -w @meetropolis/server run test
 npm -w @meetropolis/web run test
 
+# Server tests that need a database: set DATABASE_URL to a migrated,
+# disposable test database first (see TEST_STRATEGY.md, "Database Tests")
+npm -w @meetropolis/server run test:db
+
 # Run specific test file
 npm -w @meetropolis/web run test -- src/lib/geom.test.ts
 ```

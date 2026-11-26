@@ -13,6 +13,7 @@ import { loadVisibleChunks, applyChunkUpdates } from '../map/chunks';
 import type { ChunkLayerName } from '../map/chunks';
 import { registerTileset } from '../map/tilesets';
 import { EditorService } from '../../services/EditorService';
+import { subscribeToSceneEditor } from './main/sceneEditorSubscription';
 import { EditorIntegration } from '../editor/integration';
 import { AutotileGrid, AutotileRenderer, AutotileTextureLoader } from '../autotile';
 import { avatarRegistry } from '../avatarRegistry';
@@ -272,7 +273,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
   }
 
   private setupEditorSubscriptions() {
-    EditorService.subscribe(() => {
+    subscribeToSceneEditor(this.events, () => {
       this.tileManager.updateBackgrounds();
       this.tileManager.updateGrid();
       this.uiManager.updateCursor(
@@ -485,6 +486,9 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
   setDesiredPosition(pos: { x: number; y: number } | null) {
     this.playerManager.setDesiredPosition(pos);
   }
+  setHeroPosition(pos: { x: number; y: number }) {
+    this.playerManager.setHeroPosition(pos);
+  }
   setMovementLocked(locked: boolean) {
     this.playerManager.setMovementLocked(locked);
   }
@@ -614,11 +618,18 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
       });
       return;
     }
-    avatarRegistry.preloadAvatar(this, avatarId);
-    this.load.once('complete', () => {
-      this.playerManager.changeAvatar(avatarId);
-    });
-    this.load.start();
+    // Swap only once this avatar's own texture arrived (never on an unrelated
+    // loader 'complete', which may fire while the queue holds other files),
+    // and only while the scene is still active. A failed load keeps the
+    // current avatar.
+    void avatarRegistry.preloadAvatar(this, avatarId).then(
+      () => {
+        if (this.sys.isActive()) this.playerManager.changeAvatar(avatarId);
+      },
+      () => {
+        // Keep the current avatar when the texture cannot be loaded.
+      },
+    );
   }
   handleObjectsUpdated(data: ObjectsUpdatedPayload) {
     this.objectManager.handleObjectsUpdated(data);

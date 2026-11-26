@@ -38,6 +38,8 @@ third-party contexts.
 The optional private submodules under `packages/brand`, `packages/desktop`,
 and `packages/tenancy-enterprise` are not part of this OSS distribution and
 carry their own commercial licenses; see those repositories for details.
+Source code and assets from the closed-source modules (brand, desktop,
+enterprise and mobile) are never checked into this repository.
 
 Third-party dependencies are listed and attributed in [`NOTICE`](NOTICE).
 
@@ -127,9 +129,11 @@ exact wording and the Developer Certificate of Origin sign-off requirement.
 
 ## Trademarks
 
-The "Meetropolis" name and any associated logos are trademarks of Tiamat UG
-and are **not** covered by AGPL-3.0 or MIT. Permitted and prohibited uses are
-documented in [`TRADEMARKS.md`](TRADEMARKS.md).
+Trademark rights to the Meetropolis name and logos are not granted by the
+AGPL/MIT copyright licenses. For exactly the ten own brand and image files
+listed in [`TRADEMARKS.md`](TRADEMARKS.md),
+MIT explicitly applies as the copyright license. The conditions for trademark
+use continue to apply independently.
 
 ## Questions
 

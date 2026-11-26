@@ -220,6 +220,7 @@ export interface JoinWorldOptions {
   // H4 hardening: see apps/web/src/lib/colyseus.ts joinWorld() and
   // apps/server/src/rooms/lifecycle/onAuth.ts for the server-side gate.
   zonePrivacyVersion?: number;
+  assetProtocol?: number; // compatibility marker, not a credential
 }
 
 // Helper type for player data

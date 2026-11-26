@@ -10,7 +10,7 @@ This file defines the test strategy for the Meetropolis monorepo. It is intended
 | Unit Tests (Server) | Vitest + Supertest       | `apps/server/src/**/*.test.ts`             | Active         |
 | Unit Tests (Shared) | Vitest                   | `packages/shared/src/**/*.test.ts`         | New            |
 | E2E Tests           | Playwright               | `apps/web/e2e/*.spec.ts`                   | In Development |
-| Integration Tests   | Vitest                   | `apps/server/src/**/*.integration.test.ts` | Planned (none) |
+| Integration Tests   | Vitest                   | `apps/server/src/**/*.integration.test.ts` | Active (DB)    |
 
 ---
 
@@ -160,7 +160,33 @@ npm run ci:local
 npm run test -w @meetropolis/server
 npm run test -w @meetropolis/web
 npm run test -w @meetropolis/shared
+
+# Server tests that need a migrated database (see "Database Tests")
+npm run test:db -w @meetropolis/server
 ```
+
+### Database Tests
+
+`npm test` in `apps/server` never needs a database. Tests that need a
+migrated PostgreSQL database run in their own Vitest projects through
+`npm run test:db`:
+
+- File names end in `.integration.test.ts`. Exceptions are listed in
+  `databaseTestFiles` in `apps/server/vitest.config.ts`.
+- `DATABASE_URL` must point at a migrated, disposable test database. Without
+  it the run fails at once with a clear message; nothing is skipped.
+- The files run one at a time. Files with database-wide effects (triggers on
+  shared tables, deletes without a tenant filter) belong in
+  `exclusiveTestFiles` and run last.
+
+```bash
+# Example with a local throwaway database
+export DATABASE_URL=postgresql://user:password@localhost:5432/meetropolis_test
+(cd apps/server && npx prisma migrate deploy)
+npm run test:db -w @meetropolis/server
+```
+
+Never point `DATABASE_URL` at a database whose data you want to keep.
 
 ---
 

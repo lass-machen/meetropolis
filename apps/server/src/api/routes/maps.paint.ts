@@ -9,6 +9,7 @@ import { resolveEditorMemberTenant } from './maps.editor.js';
 import { executePaint } from './maps.paint.service.js';
 import { paintSchema, validatePaintSemantics } from './maps.paint.schema.js';
 import { findMapById } from './maps.read.js';
+import { sendFootprintError } from '../utils/mapObjectWriteLimits.js';
 
 export async function handlePaintRect(
   prisma: PrismaClient,
@@ -69,6 +70,7 @@ export async function handlePaintRect(
       autotilePaletteEntry: result.paletteEntry,
     });
   } catch (error: unknown) {
+    if (sendFootprintError(res, error)) return;
     logger.error('[Map] paint-rect failed', error);
     res.status(500).json({ error: 'internal_error' });
   }

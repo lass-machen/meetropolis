@@ -16,12 +16,28 @@ interface MapWhere {
 }
 
 const fakePrisma = {
+  session: {
+    findMany: vi.fn((args: { where?: { id?: { in?: string[] }; userId?: string } }) =>
+      Promise.resolve([
+        {
+          id: args.where?.id?.in?.[0] ?? 'db-session',
+          userId: args.where?.userId ?? 'user-1',
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ]),
+    ),
+  },
   tenant: { findUnique: vi.fn(() => Promise.resolve({ defaultMapName: 'office' })) },
   map: {
     findFirst: vi.fn((_args: { where: MapWhere }) => Promise.resolve<{ id: string; name: string } | null>(null)),
     findUnique: vi.fn(() => Promise.resolve(null)),
   },
-  membership: { findMany: vi.fn(() => Promise.resolve([])), findFirst: vi.fn(() => Promise.resolve(null)) },
+  membership: {
+    findMany: vi.fn(() => Promise.resolve([])),
+    findFirst: vi.fn(() => Promise.resolve(null)),
+    // The admit gate re-proves the verified tenant; the double stays a member.
+    findUnique: vi.fn(() => Promise.resolve({ role: 'member', expiresAt: null })),
+  },
   presence: { findMany: vi.fn(() => Promise.resolve([])) },
   user: { findUnique: vi.fn(() => Promise.resolve(null)) },
   avatarPack: { findFirst: vi.fn(() => Promise.resolve({ avatars: [{ key: 'business_man' }] })) },
@@ -43,6 +59,7 @@ vi.mock('../audioZones/runtime.js', () => ({
 
 import { completePendingJoin } from './onJoin.completion.js';
 import { MAX_JOIN_TEXT_LENGTH } from './joinFields.js';
+import { WorldAccessRegistry } from './worldAccess.js';
 import type { WorldRoom, Player as PlayerCtor, RoomOptions } from '../WorldRoom.js';
 
 type CompletionClient = Parameters<typeof completePendingJoin>[1];
@@ -80,18 +97,29 @@ function makeRoom(): { room: WorldRoom; players: Map<string, FakePlayer> } {
     tileHeightPx: 32,
     defaultSpawn: { x: 10, y: 10 },
   } as unknown as WorldRoom;
+  room.worldAccess = new WorldAccessRegistry(room);
   return { room, players };
 }
 
-/** A token-less human join (staged mode): no verified tenant on client.auth. */
+/** A human join with a verified session represented by the test double. */
 async function join(options: RoomOptions): Promise<FakePlayer> {
   const { room, players } = makeRoom();
   const client = {
     sessionId: 'sid-1',
     send: vi.fn(),
     view: { add() {}, remove() {}, has: () => false },
-    auth: { identity: 'user-1', isNpc: false, zonePrivacyVersion: 1 },
+    auth: { identity: 'user-1', sessionId: 'db-session', isNpc: false, zonePrivacyVersion: 1 },
   } as unknown as CompletionClient;
+  // The admit gate needs the onAuth entry for this session; the tenant values
+  // are the double's own, the membership proof above stays active.
+  room.worldAccess.register('sid-1', {
+    identity: 'user-1',
+    sessionId: 'db-session',
+    tenantId: 'tenant-1',
+    tenantSlug: 'tenant-1',
+    isNpc: false,
+    zonePrivacyVersion: 1,
+  });
   await completePendingJoin(room, client, options, 'user-1', FakePlayer as unknown as typeof PlayerCtor);
   const player = players.get('sid-1');
   if (!player) throw new Error('the join did not create a player');
@@ -128,13 +156,13 @@ describe('the direction of a joining player', () => {
 describe('the map name of a joining player', () => {
   it('is the name of the map row when the lookup by name succeeds', async () => {
     fakePrisma.map.findFirst.mockImplementation(({ where }) =>
-      Promise.resolve(where.name === 'Büro 2. Etage' ? { id: 'map-9', name: 'Büro 2. Etage' } : null),
+      Promise.resolve(where.name === 'B\u00fcro 2. Etage' ? { id: 'map-9', name: 'B\u00fcro 2. Etage' } : null),
     );
 
-    const player = await join({ mapName: 'Büro 2. Etage' });
+    const player = await join({ mapName: 'B\u00fcro 2. Etage' });
 
     expect(player.mapId).toBe('map-9');
-    expect(player.mapName).toBe('Büro 2. Etage');
+    expect(player.mapName).toBe('B\u00fcro 2. Etage');
   });
 
   it('still finds a map whose name is longer than the display limit', async () => {
@@ -152,7 +180,7 @@ describe('the map name of a joining player', () => {
   it('is the requested name, unchanged, when the lookup fails and the name is short', async () => {
     fakePrisma.map.findFirst.mockRejectedValue(new Error('database unavailable'));
 
-    expect((await join({ mapName: 'Büro' })).mapName).toBe('Büro');
+    expect((await join({ mapName: 'B\u00fcro' })).mapName).toBe('B\u00fcro');
   });
 
   it('is cut to the limit when the lookup fails and the client sent 900,000 characters', async () => {

@@ -11,6 +11,7 @@ import {
   handleDeleteZones,
   handleListMapZones,
 } from './maps.editor.js';
+import { createTilesetRegistrationRateLimiter } from '../middleware/tilesetRateLimit.js';
 
 export function registerMapRoutes(app: express.Application, prisma: PrismaClient) {
   app.get('/maps', (req, res) => handleListMaps(prisma, req, res));
@@ -18,7 +19,9 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
   app.get('/maps/:id/chunks', (req, res) => handleChunksFetch(prisma, req, res));
   app.patch('/maps/:id/paint-rect', (req, res) => handlePaintRect(prisma, req, res));
 
-  app.post('/maps/:id/tilesets', (req, res) => handleAddTileset(prisma, req, res));
+  app.post('/maps/:id/tilesets', createTilesetRegistrationRateLimiter(), (req, res) =>
+    handleAddTileset(prisma, req, res),
+  );
 
   app.get('/zones', (req, res) => handleListZonesForTenant(prisma, req, res));
 

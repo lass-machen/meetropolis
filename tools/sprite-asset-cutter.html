@@ -6,7 +6,7 @@
 <title>Sprite Asset Cutter — Meetropolis</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -343,6 +343,24 @@ body::after{
 .placed-item .placed-del:hover {
   border-color: rgba(237,66,69,0.3); color: var(--red); background: var(--red-dim);
 }
+
+/* CSP utilities: replacements for former style attributes (same values) */
+.is-hidden{display:none!important}
+.csp-flex1{flex:1}
+.csp-count{color:var(--fg-dim);font-weight:400}
+.csp-btn-wide{width:100%;margin-top:8px}
+.csp-mt6{margin-top:6px}
+.csp-mt8{margin-top:8px}
+.csp-mt10{margin-top:10px}
+.csp-mt14{margin-top:14px}
+.csp-mb0{margin-bottom:0}
+.csp-mb8{margin-bottom:8px}
+.csp-mb10{margin-bottom:10px}
+.csp-toolbar-btns{display:flex;gap:2px;margin-left:8px}
+.csp-status-pad{padding:8px 0}
+.csp-placed-list{max-height:240px;overflow-y:auto;margin-top:6px}
+.field input.csp-input-sm{font-size:11px}
+.csp-ph{font-family:var(--font-mono);font-size:10px;color:var(--fg-muted)}
 </style>
 </head>
 <body>
@@ -350,7 +368,7 @@ body::after{
 <header class="app-header">
   <h1>SPRITE ASSET CUTTER</h1>
   <span class="tag">Meetropolis</span>
-  <div class="sprite-info" id="spriteInfo" style="display:none">
+  <div class="sprite-info is-hidden" id="spriteInfo">
     <span id="spriteDims"></span>
   </div>
 </header>
@@ -365,7 +383,7 @@ body::after{
         <p>or click to browse</p>
       </div>
       <input type="file" id="fileInput" accept=".png,.webp,.mepack,image/png,image/webp" hidden>
-      <div class="field" id="scaleField" style="display:none;margin-top:10px">
+      <div class="field is-hidden csp-mt10" id="scaleField">
         <label>Sprite Scale Factor</label>
         <select id="spriteScale">
           <option value="1">1x (16px tiles)</option>
@@ -375,12 +393,12 @@ body::after{
       </div>
     </div>
 
-    <div class="panel-section" style="flex:1">
-      <div class="section-label">Assets <span id="assetCount" style="color:var(--fg-dim);font-weight:400">(0)</span></div>
+    <div class="panel-section csp-flex1">
+      <div class="section-label">Assets <span id="assetCount" class="csp-count">(0)</span></div>
       <div class="asset-list" id="assetList">
         <div class="empty-msg" id="assetListEmpty">No assets defined yet. Draw rectangles on the sprite sheet to create assets.</div>
       </div>
-      <button id="btnNewAutotile" class="btn btn-secondary" style="width:100%;margin-top:8px">+ Neues Autotile</button>
+      <button id="btnNewAutotile" class="btn btn-secondary csp-btn-wide">+ Neues Autotile</button>
     </div>
 
     <div class="panel-section">
@@ -407,13 +425,13 @@ body::after{
     <div class="panel-section">
       <div class="section-label">Export</div>
       <button class="btn btn-accent btn-block" id="btnExportMepack" disabled>Export as .mepack</button>
-      <div style="margin-top:6px">
+      <div class="csp-mt6">
         <button class="btn btn-block" id="btnExportZip" disabled>Export PNGs + JSON</button>
       </div>
-      <div style="margin-top:6px">
+      <div class="csp-mt6">
         <button class="btn btn-block" id="btnExportPng" disabled>Export Selected PNG</button>
       </div>
-      <div class="shortcut-hint" style="margin-top:8px">
+      <div class="shortcut-hint csp-mt8">
         <kbd>Del</kbd> delete asset &nbsp; <kbd>G</kbd> grid &nbsp; <kbd>+/-</kbd> zoom &nbsp; <kbd>0</kbd> fit
       </div>
     </div>
@@ -423,9 +441,9 @@ body::after{
   <div class="center-area">
     <div class="viewer-toolbar">
       <div class="info">Zoom: <span id="zoomLabel">100%</span></div>
-      <div class="info" id="cursorInfo" style="display:none">Pos: <span id="cursorPos">0, 0</span></div>
+      <div class="info is-hidden" id="cursorInfo">Pos: <span id="cursorPos">0, 0</span></div>
       <div class="mode-indicator" id="modeIndicator">SELECT</div>
-      <div style="display:flex;gap:2px;margin-left:8px">
+      <div class="csp-toolbar-btns">
         <button class="btn btn-sm btn-accent" id="btnModeSprite" title="Sprite Cutting Mode">Sprite</button>
         <button class="btn btn-sm" id="btnModeMapTest" title="Map Test Mode">Map Test</button>
       </div>
@@ -444,7 +462,7 @@ body::after{
 
   <!-- RIGHT PANEL -->
   <div class="panel right" id="rightPanel">
-    <div class="panel-section" id="propsSection" style="display:none">
+    <div class="panel-section is-hidden" id="propsSection">
       <div class="section-label">Asset Properties</div>
       <div class="field">
         <label>Key</label>
@@ -480,14 +498,14 @@ body::after{
       <div class="field-row">
         <div class="field">
           <label>Sprite Size</label>
-          <input type="text" id="propSpriteSize" readonly style="font-size:11px">
+          <input type="text" id="propSpriteSize" class="csp-input-sm" readonly>
         </div>
         <div class="field">
           <label>Export Size</label>
-          <input type="text" id="propExportSize" readonly style="font-size:11px">
+          <input type="text" id="propExportSize" class="csp-input-sm" readonly>
         </div>
       </div>
-      <div class="section-label" style="margin-top:14px">Sprite Source</div>
+      <div class="section-label csp-mt14">Sprite Source</div>
       <div class="field-row">
         <div class="field">
           <label>X</label>
@@ -508,7 +526,7 @@ body::after{
       </div>
     </div>
 
-    <div class="panel-section" id="offsetSection" style="display:none">
+    <div class="panel-section is-hidden" id="offsetSection">
       <div class="section-label">Offset Adjustment</div>
       <div class="offset-controls">
         <div class="field">
@@ -519,14 +537,14 @@ body::after{
           <label>offsetY</label>
           <input type="number" id="propOffsetY" value="0" step="1">
         </div>
-        <button class="btn btn-sm" id="btnResetOffset" style="margin-bottom:0">Reset</button>
+        <button class="btn btn-sm csp-mb0" id="btnResetOffset">Reset</button>
       </div>
-      <div class="shortcut-hint" style="margin-top:6px">
+      <div class="shortcut-hint csp-mt6">
         Tile allocation: <span id="tileAllocInfo">-</span>
       </div>
     </div>
 
-    <div class="panel-section" id="terrainPropsSection" style="display:none">
+    <div class="panel-section is-hidden" id="terrainPropsSection">
       <div class="section-label">Tileset Properties</div>
       <div class="field-row">
         <div class="field">
@@ -548,12 +566,12 @@ body::after{
           <input type="number" id="propSpacing" value="0" min="0" step="1">
         </div>
       </div>
-      <div class="shortcut-hint" style="margin-top:6px">
+      <div class="shortcut-hint csp-mt6">
         Tiles: <span id="tileGridInfo">-</span>
       </div>
     </div>
 
-    <div class="panel-section" id="autotilePropsSection" style="display:none">
+    <div class="panel-section is-hidden" id="autotilePropsSection">
       <div class="section-label">Autotile Properties</div>
       <div class="field-row">
         <div class="field">
@@ -581,18 +599,18 @@ body::after{
       </div>
     </div>
 
-    <div class="panel-section" id="bitmaskMapperSection" style="display:none">
+    <div class="panel-section is-hidden" id="bitmaskMapperSection">
       <div class="section-label">Bitmask Mapper (4-bit)</div>
-      <div class="shortcut-hint" style="margin-bottom:8px">
+      <div class="shortcut-hint csp-mb8">
         Click a cell, then drag a rectangle on the spritesheet to assign it.
       </div>
       <div class="bitmask-grid" id="bitmaskGrid"></div>
-      <div class="shortcut-hint" style="margin-top:8px">
+      <div class="shortcut-hint csp-mt8">
         Assigned: <span id="bitmaskAssignedCount">0</span>/16
       </div>
     </div>
 
-    <div class="panel-section" id="previewSection" style="display:none">
+    <div class="panel-section is-hidden" id="previewSection">
       <div class="section-label">Preview</div>
       <div class="preview-tabs">
         <div class="preview-tab active" data-mode="grid">Grid</div>
@@ -603,18 +621,18 @@ body::after{
       </div>
     </div>
 
-    <div class="panel-section" id="mapTestSection" style="display:none">
+    <div class="panel-section is-hidden" id="mapTestSection">
       <div class="section-label">Map Test</div>
-      <div class="shortcut-hint" style="margin-bottom:10px">
+      <div class="shortcut-hint csp-mb10">
         Select asset in list, then click map to place.<br>
         Click placed object to select. <kbd>Del</kbd> to remove.
       </div>
-      <div id="mapTestStatus" class="empty-msg" style="padding:8px 0">No asset selected for placement.</div>
-      <div class="btn-row" style="margin-top:6px">
+      <div id="mapTestStatus" class="empty-msg csp-status-pad">No asset selected for placement.</div>
+      <div class="btn-row csp-mt6">
         <button class="btn btn-danger btn-block btn-sm" id="btnClearMap">Clear All Placed</button>
       </div>
-      <div class="section-label" style="margin-top:14px">Placed Objects <span id="placedCount" style="color:var(--fg-dim);font-weight:400">(0)</span></div>
-      <div id="placedList" style="max-height:240px;overflow-y:auto;margin-top:6px">
+      <div class="section-label csp-mt14">Placed Objects <span id="placedCount" class="csp-count">(0)</span></div>
+      <div id="placedList" class="csp-placed-list">
         <div class="empty-msg" id="placedListEmpty">No objects placed yet.</div>
       </div>
     </div>
@@ -762,9 +780,9 @@ function loadFile(file) {
         Object.keys(assetImageCache).forEach(k => delete assetImageCache[k]);
         spriteImg = img;
         spriteDims.textContent = img.width + ' x ' + img.height + 'px';
-        spriteInfo.style.display = 'flex';
-        cursorInfo.style.display = '';
-        $('scaleField').style.display = '';
+        spriteInfo.classList.remove('is-hidden');
+        cursorInfo.classList.remove('is-hidden');
+        $('scaleField').classList.remove('is-hidden');
         zoomToFit();
         dirty = true;
         toast('Sprite sheet loaded: ' + file.name);
@@ -819,9 +837,9 @@ function appendSpriteToComposite(newImg, fileName) {
   compositeImg.onload = () => {
     spriteImg = compositeImg;
     spriteDims.textContent = compositeImg.width + ' x ' + compositeImg.height + 'px';
-    spriteInfo.style.display = 'flex';
-    cursorInfo.style.display = '';
-    $('scaleField').style.display = '';
+    spriteInfo.classList.remove('is-hidden');
+    cursorInfo.classList.remove('is-hidden');
+    $('scaleField').classList.remove('is-hidden');
     dirty = true;
     toast('Sprite added to composite: ' + fileName + ' (below existing)');
   };
@@ -957,9 +975,9 @@ async function loadMepack(file) {
     // Set sprite
     spriteImg = compositeImg;
     spriteDims.textContent = compositeWidth + ' x ' + compositeHeight + 'px (composite)';
-    spriteInfo.style.display = 'flex';
-    cursorInfo.style.display = '';
-    $('scaleField').style.display = '';
+    spriteInfo.classList.remove('is-hidden');
+    cursorInfo.classList.remove('is-hidden');
+    $('scaleField').classList.remove('is-hidden');
 
     // Reconstruct assets
     let maxAssetNum = 0;
@@ -1705,10 +1723,10 @@ function rebuildPlacedList() {
   list.innerHTML = '';
   if (placedObjects.length === 0) {
     list.appendChild(empty);
-    empty.style.display = '';
+    empty.classList.remove('is-hidden');
     return;
   }
-  empty.style.display = 'none';
+  empty.classList.add('is-hidden');
   for (const po of placedObjects) {
     const a = assets.find(a => a.id === po.assetId);
     const el = document.createElement('div');
@@ -1743,32 +1761,32 @@ function setAppMode(mode) {
 
   /* Right panel */
   if (isMap) {
-    propsSection.style.display = 'none';
-    offsetSection.style.display = 'none';
-    terrainPropsSection.style.display = 'none';
-    autotilePropsSection.style.display = 'none';
-    bitmaskMapperSection.style.display = 'none';
-    previewSection.style.display = 'none';
-    emptyRight.style.display = 'none';
+    propsSection.classList.add('is-hidden');
+    offsetSection.classList.add('is-hidden');
+    terrainPropsSection.classList.add('is-hidden');
+    autotilePropsSection.classList.add('is-hidden');
+    bitmaskMapperSection.classList.add('is-hidden');
+    previewSection.classList.add('is-hidden');
+    emptyRight.classList.add('is-hidden');
   } else if (selectedId) {
     const a = assets.find(a => a.id === selectedId);
     if (a) {
       updatePanelVisibility(a);
     }
-    emptyRight.style.display = 'none';
+    emptyRight.classList.add('is-hidden');
   } else {
-    propsSection.style.display = 'none';
-    offsetSection.style.display = 'none';
-    terrainPropsSection.style.display = 'none';
-    autotilePropsSection.style.display = 'none';
-    bitmaskMapperSection.style.display = 'none';
-    previewSection.style.display = 'none';
-    emptyRight.style.display = '';
+    propsSection.classList.add('is-hidden');
+    offsetSection.classList.add('is-hidden');
+    terrainPropsSection.classList.add('is-hidden');
+    autotilePropsSection.classList.add('is-hidden');
+    bitmaskMapperSection.classList.add('is-hidden');
+    previewSection.classList.add('is-hidden');
+    emptyRight.classList.remove('is-hidden');
   }
-  $('mapTestSection').style.display = isMap ? '' : 'none';
+  $('mapTestSection').classList.toggle('is-hidden', !isMap);
 
   /* Cursor info */
-  cursorInfo.style.display = isMap ? '' : (spriteImg ? '' : 'none');
+  cursorInfo.classList.toggle('is-hidden', !(isMap || spriteImg));
 
   /* Ghost */
   ghostAssetId = isMap ? selectedId : null;
@@ -1975,33 +1993,33 @@ function selectAsset(id) {
 
 function updatePanelVisibility(a) {
   if (a.category === 'autotile') {
-    propsSection.style.display = '';
-    autotilePropsSection.style.display = '';
-    bitmaskMapperSection.style.display = '';
-    terrainPropsSection.style.display = 'none';
-    offsetSection.style.display = 'none';
-    previewSection.style.display = 'none';
-    $('propZIndex').parentElement.style.display = 'none';
-    $('propSpriteSize').closest('.field-row').style.display = 'none';
+    propsSection.classList.remove('is-hidden');
+    autotilePropsSection.classList.remove('is-hidden');
+    bitmaskMapperSection.classList.remove('is-hidden');
+    terrainPropsSection.classList.add('is-hidden');
+    offsetSection.classList.add('is-hidden');
+    previewSection.classList.add('is-hidden');
+    $('propZIndex').parentElement.classList.add('is-hidden');
+    $('propSpriteSize').closest('.field-row').classList.add('is-hidden');
   } else if (a.category === 'terrain') {
-    propsSection.style.display = '';
-    terrainPropsSection.style.display = '';
-    autotilePropsSection.style.display = 'none';
-    bitmaskMapperSection.style.display = 'none';
-    offsetSection.style.display = 'none';
-    previewSection.style.display = '';
+    propsSection.classList.remove('is-hidden');
+    terrainPropsSection.classList.remove('is-hidden');
+    autotilePropsSection.classList.add('is-hidden');
+    bitmaskMapperSection.classList.add('is-hidden');
+    offsetSection.classList.add('is-hidden');
+    previewSection.classList.remove('is-hidden');
     /* Hide zIndex, Sprite Size, Export Size for terrain */
-    $('propZIndex').parentElement.style.display = 'none';
-    $('propSpriteSize').closest('.field-row').style.display = 'none';
+    $('propZIndex').parentElement.classList.add('is-hidden');
+    $('propSpriteSize').closest('.field-row').classList.add('is-hidden');
   } else {
-    propsSection.style.display = '';
-    terrainPropsSection.style.display = 'none';
-    autotilePropsSection.style.display = 'none';
-    bitmaskMapperSection.style.display = 'none';
-    offsetSection.style.display = '';
-    previewSection.style.display = '';
-    $('propZIndex').parentElement.style.display = '';
-    $('propSpriteSize').closest('.field-row').style.display = '';
+    propsSection.classList.remove('is-hidden');
+    terrainPropsSection.classList.add('is-hidden');
+    autotilePropsSection.classList.add('is-hidden');
+    bitmaskMapperSection.classList.add('is-hidden');
+    offsetSection.classList.remove('is-hidden');
+    previewSection.classList.remove('is-hidden');
+    $('propZIndex').parentElement.classList.remove('is-hidden');
+    $('propSpriteSize').closest('.field-row').classList.remove('is-hidden');
   }
 }
 
@@ -2016,20 +2034,20 @@ function updateTileGridInfo(a) {
 }
 
 function showRightPanel(a) {
-  emptyRight.style.display = 'none';
+  emptyRight.classList.add('is-hidden');
   updatePanelVisibility(a);
   populateProperties(a);
   updateExportButtons();
 }
 
 function hideRightPanel() {
-  propsSection.style.display = 'none';
-  offsetSection.style.display = 'none';
-  terrainPropsSection.style.display = 'none';
-  autotilePropsSection.style.display = 'none';
-  bitmaskMapperSection.style.display = 'none';
-  previewSection.style.display = 'none';
-  emptyRight.style.display = '';
+  propsSection.classList.add('is-hidden');
+  offsetSection.classList.add('is-hidden');
+  terrainPropsSection.classList.add('is-hidden');
+  autotilePropsSection.classList.add('is-hidden');
+  bitmaskMapperSection.classList.add('is-hidden');
+  previewSection.classList.add('is-hidden');
+  emptyRight.classList.remove('is-hidden');
   updateExportButtons();
 }
 
@@ -2315,9 +2333,9 @@ function rebuildAssetList() {
 
   if (assets.length === 0) {
     assetList.appendChild(assetListEmpty);
-    assetListEmpty.style.display = '';
+    assetListEmpty.classList.remove('is-hidden');
   } else {
-    assetListEmpty.style.display = 'none';
+    assetListEmpty.classList.add('is-hidden');
   }
 
   for (const a of assets) {
@@ -2344,7 +2362,7 @@ function rebuildAssetList() {
         thumbWrap.appendChild(thumbCanvas);
       } else {
         const ph = document.createElement('span');
-        ph.style.cssText = 'font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);';
+        ph.className = 'csp-ph';
         ph.textContent = 'AT';
         thumbWrap.appendChild(ph);
       }
@@ -2946,7 +2964,7 @@ window.addEventListener('resize', () => { dirty = true; });
 /* ---- Init ---- */
 hideRightPanel();
 updateExportButtons();
-$('mapTestSection').style.display = 'none';
+$('mapTestSection').classList.add('is-hidden');
 requestAnimationFrame(loop);
 
 })();

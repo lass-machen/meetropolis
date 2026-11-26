@@ -165,4 +165,4 @@ export interface RgbaImage {
 }
 
 export const CATALOG_SCHEMA_V6 = 'meetropolis-sprite-catalog/v6';
-export const SPRITE_RENDERER_VERSION = '2';
+export const SPRITE_RENDERER_VERSION = '3';

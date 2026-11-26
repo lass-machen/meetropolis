@@ -3,9 +3,20 @@ import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { prepareCredentialCheckerDir } from './testUtils/credentialCheckerDir.js';
 
 const tempDirs: string[] = [];
+
+let checkerDir: string;
+
+beforeAll(() => {
+  checkerDir = prepareCredentialCheckerDir();
+});
+
+afterAll(() => {
+  fs.rmSync(checkerDir, { recursive: true, force: true });
+});
 
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
@@ -22,6 +33,7 @@ describe('server entrypoint', () => {
     const entrypoint = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../entrypoint.sh');
 
     const result = spawnSync('sh', [entrypoint, 'sh', '-c', `touch "${marker}"`], {
+      cwd: checkerDir,
       env: {
         ...process.env,
         PATH: `${tempDir}:${process.env.PATH ?? ''}`,

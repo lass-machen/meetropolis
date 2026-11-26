@@ -80,6 +80,12 @@ export interface DesktopModule {
   UpdateBanner: ComponentType<Record<string, never>>;
   /** Open a URL in the external browser via the Tauri shell plugin. */
   openExternal: (url: string) => Promise<void>;
+  /**
+   * Trigger an immediate desktop update check so the update banner can
+   * appear without waiting for the next scheduled check. Optional: older
+   * desktop builds do not provide it, so callers must invoke it optionally.
+   */
+  checkForDesktopUpdate?: () => Promise<void>;
   /** Set the auth token used by Tauri clients that cannot rely on cookies. */
   setDesktopAuthToken: (token: string | null) => void;
   /**
@@ -92,9 +98,15 @@ export interface DesktopModule {
    * as intended prior to a desktop-module update).
    */
   getDesktopAuthToken?: () => string | null;
-  /** Read the current native audio-ducking preference (macOS only; false elsewhere). */
+  /**
+   * Whether this desktop build can duck other apps' audio on the running OS.
+   * Callers hide the preference control when the method is missing, rejects,
+   * or resolves to false.
+   */
+  supportsAudioDucking?: () => Promise<boolean>;
+  /** Read the current native audio-ducking preference (false when unsupported). */
   getAudioDucking?: () => Promise<boolean>;
-  /** Set the native audio-ducking preference. No-op on non-macOS desktop builds. */
+  /** Set the native audio-ducking preference. Unsupported builds reject. */
   setAudioDucking?: (enabled: boolean) => Promise<void>;
 }
 

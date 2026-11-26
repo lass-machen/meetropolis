@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { WORLD_WALK_SPEED_PX_PER_SECOND } from '@meetropolis/shared';
 import type { Direction } from '../../bridge';
 import { logger } from '../../../lib/logger';
 import { avatarRegistry } from '../../avatarRegistry';
@@ -87,6 +88,15 @@ export class PlayerManager {
     return this.hero;
   }
 
+  // Places the hero at a server-chosen position without reporting it back as a
+  // local move.
+  setHeroPosition(pos: { x: number; y: number }) {
+    this.hero.body.reset(pos.x, pos.y);
+    this.lastReportedX = this.hero.x;
+    this.lastReportedY = this.hero.y;
+    this.updateDepth();
+  }
+
   setDesiredPosition(pos: { x: number; y: number } | null) {
     const prev = this.desiredPos;
     const same = (prev === null && pos === null) || (prev && pos && prev.x === pos.x && prev.y === pos.y);
@@ -119,7 +129,7 @@ export class PlayerManager {
     cursors: Phaser.Types.Input.Keyboard.CursorKeys,
     onMove?: (data: { x: number; y: number; direction: Direction }) => void,
   ) {
-    const speed = 80;
+    const speed = WORLD_WALK_SPEED_PX_PER_SECOND;
     const body = this.hero.body;
     body.setVelocity(0);
 

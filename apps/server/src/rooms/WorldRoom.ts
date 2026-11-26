@@ -1,4 +1,4 @@
-import { Room, type Client, type AuthContext } from 'colyseus';
+import { Room, ServerError, type Client, type AuthContext } from '@colyseus/core';
 import { Schema, type, view, MapSchema } from '@colyseus/schema';
 import { logger } from '../logger.js';
 import { colyseusRooms } from '../metrics.js';
@@ -20,10 +20,14 @@ import { handleEditorUpdate, subscribeMapUpdates } from './handlers/editorHandle
 import { handleBubbleUpdate } from './handlers/bubbleHandler.js';
 import { handleChangeMap } from './handlers/mapSwitchHandler.js';
 import { performOnJoin } from './lifecycle/onJoin.js';
+import { createWorldAccess, type WorldAccessRegistry } from './lifecycle/worldAccess.js';
 import { performOnLeave } from './lifecycle/onLeave.js';
 import { startGuestExpiryInterval } from './lifecycle/guestExpiry.js';
+import { clearWorldAccessLeaseTimer } from './lifecycle/worldAccessLease.js';
+import { subscribeAccessRevocations } from './lifecycle/accessRevocation.js';
 import { loadInitialSpawn } from './lifecycle/onCreateSetup.js';
-import { authenticateWorldJoin, type WorldAuth } from './lifecycle/onAuth.js';
+import { AUTH_REJECTED_CODE, isWorldAuth, type WorldAuth } from './lifecycle/onAuth.js';
+import { authenticateWorldMatchmake } from './lifecycle/worldMatchmakeAuth.js';
 import { enforceRoomPartition } from './lifecycle/roomPartition.js';
 import { watchTranscriptionGate } from './lifecycle/transcriptionGateWatcher.js';
 
@@ -51,6 +55,10 @@ export interface RoomOptions {
   // as too old (fail-closed rollout: ship the client field before raising
   // the server minimum).
   zonePrivacyVersion?: number;
+  // Member-asset hardening: client asset protocol version, checked against
+  // MIN_ASSET_PROTOCOL_VERSION in onAuth.ts once MEMBER_ASSETS_ENFORCE is on.
+  // Absent/too-low on a desktop origin is treated as too old.
+  assetProtocol?: number;
 }
 
 interface RoomMetadata {
@@ -121,6 +129,9 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   // client only ever sees players of its own authenticated tenant even when two
   // tenants share this room instance. Server-only, never broadcast.
   public playerTenantKey: Map<string, string> = new Map();
+  // Per-client verified tenants. The revocation handler and the access
+  // sweep check each session against its own tenant, never the room slug.
+  public worldAccess: WorldAccessRegistry = createWorldAccess(this);
   // Graceful leave: pending delete timer per sessionId, used for reconnect healing.
   public pendingLeaves: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
@@ -131,9 +142,13 @@ export class WorldRoom extends Room<{ state: WorldState }> {
 
   // Periodic intervals
   private guestExpiryInterval: ReturnType<typeof setInterval> | null = null;
+  private accessRevocationUnsubscribe: (() => void) | null = null;
   private transcriptionGateUnsubscribe: (() => void) | null = null;
 
-  override onCreate(options?: RoomOptions): void {
+  // Async so the room is only created once its revocation channel is
+  // subscribed: a failed subscription rejects onCreate and Colyseus refuses
+  // the room, instead of serving a room no revocation can reach.
+  override async onCreate(options?: RoomOptions): Promise<void> {
     this.setState(new WorldState());
     // Room is auto-disposed when empty (Colyseus default; explicit for clarity)
     this.autoDispose = true;
@@ -186,8 +201,8 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     });
 
     // Bubble groups
-    this.onMessage('bubble_update', (_client, data: { id?: string; members?: string[] }) =>
-      handleBubbleUpdate(this, data),
+    this.onMessage('bubble_update', (client, data: { id?: string; members?: string[] }) =>
+      handleBubbleUpdate(this, client, data),
     );
 
     // NPC command (no-op: NPC service listens to broadcasts from API)
@@ -206,6 +221,10 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     // Subscribe to map updates via Presence (cross-process via Redis, or local)
     const tenantSlugForPresence = options?.tenant || (this.metadata as RoomMetadata)?.tenant || 'default';
     subscribeMapUpdates(this, tenantSlugForPresence);
+    // Members removed or revoked while connected leave the world at once.
+    // One channel for every tenant: the registry tells whose session is whose.
+    // Awaited: without the subscription the room must not exist (see above).
+    this.accessRevocationUnsubscribe = await subscribeAccessRevocations(this);
 
     // Setup zone lock handlers
     setupZoneLockHandlers(this, this.zoneLockState, this.prismaForPresence ?? createPrismaClient());
@@ -216,7 +235,16 @@ export class WorldRoom extends Room<{ state: WorldState }> {
 
   // Editor updates can set the default spawn live.
   // Public API used by api/utils/broadcast.ts (see types/global.d.ts).
-  public setDefaultSpawn(mapId: string, pos: { x: number; y: number }): void {
+  public setDefaultSpawn(mapId: string, pos: { x: number; y: number } | null): void {
+    // Null clears the default spawn of running rooms.
+    if (pos === null) {
+      this.defaultSpawn = null;
+      const cached = this.mapCache.get(mapId);
+      if (cached) {
+        cached.defaultSpawn = null;
+      }
+      return;
+    }
     const s = sanitizePositionForMap(this, pos.x, pos.y, mapId);
     this.defaultSpawn = s;
     const cached = this.mapCache.get(mapId);
@@ -238,22 +266,45 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     broadcastToMap(this, mapId, event, data, except);
   }
 
-  // H4 hardening: authoritative identity binding + client zone-privacy
-  // version gate. Runs before onJoin (Colyseus attaches the return value
-  // to client.auth); see lifecycle/onAuth.ts for the fail-closed rules.
-  // NOTE: this must stay an ESM-imported `Room` (see the CJS/ESM note in
-  // index.ts) for Colyseus to honor an instance-level onAuth at all.
-  override async onAuth(_client: Client, options: RoomOptions | undefined, context: AuthContext): Promise<WorldAuth> {
-    const auth = await authenticateWorldJoin(options, context, this.prismaForPresence ?? createPrismaClient());
-    enforceRoomPartition(options, auth, (this.metadata as RoomMetadata | undefined)?.tenant);
-    return auth;
+  // Local access revocation, called by broadcastAccessRevoked before the
+  // event is published: a failed publish must not keep a revoked session.
+  public revokeAccess(userId: string): void {
+    this.worldAccess.revoke(userId).catch((e) => {
+      logger.error('[WorldRoom] Failed to revoke world access', e);
+    });
+  }
+
+  // Static auth runs before the seat is reserved. Colyseus copies the
+  // result onto `client.auth` when the seat is consumed and skips instance
+  // auth. Reconnect does not call `onJoin`, so this registration stays on
+  // the first consume only.
+  static override async onAuth(
+    token: string,
+    options: RoomOptions | undefined,
+    context: AuthContext,
+  ): Promise<WorldAuth> {
+    return authenticateWorldMatchmake(token, options, context);
   }
 
   override async onJoin(client: Client, options?: RoomOptions): Promise<void> {
+    if (!isWorldAuth(client.auth)) {
+      throw new ServerError(AUTH_REJECTED_CODE, 'missing_world_auth');
+    }
+    try {
+      if (!client.auth.isNpc) {
+        this.worldAccess.registerPending(client.sessionId, client.auth.identity, client.auth.tenantId);
+      }
+      this.worldAccess.register(client.sessionId, client.auth);
+      enforceRoomPartition(options, client.auth, (this.metadata as RoomMetadata | undefined)?.tenant);
+    } catch (error) {
+      this.worldAccess.forget(client.sessionId);
+      throw error;
+    }
     await performOnJoin(this, activeRooms, client, options, Player);
   }
 
   override onLeave(client: Client, code?: number): void {
+    this.worldAccess.forget(client.sessionId);
     performOnLeave(this, client, code);
   }
 
@@ -270,6 +321,11 @@ export class WorldRoom extends Room<{ state: WorldState }> {
       clearInterval(this.guestExpiryInterval);
       this.guestExpiryInterval = null;
     }
+    clearWorldAccessLeaseTimer(this);
+    if (this.accessRevocationUnsubscribe) {
+      this.accessRevocationUnsubscribe();
+      this.accessRevocationUnsubscribe = null;
+    }
     // Alle pending Graceful-Leave-Timer abbrechen
     for (const timer of this.pendingLeaves.values()) {
       try {
@@ -281,6 +337,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     this.pendingLeaves.clear();
     this.lastSeen.clear();
     this.playerTenantKey.clear();
+    this.worldAccess.clear();
     stopAudioZoneRuntime(this);
     activeRooms.delete(this);
     try {

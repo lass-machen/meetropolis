@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "url": "https://github.com/pablodelucca/pixel-agents",
+    "revision": "ef9fe9ed5b6c01a8f4503a2b66939960c059a104"
+  },
+  "entries": [
+    {
+      "id": "char_0",
+      "gitBlob": "68a86c5035b77c0a2f752404080b4bfeb023fa2f",
+      "sha256": "9ece93c20765abb876e3dacfe01e0cd1801323eff41c1779be0c47369886c09a"
+    },
+    {
+      "id": "char_1",
+      "gitBlob": "13676875af4411e1bc85bc732a16679a82c710e3",
+      "sha256": "f935f033726b06f73dbbe590db5a23cfb20d2d02c1329fd5d67d57a262e9b05e"
+    },
+    {
+      "id": "char_2",
+      "gitBlob": "d07293bd08665ec1b3b4cb91a00022601d06a0fe",
+      "sha256": "9f63ee7be4577e1d60de3b64d198d387d1c09794bed3a608958e77c7b955575d"
+    },
+    {
+      "id": "char_3",
+      "gitBlob": "89f858c63939e8f1637e0fffef987a84e69bacc4",
+      "sha256": "ee5ebe0847471e4834e367f8a4108e6caf2f402ed506bbfebd90c64a43a79348"
+    },
+    {
+      "id": "char_4",
+      "gitBlob": "32dbc619a3b1f724cbf8777175efe9fab4d93a57",
+      "sha256": "fcf72626bbee3045d0f3e10bb87a41dab19a331d1affdfc53b483567f9c083aa"
+    },
+    {
+      "id": "char_5",
+      "gitBlob": "b5cfa27e8c4c95be748111bacfabdd1e149be052",
+      "sha256": "4b2c639a50e089a4e3b87be440ffb52b5c5c8cfd6473a386f325b25f99db7381"
+    }
+  ]
+}

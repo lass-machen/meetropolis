@@ -5,6 +5,10 @@ type ObjectPropertiesPanelProps = {
   object: MapObjectRecord;
 };
 
+function isNonNegativeInt(value: number): boolean {
+  return Number.isInteger(value) && value >= 0;
+}
+
 export function ObjectPropertiesPanel({ object }: ObjectPropertiesPanelProps) {
   const [tileX, setTileX] = React.useState(object.tileX);
   const [tileY, setTileY] = React.useState(object.tileY);
@@ -12,6 +16,7 @@ export function ObjectPropertiesPanel({ object }: ObjectPropertiesPanelProps) {
   const [rotation, setRotation] = React.useState(object.rotation || 0);
   const [flipX, setFlipX] = React.useState(object.flipX || false);
   const [flipY, setFlipY] = React.useState(object.flipY || false);
+  const [collisionBaseHeight, setCollisionBaseHeight] = React.useState(object.collisionBaseHeight ?? 0);
 
   // Sync when different object is selected
   React.useEffect(() => {
@@ -21,14 +26,18 @@ export function ObjectPropertiesPanel({ object }: ObjectPropertiesPanelProps) {
     setRotation(object.rotation || 0);
     setFlipX(object.flipX || false);
     setFlipY(object.flipY || false);
+    setCollisionBaseHeight(object.collisionBaseHeight ?? 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: form state is a local working copy that should only re-sync when the user selects a different object; depending on the individual fields would overwrite in-flight user input on every dispatch
   }, [object.id]);
 
+  const collisionBaseHeightValid = isNonNegativeInt(collisionBaseHeight);
+
   const handleApply = () => {
+    if (!isNonNegativeInt(collisionBaseHeight)) return;
     EditorService.dispatch({
       type: 'ADD_PENDING_OBJECT_UPDATE',
       objectId: object.id,
-      updates: { tileX, tileY, zIndex, rotation, flipX, flipY },
+      updates: { tileX, tileY, zIndex, rotation, flipX, flipY, collisionBaseHeight },
     });
   };
 
@@ -56,9 +65,12 @@ export function ObjectPropertiesPanel({ object }: ObjectPropertiesPanelProps) {
         setZIndex={setZIndex}
         rotation={rotation}
         setRotation={setRotation}
+        collisionBaseHeight={collisionBaseHeight}
+        setCollisionBaseHeight={setCollisionBaseHeight}
+        collisionBaseHeightValid={collisionBaseHeightValid}
       />
       <FlipToggles flipX={flipX} setFlipX={setFlipX} flipY={flipY} setFlipY={setFlipY} />
-      <ActionButtons onApply={handleApply} onDelete={handleDelete} />
+      <ActionButtons onApply={handleApply} onDelete={handleDelete} applyDisabled={!collisionBaseHeightValid} />
     </div>
   );
 }
@@ -89,16 +101,39 @@ type EditableFieldsProps = {
   setZIndex: (v: number) => void;
   rotation: number;
   setRotation: (v: number) => void;
+  collisionBaseHeight: number;
+  setCollisionBaseHeight: (v: number) => void;
+  collisionBaseHeightValid: boolean;
 };
 
 function EditableFields(props: EditableFieldsProps) {
-  const { tileX, setTileX, tileY, setTileY, zIndex, setZIndex, rotation, setRotation } = props;
+  const {
+    tileX,
+    setTileX,
+    tileY,
+    setTileY,
+    zIndex,
+    setZIndex,
+    rotation,
+    setRotation,
+    collisionBaseHeight,
+    setCollisionBaseHeight,
+    collisionBaseHeightValid,
+  } = props;
   return (
     <div style={gridStyle}>
       <NumberField label="Tile X" value={tileX} onChange={setTileX} />
       <NumberField label="Tile Y" value={tileY} onChange={setTileY} />
       <NumberField label="Z-Index" value={zIndex} onChange={setZIndex} />
       <NumberField label="Rotation" value={rotation} onChange={setRotation} step={90} />
+      <NumberField
+        label="Base Height"
+        value={collisionBaseHeight}
+        onChange={setCollisionBaseHeight}
+        step={1}
+        min={0}
+        invalid={!collisionBaseHeightValid}
+      />
     </div>
   );
 }
@@ -108,9 +143,11 @@ type NumberFieldProps = {
   value: number;
   onChange: (v: number) => void;
   step?: number;
+  min?: number;
+  invalid?: boolean;
 };
 
-function NumberField({ label, value, onChange, step }: NumberFieldProps) {
+function NumberField({ label, value, onChange, step, min, invalid }: NumberFieldProps) {
   return (
     <div style={{ display: 'grid', gap: 2 }}>
       <label style={labelStyle}>{label}</label>
@@ -119,6 +156,8 @@ function NumberField({ label, value, onChange, step }: NumberFieldProps) {
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         step={step}
+        min={min}
+        aria-invalid={invalid || undefined}
         style={inputStyle}
       />
     </div>
@@ -148,12 +187,13 @@ function FlipToggles({ flipX, setFlipX, flipY, setFlipY }: FlipTogglesProps) {
 type ActionButtonsProps = {
   onApply: () => void;
   onDelete: () => void;
+  applyDisabled?: boolean;
 };
 
-function ActionButtons({ onApply, onDelete }: ActionButtonsProps) {
+function ActionButtons({ onApply, onDelete, applyDisabled }: ActionButtonsProps) {
   return (
     <div style={{ display: 'flex', gap: 6 }}>
-      <button onClick={onApply} style={applyBtnStyle}>
+      <button onClick={onApply} disabled={applyDisabled} style={applyBtnStyle}>
         &Uuml;bernehmen
       </button>
       <button onClick={onDelete} style={deleteBtnStyle}>

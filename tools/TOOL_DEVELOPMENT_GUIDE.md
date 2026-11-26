@@ -10,7 +10,7 @@ Based on the patterns established by the **Avatar Pack Manager** (`tools/avatar-
 
 ### How Standalone HTML Tools Communicate with the Server
 
-Admin tools are self-contained single-file HTML applications that live in the `tools/` directory. They communicate with the Meetropolis server via REST API calls, authenticating either through session cookies (same-origin) or Bearer tokens (cross-origin / external use).
+Admin tools are self-contained single-file HTML applications that live in the `tools/` directory. They communicate with the Meetropolis server via REST API calls, authenticating either through session cookies (same-origin) or Bearer tokens (cross-origin / external use). Tools that use platform administration (avatar and asset packs, map import under `/admin`) must authenticate with a session (same origin, `credentials: 'include'`), never with a token. Personal API tokens only cover tenant content, and only `write` tokens may change data.
 
 ### Full Data Flow
 
@@ -132,12 +132,13 @@ app.delete('/avatar-packs/:id', async (req, res) => {
 
 ### Auth Pattern (Session + API Token Dual Auth)
 
-Every mutating endpoint supports two authentication methods. This allows both browser-based (cookie) and tool-based (token) access:
+Every tenant content endpoint supports two authentication methods. This allows both browser-based (cookie) and tool-based (token) access:
 
 ```ts
 import { requireAuth, requireApiToken } from '../utils/authHelpers.js';
 
 app.post('/your-endpoint', async (req, res) => {
+  // Session first, token only as a fallback for external callers.
   const sessionAuth = requireAuth(req);         // JWT from cookie or Authorization header
   const tokenAuth = await requireApiToken(req, prisma);  // Hashed API token lookup
   const auth = sessionAuth || tokenAuth;
@@ -147,7 +148,8 @@ app.post('/your-endpoint', async (req, res) => {
 ```
 
 - `requireAuth()` checks the `auth_token` cookie or `Authorization: Bearer <JWT>` header
-- `requireApiToken()` checks `Authorization: Bearer <opaque-token>` against hashed tokens in DB
+- `requireApiToken()` checks `Authorization: Bearer <opaque-token>` against hashed tokens in DB. It enforces the token level and the blocklist itself: `read` tokens only reach safe methods (GET, HEAD and OPTIONS), while account, token management and platform administration routes stay session only. `requireSuperAdmin` and `requireInternalOwner` reject tokens.
+- Platform administration (avatar and asset packs, map import under `/admin`) accepts sessions only: call same origin with `credentials: 'include'` and no token.
 - Read-only endpoints (GET list, GET by id) can be public (no auth required)
 
 ### Route Registration
@@ -228,11 +230,15 @@ async function apiFetch(path, opts = {}) {
 }
 ```
 
+Use a personal token here only for tenant content: changing data needs the `write` level, while `read` tokens only reach safe methods (GET, HEAD and OPTIONS).
+
+Tools that call platform routes (`super-admin.html`, `avatar-pack-manager.html`) have no token input. Their `apiFetch()` has no token branch, always sends `credentials: 'include'` and the tool shows a short hint that the operator has to sign in to Meetropolis in the same browser first.
+
 Important: When uploading files via `FormData`, do NOT set the `Content-Type` header manually. The browser sets it automatically with the correct multipart boundary.
 
 ### Connection Testing and Status Display
 
-Provide a connection panel with API URL input, optional auth token, and a test button:
+Provide a connection panel with API URL input, optional auth token (tenant content tools only), and a test button:
 
 ```html
 <div class="field">
@@ -553,8 +559,8 @@ const handleAvatarChange = async (newAvatarId: string) => {
 ### Standalone HTML Tool
 
 - [ ] **Create tool file** at `tools/<your-tool>.html`
-- [ ] **Implement `apiFetch()` helper** with Bearer token + cookie credential handling
-- [ ] **Add connection panel** with API URL input, auth token input, and test button
+- [ ] **Implement `apiFetch()` helper** with Bearer token + cookie credential handling (platform tools: cookie only, no token)
+- [ ] **Add connection panel** with API URL input, auth token input (tenant content tools only), and test button
 - [ ] **Add connection status indicator** (colored dot + label)
 - [ ] **Implement file upload** via FormData (no Content-Type header for multipart)
 - [ ] **Implement CRUD operations**: list existing items, create/update, delete with confirmation

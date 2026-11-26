@@ -7,14 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Self-hosting without a mail provider: with `MANUAL_ACCOUNT_CONFIRMATION=true` a super admin can confirm pending accounts by hand (`GET /admin/pending-confirmations`, `POST /admin/users/:id/confirm-email`); pending confirmations expire after 7 days.
+
 ### Changed
 
+- **Breaking (enterprise integration):** The tenant deletion callback in
+  `adminLoader` now requires `deletionProtocol: 'tenant-delete-v2'` with a
+  managed prepare/cleanup pair and an explicit internal retention plan and
+  deadline. Upgrade the host and enterprise module together; mismatched
+  versions reject deletion before any database DELETE statement with
+  `tenant_deletion_contract_required`. Without a valid internal plan the
+  deletion is rejected with `retention_journal_unavailable` (HTTP 409).
+- **Breaking (self-hosting):** NPC media now resolve from one directory. Without `NPC_MEDIA_DIR` the server uses `/data/npc-media`, the same default as the npc service; before, uploads defaulted to `<server working directory>/../../npc-media` and static serving to a directory next to the build output. If you did not set `NPC_MEDIA_DIR`, set it to your existing media directory or move its contents to `/data/npc-media`. When the directory cannot be created, the server logs `npc_media.dir_unavailable` at startup.
+- **Breaking (self-hosting):** Node.js 24.15 or newer below 25 is now required (`engines.node`). `npm ci --engine-strict` refuses older Node versions; `.nvmrc` stays `24` and resolves to the latest 24.x.
+- **Breaking (self-hosting):** invitation, guest, email-verification, password-reset and welcome links are built only from `PUBLIC_BASE_URL`. The fallbacks to relative links, `BILLING_PUBLIC_URL` and the request origin or host are gone, and loopback bases need `PUBLIC_BASE_URL_ALLOW_LOOPBACK=true`. A missing or unusable value is logged at startup, and link requests fail with `public_base_url_missing`. The web client copies invitation links from the server instead of building them from the window origin.
+- **Breaking (self-hosting):** Without a mail provider (`SMTP_HOST` and `SMTP_FROM` unset, no enterprise mail module), the console fallback does not count as delivery: verification requests, acceptance of an invitation by an unverified account and registration with an invitation code answer `503 EMAIL_DELIVERY_UNAVAILABLE`, and `POST /auth/forgot` answers `ok` without sending anything. A configured provider that fails to deliver a verification email also answers `503 EMAIL_DELIVERY_UNAVAILABLE`. No confirmation token is returned by any verification response; a password reset without mail works only through a super admin's `POST /admin/users/:id/reset-token`, which returns the link. Invitations still return their link for copying with `emailSent: false`, and creating a guest returns its magic link. Configure `SMTP_HOST` and `SMTP_FROM` before inviting users.
+- **Breaking (API):** invitation routes no longer carry the invitation code in the URL path, so request, rate-limit and error logs never contain a still-valid code. Revoking and resending address the invitation by its id (`DELETE /invites/:id`, `POST /invites/:id/resend`), the public preview and the acceptance by an existing account take the code in the JSON body (`POST /public/invites/preview`, `POST /invites/accept`), and `GET /invites` returns `id` and `url` instead of `code`. Listing, revoking and resending are limited to tenant admins and owners. Clients that still call `DELETE /invites/<code>`, such as older desktop builds that bundle the previous web client, receive `404 not found`, and the invitation link those builds copy ends in `?invite=undefined`; they need the updated client. Invitations now expire after 7 days; open invitations created before the upgrade get 7 days from the migration. `POST /auth/register` with an invitation code is bound to the invited address and answers `400 invite_unavailable`, `400 invite_expired` or `403 invite_email_mismatch` instead of the previous messages. Invitations without an email address can no longer be redeemed (403 `invite_email_mismatch`) and have to be issued again.
 - Web client: a terminal connection error (guest expiry, session
   takeover, rejected authentication, outdated client, billing and limit
   errors, and with the transcription module a missing consent) now leaves
   LiveKit before the overlay appears. Before, the client kept publishing
   and subscribing behind the overlay. AV resumes with the next join the
   world accepts.
+- Server: a world room now refuses a session of another tenant by default
+  (close code 4401, `tenant_mismatch`). Before, this needed
+  `ZONE_PRIVACY_TENANT_ENFORCE=true`; now only an explicit `false` admits
+  such a join, with a warning.
 - Web client: disposing the AV manager (unmount, or the reset of a join
   that failed after its room was set up) now leaves LiveKit before the
   teardown, which therefore runs up to 5 s later. A leave that exceeds
@@ -31,6 +51,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not support. Removing a member no longer asks twice, and logging out all
   other devices reports its result inline instead of with `alert()`. ESLint
   now rejects native `confirm`, `alert` and `prompt` in `apps/web`.
+- World server: joining the world always requires a valid session, also
+  with `ZONE_PRIVACY_AUTH_ENFORCE` unset. A join without a session token
+  (desktop builds that predate the join token) is refused with 4401
+  `unauthorized`; the identity the client names is no longer accepted in
+  its place. `ZONE_PRIVACY_AUTH_ENFORCE` now only gates the client
+  zone-privacy version check.
+- World server: a join whose verified tenant has no resolvable slug is
+  refused with 4401 `tenant_unresolved` instead of falling back to the
+  tenant slug the client sent.
+- Server: access revocations use one presence channel, `access_revoked`
+  with `{ userId, origin }`, instead of one `access_revoked:<slug>`
+  channel per tenant, and each world room checks the user's sessions
+  against the tenant each session was verified for.
+  `broadcastAccessRevoked(userId)` no longer takes a tenant slug,
+  `accessRevokedChannel` and `disconnectPlayers` are removed, and
+  `revokeAccountAccess(userId, tenantSlugs)` is new.
+- World server: `WorldRoom.onCreate` is async and waits for the
+  revocation subscription; when subscribing fails, the room is not
+  created.
+- World server: open world sessions hold an access lease. The periodic
+  access check runs every 30 s (was 60 s) and renews it. A session that
+  cannot be re-verified ends after at most 120 s with the new code 4503
+  `access_unverified`, which the web client treats as a reconnect; native
+  clients should do the same. A guest ends exactly at its stored expiry.
+  `WORLD_ACCESS_SWEEP_MS` (default 30000) and `WORLD_ACCESS_LEASE_MS`
+  (default 120000, at least twice the sweep) tune both intervals.
+- World server: a world session ends once its database session is gone
+  (logout, password reset, revoked sessions, or removal from another
+  tenant, which signs the user out everywhere), with 4401
+  `session_revoked`: at once on a revocation, otherwise at the next
+  access check.
+- Server: HTTP log fields and metric labels now use route templates
+  instead of concrete request paths. Early `http.request` logs no longer
+  include a `path` field; unmatched requests use `<unmatched>`. This
+  changes values consumed by dashboards and log parsers.
+- Server: personal API tokens now have a level chosen at creation
+  (`scope` in `POST /api-tokens`, default `read`). `read` tokens only use
+  safe methods (GET, HEAD and OPTIONS); `write` tokens may also change
+  data. Tokens granted before this change keep full access (migrated as
+  `write`). No token reaches passwords, email changes, account deletion,
+  sessions, token management, `/auth`, `/me`, `/users/me`, `/admin`,
+  `/debug` or platform administration: those need a signed-in browser
+  session, and a rejected token call answers like a missing token
+  (usually `401`).
 
 ### Fixed
 

@@ -12,9 +12,11 @@ import {
   PASSWORD_RESET_TTL_MINUTES,
 } from '../utils/passwordResetTokens.js';
 import { renderPasswordResetMail } from '../utils/passwordResetMail.js';
-import { resolvePublicBaseUrl, getRequestToken } from './auth.helpers.js';
-import { sendIfAvailable } from '../../emailLoader.js';
+import { getRequestToken } from './auth.helpers.js';
+import { buildPublicWebLink, publicWebBase } from '../utils/publicLinks.js';
+import { deliveringEmailModule } from '../utils/emailProof.js';
 import { resolveLocale, readEnvDefaultLocale } from '../../email/localeResolver.js';
+import { recordAuthEvent } from '../../services/authEvents.js';
 
 const forgotSchema = z.object({ email: z.string().email() });
 
@@ -49,10 +51,10 @@ export function handleAuthForgot(prisma: PrismaClient, req: express.Request, res
     return;
   }
 
-  void sendResetMailIfEligible(prisma, req, parse.data.email).catch((e: unknown) =>
+  void sendResetMailIfEligible(prisma, parse.data.email).catch((e: unknown) =>
     // Never leaks to the client: a failure here must look exactly like the
     // unknown-address case.
-    logger.error({ event: 'auth.forgot.failed', error: e instanceof Error ? e.message : String(e) }),
+    logger.error({ event: 'auth.forgot.failed', errorName: e instanceof Error ? e.name : typeof e }),
   );
 
   res.json({ ok: true });
@@ -63,7 +65,7 @@ export function handleAuthForgot(prisma: PrismaClient, req: express.Request, res
  * Silent no-op for unknown addresses and for guest accounts (they have no
  * password to reset and authenticate via their magic link instead).
  */
-async function sendResetMailIfEligible(prisma: PrismaClient, req: express.Request, email: string): Promise<void> {
+async function sendResetMailIfEligible(prisma: PrismaClient, email: string): Promise<void> {
   const user = await prisma.user.findFirst({
     where: { email: { equals: normalizeEmailForStorage(email), mode: 'insensitive' } },
     select: { id: true, email: true, name: true, locale: true, passwordHash: true },
@@ -80,44 +82,41 @@ async function sendResetMailIfEligible(prisma: PrismaClient, req: express.Reques
   // Resolve the link target BEFORE issuing: a mail with a relative link is
   // useless, and issuing anyway would pointlessly invalidate a link the user
   // may already hold.
-  const baseUrl = resolvePublicBaseUrl({
-    publicBaseUrl: process.env.PUBLIC_BASE_URL,
-    billingPublicUrl: process.env.BILLING_PUBLIC_URL,
-    origin: req.headers.origin,
-    host: req.headers.host,
-  });
+  const baseUrl = publicWebBase();
   if (!baseUrl) {
-    logger.error({ event: 'auth.forgot.no_base_url', userId: user.id });
+    logger.error({ event: 'links.public_base_url_missing', route: 'auth.forgot', userId: user.id });
     return;
   }
 
+  const mail = await deliveringEmailModule();
+  if (!mail) return;
   const { token } = await issuePasswordResetToken(prisma, user.id);
-  const resetUrl = `${baseUrl.replace(/\/$/, '')}/#/reset?token=${token}&email=${encodeURIComponent(user.email)}`;
+  const resetUrl = buildPublicWebLink(baseUrl, `reset?token=${token}&email=${encodeURIComponent(user.email)}`);
 
-  // Locale chain (Block C): user.locale (DB) → MAIL_DEFAULT_LOCALE → 'de'.
+  // Locale chain: user.locale (DB) → MAIL_DEFAULT_LOCALE → 'de'.
   // Resolved here rather than by the mail module because `sendRaw` is a
   // pass-through — it renders nothing and takes no locale, so this call site
   // owns the choice. Same resolver the templated mails use.
   const locale = resolveLocale({ userLocale: user.locale }, readEnvDefaultLocale());
 
-  const sent = await sendIfAvailable(
-    (mod) =>
-      mod.sendRaw(
-        renderPasswordResetMail({
-          to: user.email,
-          name: user.name || '',
-          resetUrl,
-          expiresInMinutes: PASSWORD_RESET_TTL_MINUTES,
-          locale,
-        }),
-      ),
-    'auth.forgot.email_failed',
-    { userId: user.id },
-  );
+  let sent = false;
+  try {
+    sent = await mail.sendRaw(
+      renderPasswordResetMail({
+        to: user.email,
+        name: user.name || '',
+        resetUrl,
+        expiresInMinutes: PASSWORD_RESET_TTL_MINUTES,
+        locale,
+      }),
+    );
+  } catch {
+    logger.warn({ event: 'auth.forgot.email_failed', userId: user.id });
+  }
 
-  // `sent: false` means no mail provider is configured. The token is NOT
-  // surfaced in the response (unlike e-mail verification, an unauthenticated
-  // caller must never receive it) — the admin can issue one out of band.
+  // Only reached with a delivering provider (checked above): `sent: false`
+  // means that provider failed to deliver. The token is NOT surfaced in the
+  // response, an unauthenticated caller must never receive it.
   logger.info({ event: 'auth.forgot.token_issued', userId: user.id, sent });
 }
 
@@ -159,6 +158,7 @@ export async function handleAuthReset(
 
   const revokedCount = await revokeSessionsForUser(prisma, claim.userId);
   logger.info({ event: 'auth.reset.completed', userId: claim.userId, revokedCount });
+  await recordAuthEvent(prisma, { type: 'password_reset', success: true, userId: claim.userId, req });
 
   res.json({ ok: true });
 }

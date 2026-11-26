@@ -1,14 +1,13 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Tabs } from '../../system';
-import type { TabItem } from '../../system';
 import { useSpriteCatalog } from './useSpriteCatalog';
 import { useAvatarDraft, type AvatarSavedHandler } from './useAvatarDraft';
 import { EDITOR_TABS } from './editorLayout';
 import { SlotPicker } from './SlotPicker';
 import { AvatarLivePreview } from './AvatarLivePreview';
+import { AvatarStatus } from './AvatarStatus';
 import './avatarEditor.css';
-
-const TAB_ITEMS: TabItem[] = EDITOR_TABS.map((tab) => ({ key: tab.key, label: tab.label }));
 
 /**
  * In-app avatar editor: category tabs over a large live preview and a grid of
@@ -16,26 +15,41 @@ const TAB_ITEMS: TabItem[] = EDITOR_TABS.map((tab) => ({ key: tab.key, label: ta
  * composer, so every tile is a literal preview of what a click stores.
  */
 export function AvatarEditor({ onSaved }: { onSaved: AvatarSavedHandler }) {
+  const { t } = useTranslation();
   const { catalog, loading, error } = useSpriteCatalog();
-  const { config, setConfig, save, saving, status } = useAvatarDraft(catalog, onSaved);
+  const {
+    config,
+    setConfig,
+    save,
+    saving,
+    status,
+    loading: draftLoading,
+    loadError,
+  } = useAvatarDraft(catalog, onSaved);
   const [tab, setTab] = React.useState(EDITOR_TABS[0].key);
 
-  // The draft config is seeded an effect AFTER the catalog resolves, so `loading`
-  // is already false while `config` is still null. Only a real failure is an
-  // empty state; everything else is still loading.
-  if (error !== null) return <div style={styles.info}>Editor nicht verfügbar.</div>;
-  if (loading || !catalog || !config) return <div style={styles.info}>Lade Editor…</div>;
+  // The base draft follows immediately from the catalog; `config` is only null,
+  // as long as the catalog itself is missing. An error while loading the saved
+  // recipe leaves the editor unusable: there is no honest
+  // fallback draft to save with.
+  if (error !== null || loadError !== null) return <div style={styles.info}>{t('avatarEditor.unavailable')}</div>;
+  if (loading || !catalog || !config) return <div style={styles.info}>{t('avatarEditor.loading')}</div>;
 
   return (
     <div>
-      <Tabs items={TAB_ITEMS} activeKey={tab} onChange={setTab} style={{ marginBottom: 16 }} />
+      <Tabs
+        items={EDITOR_TABS.map((entry) => ({ key: entry.key, label: t(entry.labelKey) }))}
+        activeKey={tab}
+        onChange={setTab}
+        style={{ marginBottom: 16 }}
+      />
       <div className="av-ed">
         <div className="av-ed__preview">
           <AvatarLivePreview catalog={catalog} config={config} />
-          <Button variant="primary" className="av-ed__save" onClick={save} disabled={saving}>
-            {saving ? 'Speichert…' : 'Avatar speichern'}
+          <Button variant="primary" className="av-ed__save" onClick={save} disabled={saving || draftLoading}>
+            {saving ? t('avatarEditor.saving') : t('avatarEditor.save')}
           </Button>
-          {status && <p className="av-ed__status">{status}</p>}
+          <AvatarStatus status={status} />
         </div>
         <SlotPicker catalog={catalog} config={config} onChange={setConfig} tabKey={tab} />
       </div>

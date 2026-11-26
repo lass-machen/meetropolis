@@ -171,6 +171,7 @@ function GeneralSettings({ state, t }: { state: ReturnType<typeof EditorService.
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             type="color"
+            aria-label={t('editor.spaceBackground')}
             value={state.backgroundColor || '#111827'}
             onChange={(e) => EditorService.dispatch({ type: 'SET_BACKGROUND_COLOR', color: e.target.value })}
             style={{
@@ -208,6 +209,7 @@ function TerrainSettings({
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             type="color"
+            aria-label={t('editor.terrainBackground')}
             value={state.terrainColor || '#202020'}
             onChange={(e) => EditorService.dispatch({ type: 'SET_TERRAIN_COLOR', color: e.target.value })}
             style={{
@@ -470,7 +472,10 @@ export function EditorPanel(props: { onSave?: () => Promise<boolean> }) {
     setSaving(true);
     try {
       const mapId = useMapStore.getState().currentMapId;
-      if (props.onSave) await props.onSave();
+      if (props.onSave) {
+        const saved = await props.onSave();
+        if (!saved) return;
+      }
       if (mapId && EditorService.hasPendingChanges()) {
         const currentState = EditorService.getState();
         await EditorPersistence.saveAllChanges(mapId, currentState.pendingChanges, currentState);

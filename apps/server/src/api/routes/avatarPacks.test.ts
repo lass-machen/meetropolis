@@ -78,6 +78,8 @@ function matchesWhere(row: PackRow, where: PackWhere): boolean {
 interface PrismaOpts {
   /** If set, any bearer API token resolves to this user id. */
   apiTokenUserId?: string;
+  /** Scope stored on the mocked token row; an absent scope counts as read. */
+  apiTokenScope?: 'read' | 'write';
   /** If false, the internal tenant does not exist (super-admin lookup fails closed). */
   internalTenantExists?: boolean;
 }
@@ -88,7 +90,7 @@ interface PrismaOpts {
  * deterministic record so the success assertions can inspect the response.
  */
 function makePrisma(opts: PrismaOpts = {}): PrismaClient {
-  const { apiTokenUserId, internalTenantExists = true } = opts;
+  const { apiTokenUserId, apiTokenScope, internalTenantExists = true } = opts;
   return {
     tenant: {
       findUnique: vi.fn(({ where }: { where: { slug?: string } }) =>
@@ -108,7 +110,11 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
       }),
     },
     apiToken: {
-      findUnique: vi.fn(() => Promise.resolve(apiTokenUserId ? { userId: apiTokenUserId } : null)),
+      findUnique: vi.fn(() =>
+        Promise.resolve(
+          apiTokenUserId ? { userId: apiTokenUserId, ...(apiTokenScope ? { scope: apiTokenScope } : {}) } : null,
+        ),
+      ),
       update: vi.fn(() => Promise.resolve({})),
     },
     // Session lookup performed by the session-auth middleware: a JWT only
@@ -288,14 +294,19 @@ describe('AvatarPack write routes: authorisation', () => {
       expect(res.body).toMatchObject({ ok: true, uuid: 'pack-uuid', version: '1.0.0' });
     });
 
-    it('allows an API token owned by an internal owner', async () => {
-      const app = makeApp(makePrisma({ apiTokenUserId: 'owner-root' }));
+    it('refuses an API token owned by an internal owner', async () => {
+      const prisma = makePrisma({ apiTokenUserId: 'owner-root', apiTokenScope: 'write' });
+      const app = makeApp(prisma);
       const res = await request(app)
         .post('/avatar-packs')
         .set('Authorization', 'Bearer plain-api-token-no-dots')
         .send(VALID_CREATE_BODY);
-      expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({ ok: true });
+      // The write-scoped token passes the method gate and is refused by the
+      // role check (authenticateAvatarPackAdmin), so nothing is created.
+      expect(res.status).toBe(403);
+      expect(res.body).toMatchObject({ error: 'forbidden' });
+      expect(prisma.avatarPack.create).not.toHaveBeenCalled();
+      expect(prisma.avatarPack.update).not.toHaveBeenCalled();
     });
 
     it('is unaffected by the X-Tenant header — tenant scope grants no write right', async () => {
@@ -312,7 +323,9 @@ describe('AvatarPack write routes: authorisation', () => {
     });
 
     it('rejects an API token owned by a member with 403', async () => {
-      const app = makeApp(makePrisma({ apiTokenUserId: 'member-joe' }));
+      // Write scope carries the token past the method gate, so this case
+      // keeps testing the role check rather than the scope gate.
+      const app = makeApp(makePrisma({ apiTokenUserId: 'member-joe', apiTokenScope: 'write' }));
       const res = await request(app)
         .post('/avatar-packs')
         .set('Authorization', 'Bearer plain-api-token-no-dots')
@@ -539,10 +552,13 @@ describe('AvatarPack read routes: super-admin and API-token scope', () => {
     expect(idsOf(res.body)).toEqual([1, 2]);
   });
 
-  it('serves every pack to an API token owned by a super-admin', async () => {
+  it('serves only the regular pack view to an API token owned by a super-admin', async () => {
+    // A token never confers the super-admin "all" scope: without a proven
+    // tenant the owner lands on the public catalog, like any ordinary caller.
     const app = makeApp(makePrisma({ apiTokenUserId: 'owner-root' }));
     const res = await request(app).get('/avatar-packs').set('Authorization', 'Bearer plain-api-token-no-dots');
-    expect(idsOf(res.body)).toEqual([1, 2, 3]);
+    expect(res.status).toBe(200);
+    expect(idsOf(res.body)).toEqual([1]);
   });
 
   it('grants an API token no more reach than its owning user has', async () => {

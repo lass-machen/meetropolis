@@ -69,3 +69,32 @@ describe('RegisterView name fields', () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: '' }));
   });
 });
+
+describe('RegisterView required fields', () => {
+  function submitForm() {
+    fireEvent.submit(screen.getByRole('button', { name: 'auth.registerSubmit' }).closest('form') as HTMLFormElement);
+  }
+
+  it('shows a localized message and does not submit when email and password are empty', () => {
+    const onSubmit = renderView();
+
+    fireEvent.change(firstNameField(), { target: { value: 'Jörg' } });
+    submitForm();
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText('auth.requiredFieldsMissing')).toBeInTheDocument();
+  });
+
+  it('clears the message on next input and submits when email and password are filled', async () => {
+    const onSubmit = renderView();
+
+    submitForm();
+    expect(screen.getByText('auth.requiredFieldsMissing')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('auth.registerEmail'), { target: { value: 'a@example.test' } });
+    fireEvent.change(screen.getByLabelText('auth.registerPassword'), { target: { value: 'supersecret' } });
+    expect(screen.queryByText('auth.requiredFieldsMissing')).toBeNull();
+
+    await submit(onSubmit);
+  });
+});

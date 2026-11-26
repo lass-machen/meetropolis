@@ -2,7 +2,6 @@ import type { LocalAudioTrack, LocalTrack, Room } from 'livekit-client';
 import { AVLogger } from '../AVLogger';
 import { useAvSettingsStore } from '../../state/avSettings';
 import { readTimeoutMs } from '../../lib/runtimeConfig';
-import { setAudioCaptureNeeded } from '../audio/audioSessionDucking';
 import { withPublishTimeout } from './publishTimeout';
 import type { LocalTrackState } from './types';
 import {
@@ -100,7 +99,7 @@ async function buildAndPublishMicrophoneTrack(room: Room, state: LocalTrackState
   } catch {}
 
   await room.localParticipant.publishTrack(
-    track as unknown as LocalTrack,
+    track,
     // stopMicTrackOnMute is pinned to false on purpose (hybrid mute): the SDK
     // must NEVER stop the capture on mute(), otherwise softMuteMicrophone would
     // tear down the device instead of just sending an RTP-mute frame — killing
@@ -135,7 +134,7 @@ async function publishFallbackMicrophoneTrack(room: Room, state: LocalTrackState
   }
   const fallbackTrack = await createLocalAudioTrack(audioOpts);
   await room.localParticipant.publishTrack(
-    fallbackTrack as unknown as LocalTrack,
+    fallbackTrack,
     // Pinned false, same rationale as buildAndPublishMicrophoneTrack: the
     // hybrid soft-mute owns the capture lifecycle, not the SDK's stopOnMute.
     {
@@ -153,14 +152,6 @@ export async function publishMicrophone({
   onTrackPublished,
   onTrackEndedByBrowser,
 }: PublishMicrophoneParams): Promise<void> {
-  // Declare the capture intent BEFORE touching the device. With ducking
-  // suppression active the audio session sits in 'playback', where WebKit
-  // rejects every getUserMedia with "AudioSession category is not compatible
-  // with audio capture" — see resolveAudioSessionType. Announcing the intent
-  // first moves the session to a capture-capable category; on engines without
-  // the Audio Session API (Chromium, so Windows/WebView2) this is a no-op.
-  setAudioCaptureNeeded(true);
-
   const existing = findLiveMicrophonePublication(room);
   if (existing) {
     state.track = existing;
@@ -260,9 +251,6 @@ export async function unpublishMicrophone({
           try {
             t.stop?.();
           } catch {}
-          try {
-            t.__avStopSource?.();
-          } catch {}
         }
       }
     } catch {}
@@ -282,13 +270,10 @@ export async function unpublishMicrophone({
       }
     } catch {}
 
-    await room.localParticipant.unpublishTrack(state.track as unknown as LocalTrack);
+    await room.localParticipant.unpublishTrack(state.track);
+    // stop() ends the raw capture and destroys an attached voice isolation
+    // processor (LocalTrack.stop), so the hardware mic is released.
     (state.track as unknown as TrackLike).stop?.();
-    // Voice-isolation pipeline: the published track is a WebAudio destination
-    // track, not the real microphone capture. Close the underlying capture
-    // MediaStreamTrack explicitly so the hardware mic is actually released.
-    // No-op for tracks without the isolation handle.
-    (state.track as unknown as TrackLike).__avStopSource?.();
   } catch (error) {
     AVLogger.warn('track.mic.unpublish_error', { error: String(error) });
   }

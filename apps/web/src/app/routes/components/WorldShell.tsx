@@ -7,6 +7,7 @@ import { MapChangeOverlay } from '../../../ui/hud/MapChangeOverlay';
 import { RosterPanel } from '../../../ui/user/RosterPanel';
 import { EditorWindow } from '../../../features/editor/EditorWindow';
 import { BubbleBanner } from '../../../ui/user/BubbleBanner';
+import { CaptureErrorToast } from './CaptureErrorToast';
 import { WorldContextMenu } from './WorldContextMenu';
 import { WorldModals } from './WorldModals';
 import { WorldMainView } from './WorldMainView';
@@ -172,6 +173,7 @@ export function WorldShell(props: WorldShellProps) {
   return (
     <>
       {isMini && <MiniModeWrapper {...props} />}
+      <CaptureErrorToast errorKey={eventHandlers.captureError} onDismiss={eventHandlers.dismissCaptureError} />
       <div
         style={{
           width: '100vw',

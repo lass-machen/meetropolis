@@ -1,8 +1,11 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { logger } from '../../../../lib/logger';
 import { openExternal } from '../../../../lib/openExternal';
 import { isDesktopEnvironment } from '../../../../lib/desktopLoader';
 import { getTelemetryModule } from '../../../../lib/telemetryLoader';
+import { getBrandModule } from '../../../../lib/brandLoader';
+import { usePublicConfigStore } from '../../../../state/publicConfigStore';
 import type { RegistrationData } from '../AuthPageRenderer';
 import type { TenantSignupSubmission } from '../signupTypes';
 
@@ -107,13 +110,30 @@ export function useTenantCreation({
       setError(null);
       setSubmitLoading(true);
       try {
+        // Optional ads attribution from the closed-source brand module.
+        // Brand calls must never fail the signup, so every brand
+        // interaction below is guarded and falls back to sending no
+        // attribution at all.
+        const adsConfig = usePublicConfigStore.getState().ads;
+        let reportConversion: (() => void) | undefined;
+        const body = buildSignupBody(regData, submission);
+        try {
+          const brand = await getBrandModule();
+          const attribution = brand?.getSignupAttribution?.(adsConfig);
+          if (attribution !== undefined) body.attribution = attribution;
+          if (brand?.reportSignupConversion) {
+            reportConversion = () => brand.reportSignupConversion?.(adsConfig);
+          }
+        } catch {
+          // Ignore brand errors: the signup posts without attribution.
+        }
         // Step one: create the tenant (sets the auth cookie / returns the token
         // for native clients).
         const res = await fetch(`${apiBase}/public/tenants`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify(buildSignupBody(regData, submission)),
+          body: JSON.stringify(body),
         });
         const data = (await res.json()) as TenantCreateResponse;
         if (!res.ok) {
@@ -135,6 +155,15 @@ export function useTenantCreation({
         void getTelemetryModule()
           .then((t) => t?.trackSignup('tenant_create'))
           .catch(() => {});
+        // Report the signup conversion to the optional brand ads module.
+        // Guarded: a throwing brand module must never affect the signup flow.
+        if (reportConversion) {
+          try {
+            reportConversion();
+          } catch {
+            // Ignore brand errors after a successful signup.
+          }
+        }
 
         // Step two (commercial only): open the trial checkout BEFORE any
         // subdomain navigation — on this same origin the cookie is still valid.
@@ -170,7 +199,8 @@ export function useTenantCreation({
         // Pure-OSS / non-commercial path: enter the app on the current origin.
         redirectAfterTenantCreate();
       } catch (e: unknown) {
-        setError((e as Error).message);
+        logger.warn('[TenantCreation] signup request failed', (e as Error)?.message);
+        setError(e instanceof TypeError ? t('common.networkError') : (e as Error).message);
       } finally {
         setSubmitLoading(false);
         setRegData((prev) => ({ ...prev, plan: submission.tierKey ?? prev.plan }));

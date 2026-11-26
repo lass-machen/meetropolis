@@ -112,13 +112,8 @@ function ModalHeader({
   const isStringTitle = typeof title === 'string';
   return (
     <div
-      role="button"
-      tabIndex={draggable ? 0 : -1}
-      aria-label="Modal verschieben"
+      role="presentation"
       onMouseDown={beginDrag}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') e.preventDefault();
-      }}
       className={`sys-modal__header${draggable ? ' sys-modal__header--draggable' : ''}`}
     >
       <div className="sys-modal__header-row">
@@ -162,13 +157,8 @@ function CloseOnlyHeader({
 }) {
   return (
     <div
-      role="button"
-      tabIndex={draggable ? 0 : -1}
-      aria-label="Modal verschieben"
+      role="presentation"
       onMouseDown={beginDrag}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') e.preventDefault();
-      }}
       className={`sys-modal__header${draggable ? ' sys-modal__header--draggable' : ''}`}
     >
       <VisuallyHidden>

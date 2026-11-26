@@ -48,6 +48,7 @@ vi.mock('../../emailLoader.js', () => ({
 }));
 
 import { registerContactRoutes } from './contact.js';
+import { logger } from '../../logger.js';
 import { errorHandler } from '../errorHandler.js';
 import { __resetRedeemedChallengesForTesting } from '../utils/altchaChallenge.js';
 
@@ -61,7 +62,7 @@ function makeApp(): express.Application {
 
 /** The parameters of the most recent `sendRaw` call. */
 function lastMail(): SentMail {
-  const call = sendRaw.mock.calls.at(-1);
+  const call = sendRaw.mock.calls[sendRaw.mock.calls.length - 1];
   if (!call) throw new Error('expected a mail to have been sent');
   return call[0];
 }
@@ -70,6 +71,9 @@ let app: express.Application;
 
 beforeEach(() => {
   sendRaw.mockClear();
+  vi.mocked(logger.error).mockClear();
+  vi.mocked(logger.warn).mockClear();
+  vi.mocked(logger.info).mockClear();
   __resetRedeemedChallengesForTesting();
   app = makeApp();
 });
@@ -273,10 +277,20 @@ describe('POST /public/contact', () => {
     sendRaw.mockResolvedValueOnce(false);
     const altcha = await solvedPayload();
 
-    await request(app)
+    const res = await request(app)
       .post('/public/contact')
       .send({ ...validSubmission, altcha })
       .expect(502);
+
+    expect(res.body?.error?.code).toBe('CONTACT_DELIVERY_FAILED');
+    expect(vi.mocked(logger.error)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith({
+      event: 'contact.send_failed',
+      topic: 'sales',
+    });
+    const args = vi.mocked(logger.error).mock.calls[0];
+    expect(args).toHaveLength(1);
+    expect(Object.keys(args[0] as Record<string, unknown>).sort()).toEqual(['event', 'topic']);
   });
 });
 

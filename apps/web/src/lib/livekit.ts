@@ -64,6 +64,41 @@ function shouldForceRelay(): boolean {
   return false;
 }
 
+function extractTokenErrorReason(body: unknown): string | undefined {
+  if (typeof body !== 'object' || body === null) return undefined;
+  const error = (body as { error?: unknown }).error;
+  if (typeof error === 'string' && error.trim()) return error.trim();
+  if (typeof error === 'object' && error !== null) {
+    const { code, message } = error as { code?: unknown; message?: unknown };
+    if (typeof code === 'string' && code.trim()) return code.trim();
+    if (typeof message === 'string' && message.trim()) return message.trim();
+  }
+  return undefined;
+}
+
+async function buildTokenError(res: Response): Promise<Error> {
+  const status = res.status;
+  let reason: string | undefined;
+  try {
+    const raw = await res.text();
+    if (raw) {
+      try {
+        reason = extractTokenErrorReason(JSON.parse(raw) as unknown);
+      } catch {
+        reason = undefined;
+      }
+    }
+  } catch (err) {
+    if ((err as { name?: string })?.name === 'AbortError') throw err;
+    reason = undefined;
+  }
+  if (reason) {
+    const safe = reason.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 80);
+    return new Error(`livekit_token_error_${status}_${safe}`);
+  }
+  return new Error(`livekit_token_error_${status}`);
+}
+
 async function fetchLivekitToken(params: JoinLivekitRoomParams): Promise<string> {
   const timeoutMs = readTimeoutMs('VITE_LIVEKIT_TOKEN_TIMEOUT_MS', 10_000);
   const controller = new AbortController();
@@ -87,7 +122,7 @@ async function fetchLivekitToken(params: JoinLivekitRoomParams): Promise<string>
       signal: controller.signal,
     });
     if (!res.ok) {
-      throw new Error('Failed to obtain LiveKit token');
+      throw await buildTokenError(res);
     }
     return (await res.text()).trim();
   } catch (err) {

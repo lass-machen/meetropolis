@@ -7,7 +7,21 @@
 import http from 'node:http';
 import net, { type AddressInfo } from 'node:net';
 import { brotliCompressSync, deflateSync, gzipSync } from 'node:zlib';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// The guard takes its CORS headers from the origin policy. The harness server
+// carries no allowlist of its own, so the environment provides the one origin
+// the tests below send.
+const previousCorsOrigin = process.env.CORS_ORIGIN;
+
+beforeAll(() => {
+  process.env.CORS_ORIGIN = 'https://app.example';
+});
+
+afterAll(() => {
+  if (previousCorsOrigin === undefined) delete process.env.CORS_ORIGIN;
+  else process.env.CORS_ORIGIN = previousCorsOrigin;
+});
 
 vi.mock('../logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -27,6 +41,7 @@ import {
   worldRooms,
   type MatchmakeTestServer,
 } from '../testUtils/matchmakeHarness.js';
+import { stubWorldAuth } from '../testUtils/worldAuthStub.js';
 import {
   MATCHMAKE_BODY_LIMIT_BYTES,
   REFUSED_BODY_DRAIN_BYTES,
@@ -61,6 +76,7 @@ describe('isMatchmakeRequest', () => {
 
 describe('matchmake guard: body and media type', () => {
   let server: MatchmakeTestServer;
+  let authSpy: ReturnType<typeof stubWorldAuth>;
 
   beforeAll(async () => {
     createPrismaClientMock.mockImplementation(makeFakePrisma);
@@ -77,6 +93,11 @@ describe('matchmake guard: body and media type', () => {
   beforeEach(async () => {
     await disposeAllRooms();
     createPrismaClientMock.mockClear();
+    authSpy = stubWorldAuth();
+  });
+
+  afterEach(() => {
+    authSpy.mockRestore();
   });
 
   it('refuses an oversized tenant with 413 and builds no room and no PrismaClient', async () => {
@@ -257,9 +278,16 @@ describe('matchmake guard: body and media type', () => {
 });
 
 describe('matchmake guard: rate limit', () => {
+  let authSpy: ReturnType<typeof stubWorldAuth>;
+
   beforeEach(() => {
     createPrismaClientMock.mockImplementation(makeFakePrisma);
     createPrismaClientMock.mockClear();
+    authSpy = stubWorldAuth();
+  });
+
+  afterEach(() => {
+    authSpy.mockRestore();
   });
 
   afterAll(() => {
@@ -273,7 +301,9 @@ describe('matchmake guard: rate limit', () => {
     const server = await startMatchmakeServer({ trustProxy: 1 });
     try {
       const body = JSON.stringify({ tenant: 'acme' });
-      const from = (ip: string) => ({ headers: { 'x-forwarded-for': ip } });
+      // The origin is the one the allowlist above allows: a refusal must stay
+      // readable for the browser that sent it.
+      const from = (ip: string) => ({ headers: { 'x-forwarded-for': ip, origin: 'https://app.example' } });
       for (let i = 0; i < 5; i++) {
         expect((await matchmake(server, body, from('203.0.113.7'))).status).toBe(200);
       }
@@ -424,10 +454,17 @@ describe('isInProcessCaller', () => {
 });
 
 describe('matchmake guard: in-process callers and the rate limit', () => {
+  let authSpy: ReturnType<typeof stubWorldAuth>;
+
   beforeEach(() => {
     createPrismaClientMock.mockImplementation(makeFakePrisma);
     createPrismaClientMock.mockClear();
     vi.stubEnv('RATE_LIMIT_MATCHMAKE_MAX', '3');
+    authSpy = stubWorldAuth();
+  });
+
+  afterEach(() => {
+    authSpy.mockRestore();
   });
 
   afterAll(() => {
@@ -587,8 +624,15 @@ describe('matchmake guard: how much of a refused body is read', () => {
     for (let i = 0; i < 400 && !condition(); i++) await new Promise((resolve) => setTimeout(resolve, 10));
   }
 
+  let authSpy: ReturnType<typeof stubWorldAuth>;
+
   beforeEach(() => {
     vi.stubEnv('RATE_LIMIT_MATCHMAKE_MAX', '100000');
+    authSpy = stubWorldAuth();
+  });
+
+  afterEach(() => {
+    authSpy.mockRestore();
   });
 
   afterAll(() => {

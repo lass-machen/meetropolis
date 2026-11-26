@@ -106,15 +106,25 @@ call `generate.build_sheet(character)` from your own script. Combination
 rules (hood replaces hair and excludes hats, beards not visible from the
 rear, etc.) are documented in `catalog.json` under `rules`.
 
-## catalog.json (schema `meetropolis-sprite-catalog/v5`)
+## catalog.json (schema `meetropolis-sprite-catalog/v5`, legacy exporter)
 
 `export_catalog.py` serializes the frame format, the slot legend, every
 grid as an array of 32 strings, all palettes, the walk choreography
-constants, the combination rules and the six default recipes. The canonical
-output lives at `packages/shared/sprite/catalog.json` (see its `NOTICE` for
-the MIT licensing of this generated output) and is read by both the server
-and the web editor,
-so a composited sheet and the editor's live preview are pixel-identical.
+constants, the combination rules and the six default recipes. This section
+describes the legacy v5 export structure as a historical reference; it is
+no longer the authoritative generation for the current catalog.
+
+The current catalog at `packages/shared/sprite/catalog.json` uses schema
+`meetropolis-sprite-catalog/v6` and is produced through the asset-atelier
+path — `tools/asset-lab/scripts/sprite-catalog.ts` reads the existing
+catalog as its base and applies `buildAtelierCatalog` from
+`tools/asset-lab/src/avatar-catalog.ts` with the Atelier raster additions
+(regenerate via `npm --prefix tools/asset-lab run catalog:build`, verify
+via `catalog:check`; see `packages/shared/sprite/NOTICE`). The v6 catalog
+is read by both the server and the web editor, so a composited sheet and
+the editor's live preview are pixel-identical. This v5 section remains as
+the legacy reference only. The six built-in character PNGs
+remain the output of the Python generator (`generate.py`).
 
 Schema v5 adds a machine-readable `compose` block that turns the character
 resolution in `generate.py` and the choreography in `poses.py` into pure

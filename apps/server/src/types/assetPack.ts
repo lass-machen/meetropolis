@@ -82,5 +82,8 @@ export interface ZipEntry {
   path?: string;
   fileName?: string;
   type?: string;
+  /** Unpacked size declared in the ZIP central directory; may lie. */
+  uncompressedSize?: number;
   buffer(): Promise<Buffer>;
+  stream?(): NodeJS.ReadableStream;
 }

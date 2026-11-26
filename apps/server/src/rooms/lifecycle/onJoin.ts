@@ -1,7 +1,7 @@
 import { logger } from '../../logger.js';
 import { colyseusPlayers } from '../../metrics.js';
 import type { WorldRoom, RoomOptions, Player as PlayerCtor } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { findExistingSession } from './ghostDetection.js';
 import { enforceOssLimit, enforceTenantLimits } from './onJoin.limiter.js';
 import { completePendingJoin } from './onJoin.completion.js';

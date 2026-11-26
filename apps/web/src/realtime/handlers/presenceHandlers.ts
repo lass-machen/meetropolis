@@ -44,7 +44,8 @@ export function createRosterRefresher(args: UseWorldRoomArgs) {
       const online: Record<string, OnlineEntry> = {};
       // Remotes (Colyseus SIDs to LiveKit identity).
       for (const [sid, pos] of Object.entries(remotesRef.current)) {
-        const livekitIdentity = colyseusToLivekitMap.current[sid] || sid;
+        const livekitIdentity = colyseusToLivekitMap.current[sid];
+        if (!livekitIdentity) continue;
         const name = identityToNameMap.current[livekitIdentity] || livekitIdentity;
         online[livekitIdentity] = { name, x: pos.x, y: pos.y };
       }
@@ -61,7 +62,12 @@ export function createRosterRefresher(args: UseWorldRoomArgs) {
       // display name is a label, not a key.
       setRoster((prev) => {
         const map = new Map<string, RosterItem>();
-        for (const r of prev) map.set(r.identity, { ...r, online: false });
+        for (const r of prev) {
+          const mappedIdentity = colyseusToLivekitMap.current[r.identity];
+          // A session placeholder is superseded once its stable identity is online.
+          if (mappedIdentity && mappedIdentity !== r.identity && online[mappedIdentity]) continue;
+          map.set(r.identity, { ...r, online: false });
+        }
         for (const [ident, v] of Object.entries(online)) {
           const cur = map.get(ident);
           if (cur) {

@@ -16,15 +16,29 @@ export type SelectProps = {
   disabled?: boolean;
   style?: React.CSSProperties;
   className?: string;
+  'aria-label'?: string;
 };
 
-export function Select({ options, value, onChange, placeholder, disabled, style, className }: SelectProps) {
+export function Select({
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  style,
+  className,
+  'aria-label': ariaLabel,
+}: SelectProps) {
   const rootProps: RadixSelect.SelectProps = { value, onValueChange: onChange };
   if (disabled) rootProps.disabled = true;
 
   return (
     <RadixSelect.Root {...rootProps}>
-      <RadixSelect.Trigger className={`sys-select__trigger${className ? ` ${className}` : ''}`} style={style}>
+      <RadixSelect.Trigger
+        className={`sys-select__trigger${className ? ` ${className}` : ''}`}
+        style={style}
+        aria-label={ariaLabel}
+      >
         <RadixSelect.Value placeholder={placeholder} />
         <RadixSelect.Icon className="sys-select__chevron">
           <ChevronIcon />

@@ -1,15 +1,12 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, Button } from '../../system';
-import { logger } from '../../../lib/logger';
+import { useVerificationRequest } from '../hooks/useVerificationRequest';
 
 interface Props {
   /** From `GET /auth/me`. Undefined while unknown — the banner stays away. */
   emailVerified: boolean | undefined;
   apiBase: string;
 }
-
-type SendState = 'idle' | 'sending' | 'sent' | 'failed';
 
 /**
  * Soft reminder for an unverified address.
@@ -23,23 +20,9 @@ type SendState = 'idle' | 'sending' | 'sent' | 'failed';
  */
 export function EmailVerificationBanner({ emailVerified, apiBase }: Props) {
   const { t } = useTranslation();
-  const [state, setState] = useState<SendState>('idle');
+  const { state, retryAfter, resend } = useVerificationRequest(apiBase);
 
   if (emailVerified !== false) return null;
-
-  async function resend() {
-    setState('sending');
-    try {
-      const res = await fetch(`${apiBase}/auth/verify/request`, { method: 'POST', credentials: 'include' });
-      // A throttled resend (2-minute cooldown) is not a failure the user needs
-      // to act on: the mail they already have is still valid, so it reads as
-      // sent either way.
-      setState(res.ok || res.status === 429 ? 'sent' : 'failed');
-    } catch (e) {
-      logger.debug('[EmailVerificationBanner] resend failed', e);
-      setState('failed');
-    }
-  }
 
   return (
     // No position/z-index here on purpose: this banner renders in normal document
@@ -50,7 +33,7 @@ export function EmailVerificationBanner({ emailVerified, apiBase }: Props) {
       {state !== 'sent' && (
         <Button
           variant="primary"
-          disabled={state === 'sending'}
+          disabled={state === 'sending' || state === 'cooldown'}
           onClick={() => {
             void resend();
           }}
@@ -59,7 +42,8 @@ export function EmailVerificationBanner({ emailVerified, apiBase }: Props) {
           {state === 'sending' ? t('verifyBanner.sending') : t('verifyBanner.resend')}
         </Button>
       )}
-      {state === 'failed' && <span>{t('verifyBanner.failed')}</span>}
+      {(state === 'failed' || state === 'loginRequired') && <span>{t('verifyBanner.failed')}</span>}
+      {state === 'cooldown' && <span role="status">{t('verifyBanner.cooldown', { seconds: retryAfter })}</span>}
     </Alert>
   );
 }
