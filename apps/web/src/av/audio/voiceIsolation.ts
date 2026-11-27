@@ -93,18 +93,23 @@ interface DenoiseGraph {
 /** Message the gate worklet answers by returning `false` from `process()`. */
 const GATE_DISPOSE_MESSAGE = { type: 'dispose' } as const;
 
+/** Cutoff of the rumble highpass, in the gate worklet and in its fallback. */
+const HIGHPASS_HZ = 100;
+/** Q of the rumble highpass, in dB as BiquadFilterNode interprets it for 'highpass'. */
+const HIGHPASS_Q = 0.707;
+
 /**
- * Wires the denoise/limiter graph: source -> highpass -> rnnoise(gate) ->
- * limiter -> destination.
+ * Wires the denoise/limiter graph: source -> rnnoise(highpass + gate) ->
+ * limiter -> destination. The highpass runs inside the worklet, behind its
+ * non-finite sample guard: a native BiquadFilterNode in front of the gate
+ * would keep a single NaN or Infinity from the source in its recursive state
+ * and output NaN for good, muting the microphone.
  */
 function buildDenoiseGraph(audioContext: AudioContext, source: MediaStreamAudioSourceNode): DenoiseGraph {
-  const highpass = audioContext.createBiquadFilter();
-  highpass.type = 'highpass';
-  highpass.frequency.value = 100; // rumble/low HVAC entfernen
-  highpass.Q.value = 0.707;
-
   const rnnoise = new window.AudioWorkletNode(audioContext, 'rnnoise-processor');
   try {
+    rnnoise.parameters.get('highpassHz')?.setValueAtTime(HIGHPASS_HZ, audioContext.currentTime);
+    rnnoise.parameters.get('highpassQ')?.setValueAtTime(HIGHPASS_Q, audioContext.currentTime);
     rnnoise.parameters.get('threshold')?.setValueAtTime(-56, audioContext.currentTime);
     rnnoise.parameters.get('ratio')?.setValueAtTime(0.25, audioContext.currentTime);
     rnnoise.parameters.get('attackMs')?.setValueAtTime(10, audioContext.currentTime);
@@ -122,31 +127,27 @@ function buildDenoiseGraph(audioContext: AudioContext, source: MediaStreamAudioS
 
   const destination = audioContext.createMediaStreamDestination();
 
-  source.connect(highpass);
-  highpass.connect(rnnoise);
+  source.connect(rnnoise);
   rnnoise.connect(limiter);
   limiter.connect(destination);
-  const onProcessorError = bypassGateOnProcessorError(rnnoise, highpass, limiter);
+  const bypass = bypassGateOnProcessorError(audioContext, rnnoise, source, limiter);
 
-  return { destination, dispose: createGraphDisposer(rnnoise, onProcessorError, [source, highpass, limiter]) };
+  return { destination, dispose: createGraphDisposer(rnnoise, bypass, [source, limiter]) };
 }
 
 /** Idempotent teardown for one denoise graph; see {@link DenoiseGraph.dispose}. */
-function createGraphDisposer(
-  gate: AudioWorkletNode,
-  onProcessorError: (event: Event) => void,
-  nodes: AudioNode[],
-): () => void {
+function createGraphDisposer(gate: AudioWorkletNode, bypass: GateBypass, nodes: AudioNode[]): () => void {
   let disposed = false;
   return () => {
     if (disposed) return;
     disposed = true;
-    // A late processorerror of the old gate must not log a fallback for a
+    // A late processorerror of the old gate must not build a fallback for a
     // graph that is already gone.
-    gate.removeEventListener('processorerror', onProcessorError);
+    gate.removeEventListener('processorerror', bypass.onProcessorError);
     // disconnect() without arguments drops all outgoing connections and
-    // never throws, including the bypass edge highpass -> limiter.
+    // never throws, including the bypass edge source -> fallback highpass.
     for (const node of nodes) node.disconnect();
+    bypass.fallbackHighpass()?.disconnect();
     gate.disconnect();
     // process() keeps returning true while the node lives, so a disconnected
     // gate would keep running until the context closes; tell it to stop.
@@ -161,27 +162,49 @@ function processorErrorMessage(event: Event): string | undefined {
   return typeof message === 'string' ? message : undefined;
 }
 
+function createRumbleHighpass(audioContext: AudioContext): BiquadFilterNode {
+  const highpass = audioContext.createBiquadFilter();
+  highpass.type = 'highpass';
+  highpass.frequency.value = HIGHPASS_HZ;
+  highpass.Q.value = HIGHPASS_Q;
+  return highpass;
+}
+
+interface GateBypass {
+  /** The once-listener on the gate's `processorerror`. */
+  onProcessorError: (event: Event) => void;
+  /** The fallback highpass, once a processor error created it. */
+  fallbackHighpass: () => BiquadFilterNode | undefined;
+}
+
 /**
  * A worklet that throws (in its constructor or in `process()`) fires
  * `processorerror` once and outputs silence for the rest of its life, while
  * the published destination track stays live: the microphone goes silently
- * mute. Route around the gate instead, so the published track keeps carrying
- * the highpassed, limited raw signal. Both remaining nodes are native and
- * cannot fail this way; the published track and the LiveKit publication stay
- * untouched.
+ * mute. Route around the gate instead: source -> fallback highpass ->
+ * limiter -> destination. The fallback is a new native BiquadFilterNode with
+ * a fresh filter state and the worklet's highpass settings, so the published
+ * track keeps carrying the highpassed, limited raw signal. Both remaining
+ * nodes are native and cannot fail this way; the published track and the
+ * LiveKit publication stay untouched.
  */
 function bypassGateOnProcessorError(
+  audioContext: AudioContext,
   gate: AudioWorkletNode,
-  upstream: AudioNode,
-  downstream: AudioNode,
-): (event: Event) => void {
+  source: AudioNode,
+  limiter: AudioNode,
+): GateBypass {
+  let fallbackHighpass: BiquadFilterNode | undefined;
   const onProcessorError = (event: Event) => {
     // Restore the signal path first; a dead worklet only contributes silence
     // to the sum until it is disconnected below.
-    upstream.connect(downstream);
+    const highpass = createRumbleHighpass(audioContext);
+    fallbackHighpass = highpass;
+    source.connect(highpass);
+    highpass.connect(limiter);
     let detached = true;
     try {
-      upstream.disconnect(gate);
+      source.disconnect(gate);
       gate.disconnect();
     } catch {
       // Only throws if the gate was already detached; the bypass is live either way.
@@ -194,7 +217,7 @@ function bypassGateOnProcessorError(
     });
   };
   gate.addEventListener('processorerror', onProcessorError, { once: true });
-  return onProcessorError;
+  return { onProcessorError, fallbackHighpass: () => fallbackHighpass };
 }
 
 // `contentHint` is part of the MediaStreamTrack WebRTC spec but is still
