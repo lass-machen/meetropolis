@@ -179,7 +179,7 @@ services:
     restart: unless-stopped
 
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
     # --dev mode uses the configured LIVEKIT_KEYS with relaxed defaults; it is
     # fine for getting started, but production self-hosters who terminate
     # TLS in front of LiveKit should swap this for `--config /etc/livekit.yaml`

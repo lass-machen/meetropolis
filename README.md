@@ -50,7 +50,10 @@ docker compose -f compose.yaml -f compose.docker-desktop.yaml up -d
 ```
 
 Alternatively, add `COMPOSE_FILE=compose.yaml:compose.docker-desktop.yaml` to
-`.env` and use `docker compose up -d`. The overlay publishes only three ports,
+`.env` on macOS/Linux and use `docker compose up -d`. On Windows, the default
+separator is `;`: use `COMPOSE_FILE=compose.yaml;compose.docker-desktop.yaml`,
+or explicitly set `COMPOSE_PATH_SEPARATOR=:` for the colon form. Repeated `-f`
+flags work on all platforms. The overlay publishes only three ports,
 keeps TURN disabled and sets LiveKit's `NODE_IP` from `HOST_IP` (default
 `127.0.0.1`). It does not require Docker Desktop's optional host-network setting.
 
@@ -58,8 +61,10 @@ keeps TURN disabled and sets LiveKit's `NODE_IP` from `HOST_IP` (default
 to `LIVEKIT_URL=ws://host.docker.internal:7880`. The server maps that hostname
 to Docker's host gateway. Keep browser-facing `LIVEKIT_EXTERNAL_URL` and
 `VITE_LIVEKIT_URL` set to an address reachable by clients. Linux port changes
-now belong in `livekit.yaml`; `LIVEKIT_*_PORT` publication overrides apply only
-to the Desktop overlay.
+now belong in `livekit.yaml`. The Desktop overlay allows only
+`LIVEKIT_SIGNAL_PORT` to change the signal publication; RTC publications stay
+fixed at `7881/tcp` and `7882/udp` to match the listeners and ICE candidates.
+Those RTC host ports must be available; remapping them alone would break media.
 
 After startup:
 
@@ -169,9 +174,11 @@ npm run dev
 | PostgreSQL 16           | required for local dev without Docker                    |
 
 > **macOS / Windows + Docker Desktop note:** Chrome filters loopback ICE
-> candidates. With the Desktop overlay, set `HOST_IP` to the host's LAN IP
-> when testing from other devices, then recreate LiveKit with the same Compose
-> files. LiveKit reads `NODE_IP`; it does not read `LK_*` environment variables.
+> candidates. With the Desktop overlay, use the host's reachable LAN IPv4 as
+> `HOST_IP` for browser audio/video, including local browsers that filter
+> loopback. Recreate LiveKit with the same Compose files. The default `127.0.0.1`
+> supports an HTTP smoke test; verify real browser media separately. LiveKit
+> reads `NODE_IP`; it does not read `LK_*` environment variables.
 
 ## Repo structure
 

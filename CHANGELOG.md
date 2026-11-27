@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Docker Desktop overlay keeps RTC publications fixed at `7881/tcp` and `7882/udp` to match ICE; only `LIVEKIT_SIGNAL_PORT` is configurable. The self-hosted LiveKit image is pinned to the verified v1.13.11 digest.
+
 - **Breaking (self-hosting):** LiveKit now uses the Linux host network without Docker port publications. The server default `LIVEKIT_URL` is `ws://host.docker.internal:7880`; update existing environment files that use the former Compose service hostname. On macOS/Windows use `compose.docker-desktop.yaml` for bridge networking with three published ports and `HOST_IP` as `NODE_IP`. Configure production RTC/NAT settings in `livekit.yaml`; ineffective `LK_*` variables have been removed.
 
 - **Breaking (enterprise integration):** The tenant deletion callback in

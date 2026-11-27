@@ -42,6 +42,10 @@ function renderCompose(files, overrides = {}, extraFiles = {}) {
 test('Linux LiveKit uses host networking and the server reaches the host gateway', () => {
   const { livekit, server, migrate } = renderCompose(['compose.yaml']);
   assert.equal(livekit.network_mode, 'host');
+  assert.equal(
+    livekit.image,
+    'livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20',
+  );
   assert.equal(livekit.ports, undefined);
   assert.equal(livekit.networks, undefined);
   assert.deepEqual(livekit.command, ['--dev', '--bind', '0.0.0.0']);
@@ -98,6 +102,20 @@ test('Desktop preserves host IP, signal publication, internal URL and credential
     assert.equal(service.environment.LIVEKIT_API_KEY, 'override-test-key');
     assert.equal(service.environment.LIVEKIT_API_SECRET, 'override-test-secret-at-least-32-characters');
   }
+});
+
+test('Desktop media ports stay aligned with ICE even when legacy publish overrides are present', () => {
+  const { livekit } = renderCompose(['compose.yaml', 'compose.docker-desktop.yaml'], {
+    LIVEKIT_RTC_TCP_PORT: '17881',
+    LIVEKIT_RTC_UDP_PORT: '17882',
+  });
+  assert.deepEqual(
+    livekit.ports.filter(({ target }) => target !== 7880).map(({ target, published }) => [target, published]),
+    [
+      [7881, '7881'],
+      [7882, '7882'],
+    ],
+  );
 });
 
 test('a mounted rotation file replaces the environment mapping with two explicit string keys', () => {
