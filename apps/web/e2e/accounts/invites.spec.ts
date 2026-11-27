@@ -54,23 +54,16 @@ async function readBrowserMe(page: Page, apiUrl: string): Promise<{ tenantSlug: 
   }, apiUrl);
 }
 
+/**
+ * A fresh account outside the invited tenant, removed again by `dispose`. A seed owner of
+ * another tenant would stay a member after accepting, so the next browser project's
+ * invitation to the same address would meet 409 already_member.
+ */
 async function existingNonMemberAccount(
   stack: TestStackEnv,
   seed: SeedData,
-  tenant: TenantSeed,
   db: Client,
 ): Promise<{ email: string; password: string; dispose: () => Promise<void> }> {
-  const other = Object.values(seed.tenants).find(
-    (candidate) => candidate.slug !== tenant.slug && candidate.users.owner,
-  );
-  const secondOwner = other?.users.owner;
-  if (secondOwner) {
-    return {
-      email: secondOwner.email,
-      password: secondOwner.password ?? stack.userPassword,
-      dispose: () => Promise.resolve(),
-    };
-  }
   const fixture = mailProofFixture(db, seed, stack);
   try {
     const account = await fixture.account({ member: false });
@@ -157,7 +150,7 @@ test.describe('invitations end to end', () => {
     const tenant = getSeedTenant(seed);
     const { api: ownerApi, request: ownerRequest } = await loginOwner(playwright, stack, tenant);
     try {
-      const account = await existingNonMemberAccount(stack, seed, tenant, db);
+      const account = await existingNonMemberAccount(stack, seed, db);
       try {
         await ownerApi.invite(account.email, 'member');
         const mail = await mailpit.waitForMail({ to: account.email, linkPattern: /invite=/ });
