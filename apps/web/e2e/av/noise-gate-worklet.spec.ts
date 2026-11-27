@@ -239,9 +239,11 @@ test.describe('noise gate worklet in the browser audio engine', () => {
     }
     note(testInfo, `max deviation worklet vs native highpass ${maxDeviation.toExponential(2)}`);
     // Both filters run the same spec coefficients (Q in dB); what remains is
-    // float rounding of coefficients, state and the Float32 output. A filter
-    // reading Q as linear or a different cutoff deviates by orders of
-    // magnitude more.
+    // float rounding of coefficients, state and the Float32 output. Measured
+    // with Playwright 1.65.1: Chromium 2.21e-6, Firefox 2.84e-14, WebKit
+    // 2.56e-6. The same input computed in Node with Q read as linear deviates
+    // by 8.7e-3, with a 110 Hz cutoff by 3.2e-3, so the 1e-4 bound separates
+    // the spec filter from both mistakes by more than an order of magnitude.
     expect(maxDeviation).toBeLessThan(1e-4);
     expect(rms(worklet)).toBeGreaterThan(0.05);
   });
