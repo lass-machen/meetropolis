@@ -95,11 +95,10 @@ inconvenient.
 
 Current file-scoped overrides:
 
-| File                                                  | Reason                                                                                                                                          |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/web/src/av/core/SignalMonitor.ts`               | Reads private LiveKit fields (`room.engine.signalClient.ws`) to detect stale signaling connections. Public API lacks an equivalent.             |
-| `apps/web/src/lib/patchWebSocket.ts`                  | Monkey-patches `globalThis.WebSocket` to work around a WKWebView (Safari/Tauri) handshake bug.                                                  |
-| `apps/web/src/av/audio/worklets/rnnoise-processor.ts` | Runs inside `AudioWorkletGlobalScope`. Standard DOM lib is unavailable; `sampleRate` and `AudioWorkletProcessor` come from the worklet runtime. |
+| File                                    | Reason                                                                                                                              |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web/src/av/core/SignalMonitor.ts` | Reads private LiveKit fields (`room.engine.signalClient.ws`) to detect stale signaling connections. Public API lacks an equivalent. |
+| `apps/web/src/lib/patchWebSocket.ts`    | Monkey-patches `globalThis.WebSocket` to work around a WKWebView (Safari/Tauri) handshake bug.                                      |
 
 If you believe a new file needs to join this list, open a discussion. The
 default answer is no — try patterns 1, 2, or 3 first.

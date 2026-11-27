@@ -154,12 +154,6 @@ export default tseslint.config(
       // The constructor swap is intrinsically loose (returning a value via
       // `as any` is the documented pattern for this kind of polyfill).
       'apps/web/src/lib/patchWebSocket.ts',
-
-      // AudioWorklet processors run in AudioWorkletGlobalScope, not in the
-      // standard DOM lib. `sampleRate` and `AudioWorkletProcessor` come from
-      // the worklet runtime and require ambient `declare` plus `any`-shaped
-      // globals access.
-      'apps/web/src/av/audio/worklets/rnnoise-processor.ts',
     ],
     rules: {
       '@typescript-eslint/no-unsafe-member-access': 'off',
