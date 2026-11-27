@@ -80,7 +80,13 @@ function callState(page: Page) {
 test.describe('AV calls end with the tenant access', () => {
   test.skip(({ browserName }) => browserName !== 'chromium', 'bare LiveKit client checked in chromium');
 
-  test('removing a member puts them out of the tenant call at once', async ({ seed, stack, playwright, browser }) => {
+  test('removing a member puts them out of the tenant call at once', async ({
+    seed,
+    stack,
+    playwright,
+    browser,
+    loginAs,
+  }) => {
     const tenant = seed.tenants.acme ?? seed.tenants.default ?? Object.values(seed.tenants)[0];
     const owner = tenant?.users.owner;
     if (!tenant || !owner) throw new Error('Seed tenant with owner is missing.');
@@ -94,14 +100,27 @@ test.describe('AV calls end with the tenant access', () => {
     const { code } = await ownerApi.invite(email, 'member');
     const memberRequest = await createApiRequest(playwright.request, stack.apiUrl, tenant.slug);
     const memberApi = new MeetropolisApi(memberRequest, stack.apiUrl, tenant.slug);
-    const member = await memberApi.registerWithInvite({ code, email, name: 'Test Member', password });
+    const name = `Call member ${crypto.randomUUID().slice(0, 8)}`;
+    const member = await memberApi.registerWithInvite({ code, email, name, password });
 
     const livekitUrlResponse = await memberRequest.get(`${stack.apiUrl}/livekit/url`);
     expect(livekitUrlResponse.status()).toBe(200);
     const livekitUrl = ((await livekitUrlResponse.json()) as { url: string }).url;
 
+    // A media token belongs to a login session with a live world session
+    // (resolveAvWorldPresence in apps/server/src/api/routes/health.ts), so the
+    // member signs in to the app and the token is requested from that session.
+    // The call itself is still joined by the bare client below.
+    const { context: memberApp } = await loginAs({
+      userId: member.id,
+      email,
+      displayName: name,
+      password,
+      role: 'member',
+      tenantSlug: tenant.slug,
+    });
     const roomName = 'world';
-    const tokenResponse = await memberRequest.post(`${stack.apiUrl}/livekit/token`, {
+    const tokenResponse = await memberApp.request.post(`${stack.apiUrl}/livekit/token`, {
       data: { roomName, identity: member.id },
     });
     expect(tokenResponse.status()).toBe(200);
