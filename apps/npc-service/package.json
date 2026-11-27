@@ -14,8 +14,8 @@
   "dependencies": {
     "@meetropolis/shared": "*",
     "@colyseus/sdk": "^0.18.10",
-    "@livekit/rtc-node": "^1.2.2",
-    "livekit-server-sdk": "^2.20.0",
+    "@livekit/rtc-node": "^1.2.3",
+    "livekit-server-sdk": "^2.20.1",
     "express": "^5.3.0",
     "pino": "^10.4.0",
     "zod": "^4.6.6",
