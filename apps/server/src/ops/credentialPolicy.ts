@@ -39,6 +39,10 @@ function isUsableSecret(value: string | undefined, blocked: readonly string[]): 
   return !blocked.includes(trimmed);
 }
 
+function isUsableLivekitCredential(value: string | undefined, blocked: readonly string[]): boolean {
+  return value !== undefined && isUsableSecret(value, blocked) && !/["\\\r\n]/.test(value);
+}
+
 // Resolves the effective database password the driver would use: a password
 // carried by the url query takes precedence over the userinfo password, and
 // percent-encoding never bypasses the comparison. Returns null when no
@@ -77,10 +81,10 @@ export function findInvalidCredentialKeys(env: Record<string, string | undefined
     return [];
   }
   const invalid: string[] = [];
-  if (!isUsableSecret(env.LIVEKIT_API_KEY, [TEMPLATE_LIVEKIT_API_KEY])) {
+  if (!isUsableLivekitCredential(env.LIVEKIT_API_KEY, [TEMPLATE_LIVEKIT_API_KEY])) {
     invalid.push('LIVEKIT_API_KEY');
   }
-  if (!isUsableSecret(env.LIVEKIT_API_SECRET, [TEMPLATE_LIVEKIT_API_SECRET])) {
+  if (!isUsableLivekitCredential(env.LIVEKIT_API_SECRET, [TEMPLATE_LIVEKIT_API_SECRET])) {
     invalid.push('LIVEKIT_API_SECRET');
   }
   if (!isUsableDatabaseUrl(env.DATABASE_URL)) {

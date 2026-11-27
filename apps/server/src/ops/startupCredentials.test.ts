@@ -127,6 +127,22 @@ function fullyEncoded(value: string): string {
 
 describe('startup credentials', () => {
   describe('production mode', () => {
+    it.each(['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'])('production_rejects_unsafe_yaml_characters_in_%s', (key) => {
+      for (const character of ['"', '\\', '\r', '\n']) {
+        const env = validEnv(PRODUCTION);
+        env[key] = `synthetic${character}unsupported-value`;
+        expectRejected(startWithEnv(env), key);
+      }
+    });
+
+    it.each(['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'])('production_accepts_string_scalars_in_%s', (key) => {
+      for (const value of ['0123456789012345678901234567890123', '1.234567890123456789012345678901e30']) {
+        const env = validEnv(PRODUCTION);
+        env[key] = value;
+        expectStarted(startWithEnv(env));
+      }
+    });
+
     it('production_rejects_empty_LIVEKIT_API_KEY', () => {
       const variants: Array<string | undefined> = [undefined, '', '   '];
       for (const value of variants) {
