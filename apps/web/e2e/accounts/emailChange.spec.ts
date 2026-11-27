@@ -18,7 +18,7 @@ test('pending contract: an email change shows pending confirmation and keeps the
     const { page } = await loginAs(user);
     await openProfile(page);
     await page.locator('input[type="email"]').fill(target);
-    await page.getByRole('button', { name: /^(Mailwechsel anfordern|Änderungen speichern)$/ }).click();
+    await page.getByRole('button', { name: 'Mailwechsel anfordern', exact: true }).click();
     await confirmationLink(mailpit, target);
     await mailpit.waitForMail({ to: user.email, subject: 'Email change requested' });
     await expect(page.getByText(/Bestätigungslink an .* gesendet/)).toBeVisible();
