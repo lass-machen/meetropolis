@@ -28,14 +28,15 @@ rtc:
 
   # Resolve and advertise the server's public IPv4 in ICE candidates.
   # Required on cloud VMs where the container only sees a private NIC.
-  # Leave true unless you set `node_ip` explicitly.
+  # For a static node_ip, change this to false to disable STUN discovery.
   use_external_ip: true
   # Force IPv4 STUN on dual-stack hosts: TURN needs an IPv4 node address.
   require_ipv4: true
 
   # Static public IP override. Uncomment and set when the host has a
   # fixed public address that the autodetect cannot determine (for
-  # example on multi-homed bare metal).
+  # example on multi-homed bare metal). Set use_external_ip: false above
+  # and validate this as an IPv4 literal when TURN binds to 0.0.0.0.
   # node_ip: 203.0.113.42
 
 # Room defaults. Caps below are conservative for a 25-user OSS cap; raise
@@ -52,10 +53,10 @@ room:
 logging:
   level: info
 
-# Metrics exporter on the host network. Restrict :9090 with the
-# host firewall before enabling; this endpoint is unauthenticated.
-prometheus:
-  port: 9090
+# Optional metrics exporter, disabled here. Restrict :9090 with the host
+# firewall before uncommenting; this endpoint is unauthenticated.
+# prometheus:
+#   port: 9090
 
 # Built-in TURN/STUN relay. Enable when users sit behind symmetric NAT,
 # carrier-grade NAT or strict corporate firewalls that block UDP.
@@ -64,8 +65,8 @@ turn:
   enabled: false
   # Applies to both UDP and the TCP backend, not the signalling listener.
   bind_addresses: ['0.0.0.0']
-  # FQDN that resolves to this host. Used as the realm in TURN credentials
-  # and as the SNI when external_tls is true.
+  # Public TURN hostname for the advertised TLS endpoint and proxy SNI.
+  # LiveKit's TURN authentication realm is the fixed string "livekit".
   # domain: turn.example.com
   # Local plain TCP backend when external_tls is true. LiveKit advertises
   # TURN/TLS on public :443; terminate TLS at the proxy and forward to :5349.
