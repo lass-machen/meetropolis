@@ -2,6 +2,7 @@
 // The actual RNNoise processing is encapsulated in an AudioWorklet processor file.
 
 import type { AudioProcessorOptions, Track, TrackProcessor } from 'livekit-client';
+import { AVLogger } from '../AVLogger';
 import { VOICE_ISOLATION_PROCESSOR_NAME } from './captureTrack';
 
 /**
@@ -115,8 +116,50 @@ function buildDenoiseGraph(
   highpass.connect(rnnoise);
   rnnoise.connect(limiter);
   limiter.connect(destination);
+  bypassGateOnProcessorError(rnnoise, highpass, limiter);
 
   return destination;
+}
+
+// Chromium dispatches an ErrorEvent carrying the thrown message; the spec
+// only guarantees a plain Event.
+function processorErrorMessage(event: Event): string | undefined {
+  const message = (event as Partial<ErrorEvent>).message;
+  return typeof message === 'string' ? message : undefined;
+}
+
+/**
+ * A worklet that throws (in its constructor or in `process()`) fires
+ * `processorerror` once and outputs silence for the rest of its life, while
+ * the published destination track stays live: the microphone goes silently
+ * mute. Route around the gate instead, so the published track keeps carrying
+ * the highpassed, limited raw signal. Both remaining nodes are native and
+ * cannot fail this way; the published track and the LiveKit publication stay
+ * untouched.
+ */
+function bypassGateOnProcessorError(gate: AudioWorkletNode, upstream: AudioNode, downstream: AudioNode): void {
+  gate.addEventListener(
+    'processorerror',
+    (event: Event) => {
+      // Restore the signal path first; a dead worklet only contributes silence
+      // to the sum until it is disconnected below.
+      upstream.connect(downstream);
+      let detached = true;
+      try {
+        upstream.disconnect(gate);
+        gate.disconnect();
+      } catch {
+        // Only throws if the gate was already detached; the bypass is live either way.
+        detached = false;
+      }
+      AVLogger.warn('track.mic.voice_isolation_fallback', {
+        reason: 'processor_error',
+        detached,
+        message: processorErrorMessage(event),
+      });
+    },
+    { once: true },
+  );
 }
 
 // `contentHint` is part of the MediaStreamTrack WebRTC spec but is still

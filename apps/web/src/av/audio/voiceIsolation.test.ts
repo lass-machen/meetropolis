@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+vi.mock('../AVLogger', () => ({ AVLogger: { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn() } }));
+
+import { AVLogger } from '../AVLogger';
 import {
   VOICE_ISOLATION_INIT_TIMEOUT_MS,
   VOICE_ISOLATION_TIMEOUT,
@@ -18,9 +21,17 @@ describe('voiceIsolation (worklet chain)', () => {
   let createdContexts: { close: ReturnType<typeof vi.fn> }[] = [];
   let fakeWorklet: { addModule: ReturnType<typeof vi.fn> };
   let fakeDestinationTrack: any;
+  // Graph nodes created by the fakes, in creation order.
+  let gateNodes: any[] = [];
+  let highpassNodes: any[] = [];
+  let limiterNodes: any[] = [];
 
   beforeEach(() => {
     createdContexts = [];
+    gateNodes = [];
+    highpassNodes = [];
+    limiterNodes = [];
+    vi.mocked(AVLogger.warn).mockClear();
     // Stub AudioWorkletNode presence
     (global as any).window = (global as any).window || {};
     (global as any).window.AudioWorkletNode = function FakeNode(this: any, _ctx: any, _name: string) {
@@ -31,6 +42,12 @@ describe('voiceIsolation (worklet chain)', () => {
       this.parameters.set('releaseMs', { setValueAtTime: (_v: number) => {} });
       this.parameters.set('makeupGainDb', { setValueAtTime: (_v: number) => {} });
       this.connect = vi.fn();
+      this.disconnect = vi.fn();
+      this.listeners = new Map<string, { handler: (event: Event) => void; options: unknown }>();
+      this.addEventListener = vi.fn((type: string, handler: (event: Event) => void, options?: unknown) => {
+        this.listeners.set(type, { handler, options });
+      });
+      gateNodes.push(this);
     } as any;
 
     fakeWorklet = { addModule: vi.fn(async () => {}) };
@@ -45,26 +62,29 @@ describe('voiceIsolation (worklet chain)', () => {
       currentTime = 0;
       audioWorklet = fakeWorklet;
       createMediaStreamSource = vi.fn((_ms: MediaStream) => ({ connect: vi.fn() }) as any);
-      createBiquadFilter = vi.fn(
-        () =>
-          ({
-            type: 'highpass',
-            frequency: { value: 0 },
-            Q: { value: 0 },
-            connect: vi.fn(),
-          }) as any,
-      );
-      createDynamicsCompressor = vi.fn(
-        () =>
-          ({
-            threshold: { value: 0 },
-            knee: { value: 0 },
-            ratio: { value: 0 },
-            attack: { value: 0 },
-            release: { value: 0 },
-            connect: vi.fn(),
-          }) as any,
-      );
+      createBiquadFilter = vi.fn(() => {
+        const node = {
+          type: 'highpass',
+          frequency: { value: 0 },
+          Q: { value: 0 },
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+        };
+        highpassNodes.push(node);
+        return node as any;
+      });
+      createDynamicsCompressor = vi.fn(() => {
+        const node = {
+          threshold: { value: 0 },
+          knee: { value: 0 },
+          ratio: { value: 0 },
+          attack: { value: 0 },
+          release: { value: 0 },
+          connect: vi.fn(),
+        };
+        limiterNodes.push(node);
+        return node as any;
+      });
       createMediaStreamDestination = vi.fn(() => fakeDestination);
       close = vi.fn(async () => {});
       constructor() {
@@ -204,6 +224,65 @@ describe('voiceIsolation (worklet chain)', () => {
 
     expect(createdContexts[0].close).toHaveBeenCalledTimes(1);
     expect(fakeInputTrack.stop).not.toHaveBeenCalled();
+  });
+
+  describe('processorerror fallback', () => {
+    const makeInputTrack = (): any => ({
+      kind: 'audio',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      stop: vi.fn(),
+    });
+
+    it('listens once for processorerror and leaves the gate in the path until it fires', async () => {
+      await wrapTrackWithVoiceIsolation(makeInputTrack());
+
+      const [gate] = gateNodes;
+      const [highpass] = highpassNodes;
+      expect(gate.listeners.get('processorerror')?.options).toEqual({ once: true });
+      expect(highpass.connect).toHaveBeenCalledTimes(1);
+      expect(highpass.connect).toHaveBeenCalledWith(gate);
+      expect(AVLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('routes the signal around a crashed gate and logs the fallback', async () => {
+      const { processed } = await wrapTrackWithVoiceIsolation(makeInputTrack());
+      const [gate] = gateNodes;
+      const [highpass] = highpassNodes;
+      const [limiter] = limiterNodes;
+
+      gate.listeners.get('processorerror').handler(Object.assign(new Event('processorerror'), { message: 'boom' }));
+
+      // Highpass feeds the limiter directly; the published track is unchanged.
+      expect(highpass.connect).toHaveBeenLastCalledWith(limiter);
+      expect(highpass.disconnect).toHaveBeenCalledWith(gate);
+      expect(gate.disconnect).toHaveBeenCalledTimes(1);
+      expect(processed.stop).not.toHaveBeenCalled();
+      expect(AVLogger.warn).toHaveBeenCalledWith('track.mic.voice_isolation_fallback', {
+        reason: 'processor_error',
+        detached: true,
+        message: 'boom',
+      });
+    });
+
+    it('keeps the bypass when detaching the gate fails and reports it', async () => {
+      await wrapTrackWithVoiceIsolation(makeInputTrack());
+      const [gate] = gateNodes;
+      const [highpass] = highpassNodes;
+      const [limiter] = limiterNodes;
+      highpass.disconnect.mockImplementation(() => {
+        throw new Error('InvalidAccessError');
+      });
+
+      gate.listeners.get('processorerror').handler(new Event('processorerror'));
+
+      expect(highpass.connect).toHaveBeenLastCalledWith(limiter);
+      expect(AVLogger.warn).toHaveBeenCalledWith('track.mic.voice_isolation_fallback', {
+        reason: 'processor_error',
+        detached: false,
+        message: undefined,
+      });
+    });
   });
 
   describe('createVoiceIsolationProcessor', () => {
