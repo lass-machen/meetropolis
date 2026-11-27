@@ -40,7 +40,12 @@ function isUsableSecret(value: string | undefined, blocked: readonly string[]): 
 }
 
 function isUsableLivekitCredential(value: string | undefined, blocked: readonly string[]): boolean {
-  return value !== undefined && isUsableSecret(value, blocked) && !/["\\\r\n]/.test(value);
+  if (value === undefined || !isUsableSecret(value, blocked)) return false;
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x1f || code === 0x7f || character === '"' || character === '\\') return false;
+  }
+  return true;
 }
 
 // Resolves the effective database password the driver would use: a password

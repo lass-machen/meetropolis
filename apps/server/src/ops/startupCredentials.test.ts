@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { prepareCredentialCheckerDir } from '../testUtils/credentialCheckerDir.js';
+import { findInvalidCredentialKeys } from './credentialPolicy.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.resolve(HERE, '..', '..');
@@ -127,6 +128,20 @@ function fullyEncoded(value: string): string {
 
 describe('startup credentials', () => {
   describe('production mode', () => {
+    it.each(['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'])('production_rejects_all_ascii_controls_in_%s', (key) => {
+      for (const code of [...Array.from({ length: 32 }, (_, index) => index), 127]) {
+        const env = validEnv(PRODUCTION);
+        env[key] = `synthetic${String.fromCharCode(code)}unsupported-value`;
+        expect(findInvalidCredentialKeys(env)).toEqual([key]);
+      }
+    });
+
+    it.each(['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'])('production_rejects_bel_before_start_in_%s', (key) => {
+      const env = validEnv(PRODUCTION);
+      env[key] = `synthetic${String.fromCharCode(7)}unsupported-value`;
+      expectRejected(startWithEnv(env), key);
+    });
+
     it.each(['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'])('production_rejects_unsafe_yaml_characters_in_%s', (key) => {
       for (const character of ['"', '\\', '\r', '\n']) {
         const env = validEnv(PRODUCTION);
