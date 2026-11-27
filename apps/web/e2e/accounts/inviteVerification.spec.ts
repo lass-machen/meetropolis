@@ -1,6 +1,13 @@
 import { createApiRequest, MeetropolisApi } from '../support/api';
 import { test, expect } from '../fixtures';
-import { browserForTenant, confirmationLink, mailProofFixture, newEmail, signIn } from './mailProof.support';
+import {
+  browserForTenant,
+  confirmationLink,
+  mailProofFixture,
+  newEmail,
+  signIn,
+  storedInviteCode,
+} from './mailProof.support';
 
 test.use({ locale: 'de-DE', trace: 'off', screenshot: 'off', video: 'off' });
 
@@ -44,7 +51,9 @@ test('pending contract: a new registration stays outside the world until separat
       await mailPage.goto(verifyLink);
       await expect(mailPage.getByRole('heading', { name: 'Einladung bestätigt' })).toBeVisible();
       expect(await fixture.membershipCount(email)).toBe(1);
-      const used = await db.query('SELECT "usedAt" IS NOT NULL AS used FROM "Invite" WHERE "code"=$1', [invite.code]);
+      const used = await db.query('SELECT "usedAt" IS NOT NULL AS used FROM "Invite" WHERE "code"=$1', [
+        storedInviteCode(invite.code),
+      ]);
       expect(used.rows[0]?.used).toBe(true);
     } finally {
       await mailBrowser.close();
@@ -249,7 +258,7 @@ for (const action of ['expire', 'revoke']) {
           `UPDATE "EmailVerification" SET "expiresAt"=now()-interval '1 second' WHERE "userId" IN (SELECT "id" FROM "User" WHERE "email"=$1)`,
           [email],
         );
-      else await db.query('DELETE FROM "Invite" WHERE "code"=$1', [invite.code]);
+      else await db.query('DELETE FROM "Invite" WHERE "code"=$1', [storedInviteCode(invite.code)]);
       const page = await mailBrowser.newPage();
       await page.goto(link);
       await expect(
@@ -326,7 +335,9 @@ test('fixture contract: rejects wrong credentials before accepting an existing a
       }),
     ).rejects.toThrow('/auth/login: HTTP 401.');
     expect(await fixture.membershipCount(account.email)).toBe(0);
-    const unchanged = await db.query('SELECT "usedAt" IS NULL AS unused FROM "Invite" WHERE "code"=$1', [invite.code]);
+    const unchanged = await db.query('SELECT "usedAt" IS NULL AS unused FROM "Invite" WHERE "code"=$1', [
+      storedInviteCode(invite.code),
+    ]);
     expect(unchanged.rows[0]?.unused).toBe(true);
   } finally {
     await context.dispose();

@@ -10,6 +10,12 @@ import type { MailpitClient } from '../support/mailpit';
 export const newEmail = () => `fixture-account-${crypto.randomUUID()}@example.test`;
 const id = () => `c${crypto.randomBytes(12).toString('hex')}`;
 
+/**
+ * The value an invite code is stored as: the server keeps only its SHA-256 hex
+ * (apps/server/src/api/utils/inviteCode.ts), so a row is found by this, never by the raw code.
+ */
+export const storedInviteCode = (code: string) => crypto.createHash('sha256').update(code).digest('hex');
+
 /** Use real account records in the existing test database. */
 export function mailProofFixture(db: Client, seed: SeedData, stack: TestStackEnv) {
   const url = new URL(stack.databaseUrl);
