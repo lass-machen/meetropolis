@@ -27,7 +27,12 @@ function probeStartup(secret: string | undefined, nodeEnv: string): Promise<Star
     `import(${JSON.stringify(pathToFileURL(configPath).href)}).then(` +
     `() => console.log('config loaded'),` +
     `(error) => { console.error(error instanceof Error ? error.message : String(error)); process.exit(1); });`;
-  const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: nodeEnv };
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    NODE_ENV: nodeEnv,
+    LIVEKIT_API_KEY: 'startup-probe-key',
+    LIVEKIT_API_SECRET: 'startup-probe-secret-at-least-32-characters',
+  };
   if (secret === undefined) {
     delete env[secretKey];
   } else {
