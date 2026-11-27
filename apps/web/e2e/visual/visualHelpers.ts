@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { expect } from '@playwright/test';
 import type { Locator, Page, TestInfo } from '@playwright/test';
@@ -27,11 +27,13 @@ const MAX_DIFF_PIXEL_RATIO = 0.01;
  * Surfaces that draw themselves differently on every frame (world canvas,
  * video tiles, times, avatars and the roster line with the last-seen time of a
  * member who is not in the room) are hidden by this stylesheet, relative to the
- * suite root. Playwright paints a mask box above every other layer, so masking
+ * visual suite. Playwright paints a mask box above every other layer, so masking
  * the canvas also covered the HUD and the dialogs that sit on top of the world;
  * a hidden surface leaves everything above it visible.
  */
-const SNAPSHOT_STYLE = 'snapshot.css';
+// Resolved next to this module, so the suite finds it under the visual config
+// (rootDir e2e/visual) and under the root config (rootDir e2e) alike.
+export const SNAPSHOT_STYLE_PATH = fileURLToPath(new URL('./snapshot.css', import.meta.url));
 
 interface AxeBrowserApi {
   run: (context?: Document) => Promise<AxeResults>;
@@ -155,7 +157,7 @@ export function surfaceScreenshotOptions(): SurfaceScreenshotOptions {
     fullPage: true,
     maxDiffPixelRatio: MAX_DIFF_PIXEL_RATIO,
     mask: [],
-    stylePath: path.resolve(test.info().config.rootDir, SNAPSHOT_STYLE),
+    stylePath: SNAPSHOT_STYLE_PATH,
   };
 }
 

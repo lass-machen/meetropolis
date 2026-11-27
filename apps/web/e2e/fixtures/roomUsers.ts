@@ -18,6 +18,16 @@ function seedTenantRoles(n: number, roles?: Role[]): InviteRole[] {
 
 type BrowserTypes = { chromium: BrowserType; firefox: BrowserType; webkit: BrowserType };
 
+// Same media prefs as the firefox project in playwright.config.ts (keep both in
+// sync). The teststack announces LiveKit with node_ip 127.0.0.1, and Firefox
+// gathers no loopback ICE candidates unless media.peerconnection.ice.loopback
+// is set (Mozilla bugs 831926 and 1659672); without it ICE fails.
+const FIREFOX_MEDIA_PREFS = {
+  'media.navigator.streams.fake': true,
+  'media.navigator.permission.disabled': true,
+  'media.peerconnection.ice.loopback': true,
+};
+
 export async function provideRoomUsers(args: {
   browser: Browser;
   browserName: string;
@@ -38,12 +48,18 @@ export async function provideRoomUsers(args: {
         ? args.browserTypes.webkit
         : args.browserTypes.chromium;
 
-  const createRoomUser = async (user: TestUser, permission: MediaPermission, join: boolean): Promise<RoomUser> => {
-    const separateBrowser = permission !== 'granted';
+  const createRoomUser = async (
+    user: TestUser,
+    permission: MediaPermission,
+    join: boolean,
+    separateBrowsers: boolean,
+  ): Promise<RoomUser> => {
+    const separateBrowser = separateBrowsers || permission !== 'granted';
     let targetBrowser = args.browser;
     if (separateBrowser) {
       const launchOptions = {
         ...(args.browserName === 'chromium' ? { args: ['--use-fake-device-for-media-stream'] } : {}),
+        ...(args.browserName === 'firefox' ? { firefoxUserPrefs: FIREFOX_MEDIA_PREFS } : {}),
         ...(args.testInfo.project.name === 'chrome' ? { channel: 'chrome' as const } : {}),
       };
       targetBrowser = await browserType.launch(launchOptions);
@@ -53,7 +69,7 @@ export async function provideRoomUsers(args: {
     const context = await targetBrowser.newContext({
       baseURL: args.stack.baseUrl,
       extraHTTPHeaders: { 'x-tenant': user.tenantSlug },
-      ...(!separateBrowser && args.browserName !== 'firefox' ? { permissions: ['camera', 'microphone'] } : {}),
+      ...(permission === 'granted' && args.browserName !== 'firefox' ? { permissions: ['camera', 'microphone'] } : {}),
     });
     contexts.push(context);
     if (permission === 'denied' && args.browserName !== 'firefox') {
@@ -80,6 +96,7 @@ export async function provideRoomUsers(args: {
   try {
     await args.provide(async (n, options = {}) => {
       const join = options.join !== false;
+      const separateBrowsers = options.separateBrowsers === true;
       if (!options.tenant && args.stack.edition === 'oss') {
         args.testInfo.skip(true, 'freshTenant requires the enterprise edition (tenants)');
       }
@@ -109,11 +126,13 @@ export async function provideRoomUsers(args: {
 
       const roomUsers =
         options.joinOrder === 'parallel'
-          ? await Promise.all(users.map((user, index) => createRoomUser(user, permissions[index] ?? 'granted', join)))
+          ? await Promise.all(
+              users.map((user, index) => createRoomUser(user, permissions[index] ?? 'granted', join, separateBrowsers)),
+            )
           : [];
       if (options.joinOrder !== 'parallel') {
         for (const [index, user] of users.entries()) {
-          roomUsers.push(await createRoomUser(user, permissions[index] ?? 'granted', join));
+          roomUsers.push(await createRoomUser(user, permissions[index] ?? 'granted', join, separateBrowsers));
         }
       }
 

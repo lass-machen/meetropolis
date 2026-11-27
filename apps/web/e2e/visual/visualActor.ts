@@ -7,11 +7,10 @@ import type { Client } from 'pg';
 import { test as base } from '../fixtures';
 import type { TestStackEnv } from '../fixtures';
 import { passwordFor } from '../fixtures/helpers';
+import { createFreshTenant } from '../fixtures/tenant';
 import { createApiRequest, MeetropolisApi } from '../support/api';
 import type { TestUser } from '../support/api';
 import { provisionInvitedUser } from '../support/provisioning';
-
-import { guardOssVisualSuite } from './visualHelpers';
 
 /** Display name of the account every visual spec acts with. */
 export const VISUAL_ACTOR_NAME = 'Visuelles Testkonto';
@@ -53,9 +52,10 @@ export function visualActorEmail(testInfo: TestInfo): string {
 }
 
 /**
- * The account of one visual spec: a fresh member of the default tenant that
- * only this test owns. It replaces the seed owner as the actor on the screen,
- * so nothing a spec does can change the state of the seeded accounts.
+ * The account of one visual spec: a fresh member (OSS: of the default tenant,
+ * EE: of a fresh tenant) that only this test owns. It replaces the seed owner as
+ * the actor on the screen, so nothing a spec does can change the state of the
+ * seeded accounts.
  */
 export const test = base.extend<VisualActorOptions & VisualActorFixtures>({
   completeOnboarding: [true, { option: true }],
@@ -65,12 +65,20 @@ export const test = base.extend<VisualActorOptions & VisualActorFixtures>({
     provide,
     testInfo,
   ): Promise<void> => {
-    const tenantSlug = seed.operator.tenantSlug;
-    if (tenantSlug !== DEFAULT_TENANT_SLUG) {
+    // OSS: the default tenant, authorized by the seed operator as its owner.
+    // EE: the seed file has no default tenant entry, and the visual specs run
+    // in parallel there, so every actor gets a fresh tenant of its own
+    // (createFreshTenant): no other test's actor shows up in its roster, its
+    // member list or its world. That tenant's owner authorizes the invitation.
+    const freshTenant =
+      stack.edition === 'ee' ? await createFreshTenant(playwright.request, stack, testInfo.testId) : null;
+    const inviter = freshTenant ? freshTenant.users.owner : seed.operator;
+    const tenantSlug = inviter.tenantSlug;
+    if (!freshTenant && tenantSlug !== DEFAULT_TENANT_SLUG) {
       throw new Error(`The seed operator does not belong to the default tenant (${tenantSlug}).`);
     }
-    const tenantId = seed.tenants.default?.tenantId;
-    if (!tenantId) throw new Error('The seed file has no default tenant ID.');
+    const tenantId = freshTenant ? freshTenant.tenantId : seed.tenants.default?.tenantId;
+    if (!tenantId) throw new Error(`The seed file has no tenant ID for ${tenantSlug}.`);
 
     const email = visualActorEmail(testInfo);
     const password = stack.userPassword;
@@ -84,12 +92,12 @@ export const test = base.extend<VisualActorOptions & VisualActorFixtures>({
       await assertNamespaceFree(db, { email, tenantId });
       await assertTenantScope(db, { tenantId, tenantSlug });
 
-      // The seeded owner of the default tenant authorizes the invitation and
+      // The seeded owner of the actor's tenant authorizes the invitation and
       // nothing else: its session is revoked again below.
       const ownerApi = new MeetropolisApi(ownerRequest, stack.apiUrl, tenantSlug);
-      const owner = await ownerApi.login(seed.operator.email, passwordFor(seed.operator));
+      const owner = await ownerApi.login(inviter.email, passwordFor(inviter));
       if (owner.role !== 'owner' || owner.tenantSlug !== tenantSlug) {
-        throw new Error(`The seed operator is not an owner of the default tenant (${owner.role}).`);
+        throw new Error(`The seeded inviter is not an owner of ${tenantSlug} (${owner.role}).`);
       }
 
       // From here on the rows of this address can only be ours: the check
@@ -197,8 +205,6 @@ export const test = base.extend<VisualActorOptions & VisualActorFixtures>({
   },
 });
 
-guardOssVisualSuite(test);
-
 /**
  * The onboarding overlay covers the whole world, so the app specs close it
  * through the same endpoint the button uses. The payload stays empty: the
@@ -231,7 +237,7 @@ async function assertNamespaceFree(db: Client, scope: { email: string; tenantId:
   }
 }
 
-/** The scope of the cleanup: the default tenant of the seed, not another one. */
+/** The scope of the cleanup: the tenant of the visual actor, not another one. */
 async function assertTenantScope(db: Client, scope: { tenantId: string; tenantSlug: string }): Promise<void> {
   const rows = await db.query<{ id: string }>('SELECT "id" FROM "Tenant" WHERE "id" = $1 AND "slug" = $2', [
     scope.tenantId,

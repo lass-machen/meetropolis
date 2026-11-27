@@ -267,6 +267,7 @@ describe('copyMapToTenant — object fidelity', () => {
 
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      timeout: 60_000,
     });
     expect(tenancy.resolver).toHaveBeenCalledWith(
       tx,

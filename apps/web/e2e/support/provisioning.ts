@@ -1,4 +1,5 @@
 import type { APIRequest } from '@playwright/test';
+import { Client } from 'pg';
 
 import { createApiRequest, MeetropolisApi, type ApiMe, type InviteRole, type Role, type TestUser } from './api';
 
@@ -25,6 +26,31 @@ export function toTestUser(me: ApiMe, password?: string, guestUrl?: string): Tes
 export function assertTenantRole(me: ApiMe, tenantSlug: string, role: Role): void {
   if (me.tenantSlug !== tenantSlug || me.role !== role) {
     throw new Error(`Account ${me.email} does not have the expected role ${role} in ${tenantSlug}.`);
+  }
+}
+
+/**
+ * Drop the operator's helper membership in a freshly provisioned tenant.
+ *
+ * The admin API removal (DELETE /admin/tenants/:id/users/:userId) signs the
+ * removed user out everywhere, which would revoke the operator sessions that
+ * parallel workers are using at that moment. The operator only joined to issue
+ * the owner invite, so deleting exactly this row leaves the same end state
+ * without touching any session.
+ */
+async function removeOperatorMembership(tenantId: string, userId: string): Promise<void> {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) throw new Error('DATABASE_URL is not configured.');
+  const db = new Client({ connectionString });
+  await db.connect();
+  try {
+    const result = await db.query('DELETE FROM "Membership" WHERE "tenantId" = $1 AND "userId" = $2', [
+      tenantId,
+      userId,
+    ]);
+    if (result.rowCount !== 1) throw new Error('The operator membership in the provisioned tenant was not found.');
+  } finally {
+    await db.end();
   }
 }
 
@@ -111,7 +137,7 @@ export async function provisionTenantOwnerViaOperator(args: {
       )?.userId;
     }
     if (operatorUserId) {
-      await operatorApi.removeAdminTenantUser(tenantId, operatorUserId);
+      await removeOperatorMembership(tenantId, operatorUserId);
       operatorUserId = undefined;
     }
 
@@ -123,7 +149,7 @@ export async function provisionTenantOwnerViaOperator(args: {
       dispose: () => retainedOwnerRequest.dispose(),
     };
   } finally {
-    if (tenantId && operatorUserId) await operatorApi.removeAdminTenantUser(tenantId, operatorUserId);
+    if (tenantId && operatorUserId) await removeOperatorMembership(tenantId, operatorUserId);
     if (ownerRequest && !keepOwnerRequest) await ownerRequest.dispose();
     if (tenantOperatorRequest) await tenantOperatorRequest.dispose();
     await operatorRequest.dispose();

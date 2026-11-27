@@ -321,11 +321,6 @@ export class MeetropolisApi {
     await readJson(await this.request.patch(appendRoute(this.apiUrl, route), { data: { role } }), route);
   }
 
-  async removeAdminTenantUser(tenantId: string, userId: string): Promise<void> {
-    const route = `/admin/tenants/${encodeURIComponent(tenantId)}/users/${encodeURIComponent(userId)}`;
-    await readJson(await this.request.delete(appendRoute(this.apiUrl, route)), route);
-  }
-
   async setAdminTenantDefaultMap(tenantId: string, defaultMapName: string): Promise<void> {
     const route = `/admin/tenants/${encodeURIComponent(tenantId)}`;
     await readJson(await this.request.patch(appendRoute(this.apiUrl, route), { data: { defaultMapName } }), route);

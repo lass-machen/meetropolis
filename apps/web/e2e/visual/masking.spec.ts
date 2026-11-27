@@ -6,7 +6,7 @@ import type { ElementHandle, Locator, Page, TestInfo } from '@playwright/test';
 
 import { openMapEditor, openTenantSettings, openWorld, selectTenantSettingsTab } from './appVisualHelpers';
 import { test } from './visualActor';
-import { THEMES, prepareSurface, surfaceScreenshotOptions } from './visualHelpers';
+import { SNAPSHOT_STYLE_PATH, THEMES, prepareSurface, surfaceScreenshotOptions } from './visualHelpers';
 
 const MENU_BUTTON = 'button:has(svg.lucide-menu)';
 const EDITOR_WINDOW = 'div[style*="z-index: 35"]';
@@ -50,8 +50,8 @@ async function assertTargetUnchanged(target: Locator, box: Box): Promise<void> {
   expect(roundedBox(await target.boundingBox())).toEqual(roundedBox(box));
 }
 
-async function readSnapshotStyle(testInfo: TestInfo): Promise<string> {
-  return readFile(path.resolve(testInfo.config.rootDir, 'snapshot.css'), 'utf8');
+async function readSnapshotStyle(): Promise<string> {
+  return readFile(SNAPSHOT_STYLE_PATH, 'utf8');
 }
 
 /**
@@ -83,11 +83,10 @@ async function dynamicSurfaceCounts(style: ElementHandle<Node>): Promise<{ match
  */
 async function assertSnapshotStyleScope(
   page: Page,
-  testInfo: TestInfo,
   canvas: ElementHandle<SVGElement | HTMLElement>,
   kept: Locator[],
 ): Promise<void> {
-  const style = await page.addStyleTag({ content: await readSnapshotStyle(testInfo) });
+  const style = await page.addStyleTag({ content: await readSnapshotStyle() });
   try {
     for (const surface of kept) {
       await expect(surface).toBeVisible();
@@ -129,7 +128,7 @@ async function compareSurfaceWithReferenceStyle(
       caret: 'hide',
       fullPage: false,
       clip,
-      style: await readSnapshotStyle(testInfo),
+      style: await readSnapshotStyle(),
     });
 
     expect(await handleVisibility(canvas)).toBe('visible');
@@ -153,7 +152,7 @@ async function compareSurfaceWithReferenceStyle(
     }
     expect(identical).toBe(true);
 
-    await assertSnapshotStyleScope(page, testInfo, canvas, [target, ...kept]);
+    await assertSnapshotStyleScope(page, canvas, [target, ...kept]);
     expect(await handleVisibility(canvas)).toBe('visible');
   } finally {
     await canvas.dispose();

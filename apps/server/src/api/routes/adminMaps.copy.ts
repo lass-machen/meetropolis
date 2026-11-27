@@ -231,6 +231,15 @@ async function assertTargetPackAccess(
 }
 
 /**
+ * Limit of one copy transaction. The transaction waits for the source map lock
+ * of every earlier concurrent copy of the same source, so it must cover the
+ * queue, not only its own work. The Prisma default of 5 s failed a second
+ * concurrent copy with HTTP 500 while single template copies took up to 4.6 s
+ * under load (e2e gate, 27.11.2026); 60 s leaves room for about ten queued copies.
+ */
+const COPY_TRANSACTION_TIMEOUT_MS = 60_000;
+
+/**
  * Deep-copy a map (with all tilesets, layers, chunks, objects, rooms, zones)
  * to a target tenant. Resolves name collisions by appending `-2`, `-3`, etc.
  */
@@ -303,7 +312,7 @@ export async function copyMapToTenant(
 
           return { id: newMap.id, name: newMap.name };
         },
-        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: COPY_TRANSACTION_TIMEOUT_MS },
       );
     } catch (error: unknown) {
       if (!(error instanceof SourcePackSetChangedError) || attempt === attempts - 1) throw error;
