@@ -1,5 +1,6 @@
 import { Room, ServerError, type Client, type AuthContext } from '@colyseus/core';
 import { Schema, type, view, MapSchema } from '@colyseus/schema';
+import { JOIN_SEED_READY_MESSAGE } from '@meetropolis/shared';
 import { logger } from '../logger.js';
 import { colyseusRooms } from '../metrics.js';
 import type { PrismaClient } from '../generated/prisma/index.js';
@@ -30,6 +31,7 @@ import { AUTH_REJECTED_CODE, isWorldAuth, type WorldAuth } from './lifecycle/onA
 import { authenticateWorldMatchmake } from './lifecycle/worldMatchmakeAuth.js';
 import { enforceRoomPartition } from './lifecycle/roomPartition.js';
 import { watchTranscriptionGate } from './lifecycle/transcriptionGateWatcher.js';
+import { markJoinSeedReady } from './lifecycle/joinSeed.js';
 
 export interface RoomOptions {
   tenant?: string;
@@ -59,6 +61,9 @@ export interface RoomOptions {
   // MIN_ASSET_PROTOCOL_VERSION in onAuth.ts once MEMBER_ASSETS_ENFORCE is on.
   // Absent/too-low on a desktop origin is treated as too old.
   assetProtocol?: number;
+  // Join-seed handshake: client announces it can receive one-shot join
+  // messages after signalling ready (see rooms/lifecycle/joinSeed.ts).
+  joinSeedProtocol?: number;
 }
 
 interface RoomMetadata {
@@ -182,6 +187,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     // Player movement + heartbeat
     this.onMessage('move', createMoveHandler(this));
     this.onMessage('heartbeat', (client) => handleHeartbeat(this, client));
+    this.onMessage(JOIN_SEED_READY_MESSAGE, (client) => markJoinSeedReady(client));
 
     // Editor updates (live geometry/zone changes)
     this.onMessage('editor_update', (client, data: { type: string; [key: string]: unknown }) =>
