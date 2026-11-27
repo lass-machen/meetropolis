@@ -15,7 +15,15 @@ const devices = [
 
 for (const device of devices) {
   test(`Denied ${device.name} access explains the failure and leaves capture off`, async ({ roomUsers }) => {
-    const [{ page }] = await roomUsers(1, { permissions: ['denied'] });
+    const [{ page, user }] = await roomUsers(1, { permissions: ['denied'] });
+
+    // A fresh user sees the onboarding wizard over the room on first sign-in;
+    // it intercepts clicks on the AV bar. Complete it with "Get started"
+    // (onboarding.cta), as smoke/av-state.spec.ts does.
+    const welcome = page.getByRole('heading', { name: `Welcome, ${user.displayName}!` });
+    await expect(welcome).toBeVisible();
+    await page.getByRole('button', { name: 'Get started', exact: true }).click();
+    await welcome.waitFor({ state: 'detached' });
 
     // DeviceSelector currently exposes the device through its icon. In
     // particular, the camera toggle has no accessible name yet.
