@@ -99,35 +99,37 @@ function runSine(amplitude: number, quanta: number): number {
   return ratio;
 }
 
+interface DcOptions {
+  channels?: number;
+  parameters?: Record<string, Float32Array>;
+  /** Frames per render quantum; the Web Audio default is 128. */
+  quantum?: number;
+}
+
 /**
- * Feeds `quanta` quanta of constant `level` on `channels` identical channels
- * and returns the gain of every sample of channel 0.
+ * Feeds `quanta` quanta of constant `level` on identical channels and returns
+ * the gain of every sample of channel 0.
  */
-function runDc(
-  processor: ProcessorInstance,
-  level: number,
-  quanta: number,
-  channels = 1,
-  parameters = voiceIsolationParameters(),
-): number[] {
+function runDc(processor: ProcessorInstance, level: number, quanta: number, options: DcOptions = {}): number[] {
+  const { channels = 1, parameters = voiceIsolationParameters(), quantum = QUANTUM } = options;
   const gains: number[] = [];
   for (let q = 0; q < quanta; q++) {
-    const inputs = Array.from({ length: channels }, () => new Float32Array(QUANTUM).fill(level));
-    const outputs = Array.from({ length: channels }, () => new Float32Array(QUANTUM));
+    const inputs = Array.from({ length: channels }, () => new Float32Array(quantum).fill(level));
+    const outputs = Array.from({ length: channels }, () => new Float32Array(quantum));
     expect(processor.process([inputs], [outputs], parameters)).toBe(true);
     for (const s of outputs[0]) gains.push(s / level);
   }
   return gains;
 }
 
-/**
- * Time constant in ms: time until the gain covered 1 - 1/e (63.2 %) of the
- * step from `start` to `target`, linearly interpolated between samples.
- */
 function last(values: number[]): number {
   return values[values.length - 1] ?? Number.NaN;
 }
 
+/**
+ * Time constant in ms: time until the gain covered 1 - 1/e (63.2 %) of the
+ * step from `start` to `target`, linearly interpolated between samples.
+ */
 function measuredTimeConstantMs(gains: number[], start: number, target: number): number {
   const mark = target + (start - target) / Math.E;
   const rising = target > start;
@@ -183,9 +185,12 @@ describe('rnnoise-processor worklet (noise gate)', () => {
 
   it('opens with the configured attack time constant (10 ms)', () => {
     const processor = new (loadProcessor())();
-    runDc(processor, QUIET, SETTLE_QUANTA);
+    // Measure from the state the closed gate actually reached, not from the
+    // ideal target it approaches asymptotically.
+    const closed = last(runDc(processor, QUIET, SETTLE_QUANTA));
+    expect(closed).toBeCloseTo(QUIET_TARGET, 4);
     const gains = runDc(processor, LOUD, SETTLE_QUANTA);
-    const tau = measuredTimeConstantMs(gains, QUIET_TARGET, 1);
+    const tau = measuredTimeConstantMs(gains, closed, 1);
     expect(tau).toBeGreaterThan(VOICE_ISOLATION.attackMs * 0.99);
     expect(tau).toBeLessThan(VOICE_ISOLATION.attackMs * 1.01);
     expect(last(gains)).toBeCloseTo(1, 6);
@@ -205,31 +210,21 @@ describe('rnnoise-processor worklet (noise gate)', () => {
   });
 
   it('keeps the time constants independent of the channel count', () => {
-    const mono = runDc(new (loadProcessor())(), QUIET, 60, 1);
-    const stereo = runDc(new (loadProcessor())(), QUIET, 60, 2);
+    const mono = runDc(new (loadProcessor())(), QUIET, 60, { channels: 1 });
+    const stereo = runDc(new (loadProcessor())(), QUIET, 60, { channels: 2 });
     expect(stereo).toEqual(mono);
   });
 
-  it('applies one linked gain to every channel, driven by the loudest one', () => {
+  it.each([64, 256, 512])('keeps both time constants at a render quantum of %i frames', (quantum) => {
+    // Chromium can run a context with a non-default render quantum size; the
+    // smoother must not depend on it.
     const processor = new (loadProcessor())();
-    const parameters = voiceIsolationParameters();
-    let left = new Float32Array(QUANTUM);
-    let right = new Float32Array(QUANTUM);
-    for (let q = 0; q < SETTLE_QUANTA; q++) {
-      left = new Float32Array(QUANTUM);
-      right = new Float32Array(QUANTUM);
-      processor.process(
-        [[new Float32Array(QUANTUM).fill(LOUD), new Float32Array(QUANTUM).fill(QUIET)]],
-        [[left, right]],
-        parameters,
-      );
-    }
-    // A loud left channel holds the gate open for the quiet right channel too:
-    // both carry the same gain, so the stereo image does not shift.
-    for (let i = 0; i < QUANTUM; i++) {
-      expect(left[i] / LOUD).toBeCloseTo(1, 6);
-      expect(right[i] / QUIET).toBeCloseTo(left[i] / LOUD, 6);
-    }
+    const quanta = Math.ceil(SAMPLE_RATE / quantum);
+    const release = runDc(processor, QUIET, quanta, { quantum });
+    const closed = last(release);
+    const attack = runDc(processor, LOUD, quanta, { quantum });
+    expect(measuredTimeConstantMs(release, 1, QUIET_TARGET)).toBeCloseTo(VOICE_ISOLATION.releaseMs, 0);
+    expect(measuredTimeConstantMs(attack, closed, 1)).toBeCloseTo(VOICE_ISOLATION.attackMs, 1);
   });
 
   it('falls back to the descriptor defaults when parameter arrays are missing', () => {
@@ -237,8 +232,8 @@ describe('rnnoise-processor worklet (noise gate)', () => {
     const defaults = Object.fromEntries(
       Processor.parameterDescriptors.map((d) => [d.name, Float32Array.of(d.defaultValue)]),
     );
-    const explicit = runDc(new Processor(), QUIET, 40, 1, defaults);
-    const missing = runDc(new Processor(), QUIET, 40, 1, {});
+    const explicit = runDc(new Processor(), QUIET, 40, { parameters: defaults });
+    const missing = runDc(new Processor(), QUIET, 40, { parameters: {} });
     // Float32 parameter arrays round the defaults (0.2), hence no exact match.
     const deviation = Math.max(...missing.map((g, i) => Math.abs(g - (explicit[i] ?? Number.NaN))));
     expect(deviation).toBeLessThan(1e-6);

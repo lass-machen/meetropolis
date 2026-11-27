@@ -226,6 +226,9 @@ describe('voiceIsolation (worklet chain)', () => {
     expect(fakeInputTrack.stop).not.toHaveBeenCalled();
   });
 
+  const lastCallOrder = (fn: ReturnType<typeof vi.fn>): number =>
+    fn.mock.invocationCallOrder[fn.mock.invocationCallOrder.length - 1] ?? Number.NaN;
+
   describe('processorerror fallback', () => {
     const makeInputTrack = (): any => ({
       kind: 'audio',
@@ -256,6 +259,9 @@ describe('voiceIsolation (worklet chain)', () => {
       // Highpass feeds the limiter directly; the published track is unchanged.
       expect(highpass.connect).toHaveBeenLastCalledWith(limiter);
       expect(highpass.disconnect).toHaveBeenCalledWith(gate);
+      // The bypass is connected before the gate is detached, so the signal
+      // path is never interrupted.
+      expect(lastCallOrder(highpass.connect)).toBeLessThan(lastCallOrder(highpass.disconnect));
       expect(gate.disconnect).toHaveBeenCalledTimes(1);
       expect(processed.stop).not.toHaveBeenCalled();
       expect(AVLogger.warn).toHaveBeenCalledWith('track.mic.voice_isolation_fallback', {
@@ -277,6 +283,7 @@ describe('voiceIsolation (worklet chain)', () => {
       gate.listeners.get('processorerror').handler(new Event('processorerror'));
 
       expect(highpass.connect).toHaveBeenLastCalledWith(limiter);
+      expect(lastCallOrder(highpass.connect)).toBeLessThan(lastCallOrder(highpass.disconnect));
       expect(AVLogger.warn).toHaveBeenCalledWith('track.mic.voice_isolation_fallback', {
         reason: 'processor_error',
         detached: false,
