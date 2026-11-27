@@ -183,6 +183,28 @@ test.describe('AV calls end with the tenant access', () => {
       await context.setOffline(true);
       await page.waitForTimeout(5_000);
       await context.setOffline(false);
+      // Playwright 1.65.1 (project chrome) delivers the page's `online` event
+      // before the page can fetch again: in the trace, livekit-client's online
+      // probe (a HEAD to the LiveKit URL) started within about 1 ms after
+      // setOffline(false) returned and still failed as disconnected, so the
+      // client never reconnected. Wait until the page reaches LiveKit, then
+      // deliver the one `online` event a real network change would bring.
+      const livekitHttpUrl = livekitUrl.replace(/^ws(s?):\/\//, 'http$1://');
+      await expect
+        .poll(() =>
+          page.evaluate(
+            (url) =>
+              fetch(url, { method: 'HEAD' }).then(
+                (response) => response.ok,
+                () => false,
+              ),
+            livekitHttpUrl,
+          ),
+        )
+        .toBe(true);
+      await page.evaluate(() => {
+        window.dispatchEvent(new Event('online'));
+      });
       await expect
         .poll(async () => callState(page), { timeout: 60_000 })
         .toEqual({

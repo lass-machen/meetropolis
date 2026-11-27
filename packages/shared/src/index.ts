@@ -6,6 +6,7 @@ export * from './autotile.js';
 export * from './geom.js';
 export * from './zoneLock.js';
 export * from './zonePrivacy.js';
+export * from './joinSeed.js';
 export * from './assetProtocol.js';
 export * from './sprite/index.js';
 export * from './displayName.js';

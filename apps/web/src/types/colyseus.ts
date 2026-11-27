@@ -221,6 +221,8 @@ export interface JoinWorldOptions {
   // apps/server/src/rooms/lifecycle/onAuth.ts for the server-side gate.
   zonePrivacyVersion?: number;
   assetProtocol?: number; // compatibility marker, not a credential
+  // Join-seed handshake: see packages/shared/src/joinSeed.ts.
+  joinSeedProtocol?: number;
 }
 
 // Helper type for player data

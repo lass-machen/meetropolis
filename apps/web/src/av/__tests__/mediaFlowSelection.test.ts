@@ -64,6 +64,22 @@ describe('selectOutbound two-snapshot growth', () => {
     expect(key).toBe(bindingKey(smallAfter));
   });
 
+  it('picks the lowest growing simulcast layer, which dynacast keeps on', () => {
+    const highBefore = row({ statsId: 'outbound-rtp-f', ssrc: 1, bytesSent: 15000 });
+    const midBefore = row({ statsId: 'outbound-rtp-h', ssrc: 3, bytesSent: 20000 });
+    const lowBefore = row({ statsId: 'outbound-rtp-q', ssrc: 2, bytesSent: 6000 });
+    const highAfter = row({ statsId: 'outbound-rtp-f', ssrc: 1, bytesSent: 95000 });
+    const midAfter = row({ statsId: 'outbound-rtp-h', ssrc: 3, bytesSent: 60000 });
+    const lowAfter = row({ statsId: 'outbound-rtp-q', ssrc: 2, bytesSent: 16000 });
+    const key = selectOutbound(
+      single('pc-0', [highBefore, midBefore, lowBefore]),
+      single('pc-0', [highAfter, midAfter, lowAfter]),
+      'video',
+      track,
+    );
+    expect(key).toBe(bindingKey(lowAfter));
+  });
+
   it('keeps the own growing row when a foreign row grows faster', () => {
     const ownBefore = row({ bytesSent: 300 });
     const ownAfter = row({ bytesSent: 360 });

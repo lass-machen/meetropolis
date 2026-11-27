@@ -1,4 +1,5 @@
 import React from 'react';
+import { JOIN_SEED_READY_MESSAGE } from '@meetropolis/shared';
 import { logger } from '../lib/logger';
 import type { UseWorldRoomArgs, ConnectionRefs } from './types';
 import type { ApiPresence } from '../features/participants/presence';
@@ -111,7 +112,8 @@ type SetupRoomHandlersArgs = {
   attemptConnect: () => Promise<void>;
 };
 
-function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
+// Exported for tests.
+export function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
   const {
     room,
     scope,
@@ -202,6 +204,13 @@ function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
   setupPresenceHandlers(room, args, recentPresenceRef);
   setupZoneLockHandlers(room);
   setupAudioZonePermissionsHandler(room, args);
+
+  // All one-shot handlers are registered; ask the server for the join seed exactly once.
+  try {
+    room.send(JOIN_SEED_READY_MESSAGE);
+  } catch (e) {
+    logger.debug('[useWorldRoom] Failed to send join_seed_ready', e);
+  }
 
   forceInitialPlayerSync({ room, args, scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes });
 

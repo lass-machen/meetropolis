@@ -468,8 +468,15 @@ export function findBinding(snapshot: MediaFlowSnapshot, key: string): MediaFlow
 // H1: the key is chosen from TWO consecutive snapshots. A row qualifies
 // only with the same full bindingKey in both snapshots, native stats
 // identity, and a finite non-negative counter where current exceeds
-// previous; the largest delta wins, so a small growing layer beats a
-// large paused one. No sums across ssrcs or tracks.
+// previous, so a small growing layer beats a large paused one. No sums
+// across ssrcs or tracks. Among qualifying rows the largest delta wins,
+// except for outbound video: a simulcast sender has one row per layer,
+// and dynacast pauses every layer above the quality its subscribers ask
+// for, so the smallest growing delta (the lowest layer, which stays on
+// while anyone subscribes) wins there. Source for the LiveKit server of
+// the test stack (v1.13.11): pkg/rtc/dynacast/dynacastmanagervideo.go
+// enables a layer as `q <= maxSubscribedQuality` and applies downgrades
+// after a pause delay, so a higher layer can stop after the key is chosen.
 function selectGrownKey(
   previous: MediaFlowSnapshot,
   current: MediaFlowSnapshot,
@@ -486,6 +493,7 @@ function selectGrownKey(
   }
   const usable = (value: number | null): value is number => value !== null && Number.isFinite(value) && value >= 0;
   let identityGap = false;
+  const preferSmallest = direction === 'outbound' && kind === 'video';
   let winner: MediaFlowBinding | null = null;
   let bestDelta = 0;
   for (const row of current.peers.flatMap((peer) => peer.bindings)) {
@@ -503,7 +511,7 @@ function selectGrownKey(
     if (!usable(oldBytes) || !usable(nowBytes)) continue;
     if (nowBytes <= oldBytes) continue;
     const delta = nowBytes - oldBytes;
-    if (delta <= bestDelta) continue;
+    if (winner !== null && (preferSmallest ? delta >= bestDelta : delta <= bestDelta)) continue;
     bestDelta = delta;
     winner = row;
   }

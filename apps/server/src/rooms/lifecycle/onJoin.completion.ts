@@ -16,14 +16,7 @@ import { warmZoneCatalog, trackMove } from '../audioZones/runtime.js';
 import { resolveFallbackTenantId, resolveJoinAppearance } from './onJoin.avatar.js';
 import { clientStringForLog } from './logSafe.js';
 import { clampJoinText, joinDirection } from './joinFields.js';
-
-// Wait until the client's onMessage handlers are likely registered before
-// sending one-shot messages. Colyseus 0.17 resolves joinOrCreate faster than
-// 0.15, which exposed a pre-existing race: the server raced the client's
-// setupPlayerHandlers() and triggered "@colyseus/sdk: onMessage() not
-// registered for type 'full_state'/'bubble_state'/'presence_recent'" warnings,
-// so the client never received the initial state and the roster stayed empty.
-const HANDLER_REGISTRATION_DELAY_MS = 200;
+import { deliverJoinSeed, openJoinSeed } from './joinSeed.js';
 
 // Namespaced placeholder mapId for the (rare) case where no real map can be
 // resolved for the tenant (transient DB error, or a tenant with zero maps).
@@ -232,7 +225,7 @@ async function seedPresenceRecent(
       };
     });
 
-    setTimeout(() => {
+    deliverJoinSeed(client, () => {
       try {
         // The join may have been revoked after the player list was read;
         // only a still-joined session sees other members' contact details.
@@ -241,7 +234,7 @@ async function seedPresenceRecent(
       } catch (e) {
         logger.debug('[WorldRoom] Failed to send presence_recent', e);
       }
-    }, HANDLER_REGISTRATION_DELAY_MS);
+    });
   } catch (e) {
     try {
       logger.debug('[WorldRoom] presence_recent seed failed', e);
@@ -304,13 +297,13 @@ function pickInitialPosition(room: WorldRoom, options: RoomOptions, initialMapId
 }
 
 // Send full_state + bubble_state + zone_lock_state to the joining client
-// after a small delay so the client can register its handlers first. The
-// player list is scoped to the client's own verified tenant (mirroring the
-// StateView schema filter on WorldState.players), so this manual message cannot
-// leak another tenant's players (identity/name/positions) in a shared room.
+// once the client signals ready, or after the legacy delay. The player list
+// is scoped to the client's own verified tenant (mirroring the StateView
+// schema filter on WorldState.players), so this manual message cannot leak
+// another tenant's players (identity/name/positions) in a shared room.
 function scheduleFullStateSend(room: WorldRoom, client: Client): void {
   const viewerKey = tenantKeyForClient(client);
-  setTimeout(() => {
+  deliverJoinSeed(client, () => {
     try {
       // The join may have been revoked while the delayed send was pending;
       // only a still-joined session receives the world state.
@@ -346,7 +339,7 @@ function scheduleFullStateSend(room: WorldRoom, client: Client): void {
     } catch (e) {
       logger.debug('[WorldRoom] Failed to send full_state/bubble_state to client', e);
     }
-  }, HANDLER_REGISTRATION_DELAY_MS);
+  });
 }
 
 // completePendingJoin: actually create the player, broadcast, and seed
@@ -457,6 +450,7 @@ export async function completePendingJoin(
     logger.debug('[WorldRoom] - Player', id, 'identity:', clientStringForLog(p.identity), 'at', p.x, p.y);
   });
 
+  openJoinSeed(client, options);
   scheduleFullStateSend(room, client);
 
   // Broadcast new player to other clients on the same map
