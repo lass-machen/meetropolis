@@ -14,7 +14,18 @@ const devices = [
 ];
 
 for (const device of devices) {
-  test(`Denied ${device.name} access explains the failure and leaves capture off`, async ({ roomUsers }) => {
+  test(`Denied ${device.name} access explains the failure and leaves capture off`, async ({
+    roomUsers,
+    browserName,
+  }) => {
+    // Playwright cannot deny camera or microphone access in Firefox: its
+    // Firefox grantPermissions knows neither permission (playwright-core
+    // src/server/firefox/ffBrowser.ts, doGrantPermissions), the firefox project
+    // turns the permission prompt off (media.navigator.permission.disabled), and
+    // fixtures/roomUsers.ts leaves Firefox out of every grant and denial for that
+    // reason. The denied state cannot be produced there; the other browsers keep
+    // the case.
+    test.skip(browserName === 'firefox', 'Playwright cannot deny media permissions in Firefox');
     const [{ page, user }] = await roomUsers(1, { permissions: ['denied'] });
 
     // A fresh user sees the onboarding wizard over the room on first sign-in;
