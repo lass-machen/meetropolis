@@ -125,6 +125,59 @@ expected to put your own (Traefik, Caddy, nginx, etc.) in front of the
 server and web containers for production. See `## Production deployment`
 below for the minimum env surface.
 
+### Verify a two-browser call
+
+`HOST_IP` is the media address advertised in ICE candidates. It is separate
+from the frontend URL and does not provide a secure browser context. Camera
+and microphone access require a secure context:
+
+- A browser on the Docker host can open `http://localhost:5173`.
+- Browsers on other devices need an HTTPS frontend origin. A plain HTTP LAN
+  URL such as `http://<host-LAN-IP>:5173` is insufficient for camera/microphone
+  access, even with the correct `HOST_IP`.
+
+For external browsers, terminate TLS at your reverse proxy and configure
+matching public URLs and allowed origins, for example:
+
+```env
+PUBLIC_BASE_URL=https://meet.example.com
+PUBLIC_BASE_URL_ALLOW_LOOPBACK=false
+VITE_API_BASE=https://api.example.com
+VITE_LIVEKIT_URL=wss://livekit.example.com
+LIVEKIT_EXTERNAL_URL=wss://livekit.example.com
+CORS_ORIGIN=https://meet.example.com,tauri://localhost,http://tauri.localhost
+```
+
+Rebuild the web image after changing `VITE_*`, and recreate the server after
+changing its environment. Keep the HTTPS frontend origin in `CORS_ORIGIN`.
+Apply the remaining [production settings](#production-deployment) as well.
+For local invitation links, use `PUBLIC_BASE_URL=http://localhost:5173` with
+`PUBLIC_BASE_URL_ALLOW_LOOPBACK=true` as described above.
+
+A call needs **two different accounts** in the same office. Use separate
+browser profiles, such as a normal and a private window, to keep their login
+cookies separate. Joining twice with the same account replaces its earlier
+world session and does not create a second participant.
+
+1. Choose how to confirm the second account. With a mail provider, use email
+   verification. Without a mail provider, set `MANUAL_ACCOUNT_CONFIRMATION=true`
+   and recreate the server before registration; see
+   [manual account confirmation](#manual-account-confirmation).
+2. Sign in with the configured seed administrator and invite a second email
+   address to the same office. Share the invitation link and register a new
+   account with that invited address in the other browser profile.
+3. Complete email verification, or have the super admin confirm the pending
+   account in the admin overlay. The OSS API also provides
+   `GET /admin/pending-confirmations` and `POST /admin/users/:id/confirm-email`.
+   Until confirmation, the pending account cannot enter the office.
+4. Sign in with one account per browser profile, enter the same map and bring
+   the avatars together. Allow camera/microphone permissions, enable the
+   desired devices and confirm that each participant receives the other's
+   audio/video.
+
+Guest magic links require Enterprise and are not an alternative second-account
+path in a pure OSS installation.
+
 ### Local development overrides
 
 The shipped `compose.yaml` is the production-style self-host stack. For
@@ -480,8 +533,8 @@ keys, ICE / NAT setup, verification).
 
 ## Production Mail Setup
 
-The OSS server can send transactional email (invites, guest magic links,
-verify links, welcome emails, password reset links) over plain SMTP via
+The OSS server can send transactional email (invites, verify links, welcome
+emails, password reset links) over plain SMTP via
 [nodemailer](https://nodemailer.com/). Password reset is self-service:
 `POST /auth/forgot` mails a reset link to the account's address and
 answers `{ ok: true }` without returning the link or token.
@@ -521,7 +574,8 @@ What still works without mail:
 - Creating an invitation returns its link (`inviteUrl`) with
   `emailSent: false`. Copy and share the link; accounts whose email
   address is already confirmed can accept it.
-- Creating a guest returns the guest's magic link for copying.
+- **Enterprise only:** creating a guest returns the guest's magic link for
+  copying. The pure OSS build rejects this guest path with `enterprise_required`.
 - A super admin can create a password reset link with
   `POST /admin/users/:id/reset-token`; the response contains the link.
   For tenant admins the same route answers
