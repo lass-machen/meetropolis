@@ -48,6 +48,11 @@ getting-started server-to-LiveKit connection.
 
 On **macOS / Windows with Docker Desktop**, use the bridge overlay instead:
 
+For real browser calls, first set `HOST_IP` in `.env` to the host's LAN IPv4
+reachable by the browser, including when that browser runs on the same Mac or
+Windows host. The default `127.0.0.1` is only for the HTTP smoke test, not the
+address to use for browser audio/video.
+
 ```bash
 docker compose -f compose.yaml -f compose.docker-desktop.yaml up -d
 ```

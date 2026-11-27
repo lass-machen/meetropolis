@@ -300,14 +300,21 @@ public address. For containerized proxies, replace loopback backends with the
 correct service address or `host.docker.internal`, provide the host-gateway
 mapping, and apply the container-source firewall rules above.
 
-Alternatively, give TURN its own public address with port 443 available and let
-LiveKit terminate TLS there: set `turn.external_tls: false`, `turn.tls_port: 443`,
-and mount its `cert_file` and `key_file`. On a shared host set
-`turn.bind_addresses` to that dedicated, host-assigned IPv4 address instead
-of `0.0.0.0`; alternatively use a separate host. Keep `turn.domain` pointing at
-the TURN address. The signalling HTTP proxy must listen on a different address/host;
-TURN cannot share that public socket with an unrelated HTTP listener. Permit
-public 443 to LiveKit in this topology instead of exposing a plain TCP backend.
+For LiveKit's own TURN TLS termination, reserve public 443 on the SFU's Node-IP,
+set `turn.external_tls: false` and `turn.tls_port: 443`, and mount `cert_file`
+and `key_file`. Embedded TURN advertises `rtc.node_ip` as its relay address.
+An explicit `turn.bind_addresses` IPv4 must therefore be the same address as
+`rtc.node_ip`, with `rtc.use_external_ip: false` for that static configuration;
+point `turn.domain` at that address too. Keep the signalling HTTP proxy on a
+different public port and update its browser-facing URLs and firewall rules,
+or use the TLS/SNI proxy topology above to share public 443. An unrelated HTTP
+listener cannot occupy LiveKit's native TURN TLS socket.
+
+For a TURN address independent of the SFU's Node-IP, use a standalone TURN
+instance, such as coturn, and configure LiveKit to use that external relay.
+Disable LiveKit's embedded TURN in that topology. Giving embedded TURN a
+different public bind address alone can advertise a relay address where its
+allocated UDP socket is not listening.
 
 `turn.bind_addresses` controls both UDP and the TCP backend. With `0.0.0.0`
 and `external_tls: true`, `5349/tcp` is an authenticated but unencrypted
