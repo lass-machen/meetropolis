@@ -81,8 +81,20 @@ addresses independently of that setting; configure the host firewall below.
 The template sets `rtc.use_external_ip: true` for public-address discovery and
 `rtc.require_ipv4: true`. IPv4 STUN is needed on dual-stack hosts: TURN bound
 to `0.0.0.0` requires an IPv4 node address, which IPv6-only discovery cannot
-provide. Configure `rtc.node_ip` explicitly if discovery cannot determine the
-public address, then verify the ICE candidates.
+provide. If discovery cannot determine a static public address, disable STUN
+discovery and set an IPv4 literal together:
+
+```yaml
+rtc:
+  use_external_ip: false
+  node_ip: 203.0.113.42
+  require_ipv4: true
+```
+
+The address is an example. Validate your configured address as IPv4, for example
+with `python3 -c 'import ipaddress,sys; ipaddress.IPv4Address(sys.argv[1])' <address>`,
+and verify the resulting ICE candidates. Setting `node_ip` while leaving
+`use_external_ip: true` still requires successful STUN discovery.
 
 Create an uncommitted `compose.override.yaml` (automatically loaded by Compose):
 
@@ -136,31 +148,70 @@ docker network inspect <application-network> <proxy-network> \
   --format '{{.Name}} {{range .IPAM.Config}}{{.Subnet}} {{end}}'
 ```
 
-The subnet `172.20.0.0/16` below is an **example**. Replace it and repeat the
-container rules for every actual source subnet. The host-gateway bind address
-is the destination; it need not be in the containers' source subnet. Use a
-default-deny incoming policy, preserve management access such as SSH, and
-remove older public allow rules for `7880/tcp`, `5349/tcp` and optional metrics
-before exposing the host:
+Identify the public interface and Docker bridge interfaces with `ip -4 -o addr`
+and `ip -o link`. Docker bridge names are commonly `br-` plus the first twelve
+characters of the network ID; a network can also set an explicit bridge name.
+Do not assume a bridge name or address from this guide.
+
+All assignments below are **examples**. Replace the interfaces, source subnets
+and destination addresses with actual values; repeat the container rules for
+every required source network. The host gateway is the destination and need not
+be in the containers' source subnet. Preserve management access such as SSH,
+use a default-deny incoming policy, and remove older public allow rules for
+`7880/tcp`, `5349/tcp` and optional metrics:
 
 ```bash
-sudo ufw allow 443/tcp comment 'TLS proxy for signal and TURN'
-sudo ufw allow 7881/tcp comment 'LiveKit RTC TCP fallback'
-sudo ufw allow 7882/udp comment 'LiveKit RTC UDP'
+PUBLIC_IF=eth0
+PUBLIC_IP=203.0.113.42
+APP_IF=br-app
+APP_SUBNET=172.20.0.0/16
+PROXY_IF=br-proxy
+PROXY_SUBNET=172.21.0.0/16
+HOST_GATEWAY=172.17.0.1
+sudo ufw allow in on "$PUBLIC_IF" proto tcp from any to "$PUBLIC_IP" port 443 comment 'TLS proxy'
+sudo ufw allow in on "$PUBLIC_IF" proto tcp from any to "$PUBLIC_IP" port 7881 comment 'RTC TCP'
+sudo ufw allow in on "$PUBLIC_IF" proto udp from any to "$PUBLIC_IP" port 7882 comment 'RTC UDP'
 # When TURN is enabled with the template range:
-sudo ufw allow 3478/udp comment 'TURN UDP'
-sudo ufw allow 30000:40000/udp comment 'TURN relay range'
-sudo ufw allow from 172.20.0.0/16 to any port 7880 proto tcp comment 'Containers to signal'
-sudo ufw allow from 172.20.0.0/16 to any port 5349 proto tcp comment 'Proxy to TURN backend'
+sudo ufw allow in on "$PUBLIC_IF" proto udp from any to "$PUBLIC_IP" port 3478 comment 'TURN UDP'
+sudo ufw allow in on "$PUBLIC_IF" proto udp from any to "$PUBLIC_IP" port 30000:40000 comment 'TURN relay'
+sudo ufw allow in on "$APP_IF" proto tcp from "$APP_SUBNET" to "$HOST_GATEWAY" port 7880 comment 'App to signal'
+sudo ufw allow in on "$PROXY_IF" proto tcp from "$PROXY_SUBNET" to "$HOST_GATEWAY" port 7880 comment 'Proxy to signal'
+sudo ufw allow in on "$PROXY_IF" proto tcp from "$PROXY_SUBNET" to "$HOST_GATEWAY" port 5349 comment 'Proxy to TURN'
 ```
+
+UFW normally permits loopback; preserve that permission for host-native proxies.
+If NPC clients publish media from a bridge network, also permit their actual
+source subnet/interface to the required host RTC ports. A scraper needs its own
+source/interface/destination rule before metrics are enabled.
+
+These INPUT rules cover **host-network LiveKit**, not Docker's published
+Postgres, server or web ports. Docker publications can bypass UFW INPUT rules
+through forwarding/DNAT. Protect them separately using Docker's supported
+firewall integration, or remove/restrict the publications. For example, for a
+host-native reverse proxy (Compose 2.24.4+ for `!override`):
+
+```yaml
+services:
+  db:
+    ports: !reset []
+  server:
+    ports: !override ['127.0.0.1:2567:2567']
+  web:
+    ports: !override ['127.0.0.1:5173:5173']
+```
+
+A container proxy on the app network can instead reset all three publications
+and reach server/web on their bridge addresses. Keep its host-gateway mapping
+for LiveKit. Verify exposure from outside the host after applying your rules.
 
 A host-native signalling proxy can use `127.0.0.1:7880`; a container proxy
 uses `host.docker.internal:7880`. Do not publicly allow unencrypted signalling.
-For example, with a containerized Caddy:
+For example, this containerized Caddy block handles **HTTP(S) signalling and
+WebSockets only**, not TURN/TLS:
 
 ```caddyfile
 livekit.example.com {
-    reverse_proxy host.docker.internal:7880
+	reverse_proxy host.docker.internal:7880
 }
 ```
 
@@ -198,6 +249,65 @@ Terminate TLS at the TCP proxy on **public 443**, route by SNI, and forward
 **plain TCP** to host `5349`. Set `external_tls: true` because the proxy holds
 the certificate. This requires TLS termination, not passthrough to the backend.
 Signalling and TURN/TLS can share public 443 through distinct hostnames.
+
+### Operation without Traefik
+
+An HTTP reverse proxy is sufficient for signalling, but TURN/TLS needs a
+TCP/TLS proxy with SNI routing or LiveKit's own TLS terminator on public 443.
+A regular Caddy HTTP `reverse_proxy` does not relay TURN. Choose one complete
+topology; do not start two listeners on the same public address and port.
+
+For a host-native example, HAProxy can own public 443, terminate TLS for both
+hostnames and forward decrypted signalling to a loopback-only Caddy HTTP proxy.
+The TURN hostname goes directly to LiveKit's plain TCP backend. Install a PEM
+certificate/key for each hostname in the proxy's certificate directory:
+
+```haproxy
+defaults
+    mode tcp
+    timeout connect 5s
+    timeout client 1h
+    timeout server 1h
+
+frontend livekit_tls
+    bind :443 ssl crt /etc/haproxy/certs/
+    tcp-request content reject unless { ssl_fc_sni -i livekit.example.com turn.example.com }
+    use_backend livekit_turn if { ssl_fc_sni -i turn.example.com }
+    default_backend livekit_signal
+
+backend livekit_signal
+    server signal 127.0.0.1:18080
+
+backend livekit_turn
+    server turn 127.0.0.1:5349
+```
+
+The companion Caddy listener is internal plain HTTP, since HAProxy has already
+terminated TLS. Caddy forwards WebSockets through `reverse_proxy`:
+
+```caddyfile
+http://:18080 {
+	bind 127.0.0.1
+	reverse_proxy 127.0.0.1:7880
+}
+```
+
+Use `turn.external_tls: true` and `turn.tls_port: 5349` with that topology.
+Point both DNS names at the proxy, permit public 443 plus RTC/TURN UDP and
+relay ports, and keep 7880/5349/18080 private. Existing application HTTP(S)
+listeners on 443 must also move behind the SNI frontend or use a different
+public address. For containerized proxies, replace loopback backends with the
+correct service address or `host.docker.internal`, provide the host-gateway
+mapping, and apply the container-source firewall rules above.
+
+Alternatively, give TURN its own public address with port 443 available and let
+LiveKit terminate TLS there: set `turn.external_tls: false`, `turn.tls_port: 443`,
+and mount its `cert_file` and `key_file`. On a shared host set
+`turn.bind_addresses` to that dedicated, host-assigned IPv4 address instead
+of `0.0.0.0`; alternatively use a separate host. Keep `turn.domain` pointing at
+the TURN address. The signalling HTTP proxy must listen on a different address/host;
+TURN cannot share that public socket with an unrelated HTTP listener. Permit
+public 443 to LiveKit in this topology instead of exposing a plain TCP backend.
 
 `turn.bind_addresses` controls both UDP and the TCP backend. With `0.0.0.0`
 and `external_tls: true`, `5349/tcp` is an authenticated but unencrypted

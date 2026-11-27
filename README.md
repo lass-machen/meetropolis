@@ -42,6 +42,9 @@ on the host; Docker does not publish them. The getting-started `--dev` command
 binds signalling to all interfaces and receives your configured API key pair
 through `LIVEKIT_KEYS`, matching the application's token signer.
 Apply [production hardening](docs/livekit-production.md) before public use.
+On a Linux host using UFW, also apply the guide's container-to-host signalling
+rules for the app bridge: host networking needs INPUT permission even for the
+getting-started server-to-LiveKit connection.
 
 On **macOS / Windows with Docker Desktop**, use the bridge overlay instead:
 
