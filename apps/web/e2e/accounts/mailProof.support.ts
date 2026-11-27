@@ -43,10 +43,13 @@ export function mailProofFixture(db: Client, seed: SeedData, stack: TestStackEnv
     const email = newEmail();
     emails.push(email);
     const userId = id();
+    // Unique per account: parallel workers share the seed tenant, and loginAs finds the user
+    // by display name in the presence list, which a shared name makes ambiguous.
+    const displayName = `Mailbox test user ${userId.slice(-8)}`;
     const inserted = await db.query(
       `INSERT INTO "User" ("id", "email", "name", "passwordHash", "emailVerifiedAt", "updatedAt", "onboardingCompleted")
-      SELECT $1, $2, 'Mailbox test user', "passwordHash", CASE WHEN $3 THEN now() ELSE NULL END, now(), true FROM "User" WHERE "id"=$4 RETURNING "id"`,
-      [userId, email, options.verified !== false, owner.userId],
+      SELECT $1, $2, $5, "passwordHash", CASE WHEN $3 THEN now() ELSE NULL END, now(), true FROM "User" WHERE "id"=$4 RETURNING "id"`,
+      [userId, email, options.verified !== false, owner.userId, displayName],
     );
     if (inserted.rowCount !== 1) throw new Error('Seed owner password hash is missing.');
     let tenantId = tenant.tenantId;
@@ -67,7 +70,7 @@ export function mailProofFixture(db: Client, seed: SeedData, stack: TestStackEnv
     return {
       userId,
       email,
-      displayName: 'Mailbox test user',
+      displayName,
       role: 'member',
       tenantSlug,
       password: owner.password ?? stack.userPassword,
