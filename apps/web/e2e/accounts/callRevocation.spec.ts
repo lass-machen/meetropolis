@@ -111,7 +111,7 @@ test.describe('AV calls end with the tenant access', () => {
     // (resolveAvWorldPresence in apps/server/src/api/routes/health.ts), so the
     // member signs in to the app and the token is requested from that session.
     // The call itself is still joined by the bare client below.
-    const { context: memberApp } = await loginAs({
+    const { context: memberApp, page: memberPage } = await loginAs({
       userId: member.id,
       email,
       displayName: name,
@@ -119,6 +119,12 @@ test.describe('AV calls end with the tenant access', () => {
       role: 'member',
       tenantSlug: tenant.slug,
     });
+    // The roster shows the name from /presence/recent before the world room is
+    // joined; only the online row comes from the live room state, i.e. after
+    // WorldRoom.onJoin registered the session.
+    await expect(
+      memberPage.getByRole('complementary').getByRole('button', { name: new RegExp(`${name} online$`) }),
+    ).toBeVisible({ timeout: 60_000 });
     const roomName = 'world';
     const tokenResponse = await memberApp.request.post(`${stack.apiUrl}/livekit/token`, {
       data: { roomName, identity: member.id },
