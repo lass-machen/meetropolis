@@ -21,17 +21,26 @@ cp .env.example .env          # edit with your values
 mkdir -p data/postgres data/packs
 sudo chown -R 999:999 data/postgres   # Postgres in the container is UID 999; not needed on macOS/Windows with Docker Desktop
 
-# JWT_SECRET and API_TOKEN_PEPPER ship EMPTY in .env.example — generate
-# both and set them in .env before the first `docker compose up`:
+# Generate values and copy the printed assignments into .env before startup.
+# Replace the template LiveKit and Postgres values as well as the empty secrets.
 echo "JWT_SECRET=$(openssl rand -hex 32)"
 echo "API_TOKEN_PEPPER=$(openssl rand -hex 16)"
+echo "LIVEKIT_API_KEY=$(openssl rand -hex 12)"
+echo "LIVEKIT_API_SECRET=$(openssl rand -hex 32)"
+POSTGRES_PASSWORD=$(openssl rand -hex 32)
+echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD"
+echo "DATABASE_URL=postgresql://postgres:$POSTGRES_PASSWORD@db:5432/meetropolis?schema=public"
+# Production-mode seeding also needs an explicit initial administrator.
+echo "SEED_ADMIN_EMAIL=admin@example.com"
+echo "SEED_ADMIN_PASSWORD=$(openssl rand -hex 32)"
 
 docker compose up -d          # builds OSS images; starts db, server, web, livekit
 ```
 
 LiveKit uses the Linux host network. Its signal and RTC ports listen directly
 on the host; Docker does not publish them. The getting-started `--dev` command
-binds signalling to all interfaces and uses the public `devkey` / `secret` pair.
+binds signalling to all interfaces and receives your configured API key pair
+through `LIVEKIT_KEYS`, matching the application's token signer.
 Apply [production hardening](docs/livekit-production.md) before public use.
 
 On **macOS / Windows with Docker Desktop**, use the bridge overlay instead:
@@ -66,10 +75,15 @@ After startup:
 | 7881/tcp     | RTC TCP listener on host | Published RTC TCP port |
 | 7882/udp     | RTC UDP listener on host | Published RTC UDP port |
 
-Required env values: `JWT_SECRET`, `API_TOKEN_PEPPER`. Both are empty
-in `.env.example` on purpose — `compose.yaml` refuses to start
-(`:?required`) until you set them, so generate and fill them in
-**before** the first `docker compose up`, not after a failed start.
+Required values: `JWT_SECRET`, `API_TOKEN_PEPPER`, `LIVEKIT_API_KEY`,
+`LIVEKIT_API_SECRET`, `POSTGRES_PASSWORD` and the matching password in
+`DATABASE_URL`. Initial seeding also requires `SEED_ADMIN_EMAIL` and
+`SEED_ADMIN_PASSWORD`; replace the example email with your administrator's address.
+The startup credential policy rejects the public `devkey`, `secret` and
+`postgres` template values. Missing LiveKit keys are rejected by Compose with
+their variable names; set all values **before** the first `docker compose up`.
+The versioned `.env.example` retains those placeholders for reference, so
+copying it alone is insufficient.
 
 Set `PUBLIC_BASE_URL` to the absolute public URL of the web app (for example `https://meet.example.com`). It is the only base for invitation, guest, email-verification, password-reset and welcome links. Without a usable value the server logs a warning at startup and refuses to create those links (`public_base_url_missing`) instead of handing out a broken one. A loopback or `*.localhost` base is accepted only with `PUBLIC_BASE_URL_ALLOW_LOOPBACK=true`, for a local try-out on `http://localhost:5173`; never set that flag in production.
 **Breaking change:** earlier versions fell back to relative links, to `BILLING_PUBLIC_URL` or to the request origin or host. These fallbacks are gone, so set `PUBLIC_BASE_URL` before upgrading.

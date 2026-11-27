@@ -7,8 +7,10 @@ relay range through Docker creates thousands of forwarding rules and can
 delay startup severely.
 
 The getting-started command `--dev --bind 0.0.0.0` exposes unencrypted
-signalling on all interfaces, uses the public `devkey` / `secret` pair and
-disables TURN. Replace it before opening the deployment to public users.
+signalling on all interfaces and disables TURN. Compose supplies your API key
+pair through `LIVEKIT_KEYS`, so development mode uses the configured credentials.
+Replace the broad listener and configure TURN before opening the deployment
+to public users.
 
 For local **Docker Desktop on macOS/Windows**, use
 `docker compose -f compose.yaml -f compose.docker-desktop.yaml up -d`.
@@ -20,8 +22,11 @@ below applies to Linux Docker Engine.
 ## 1. Generate matching credentials
 
 `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` in `.env` configure the application
-server. They do **not** replace LiveKit's development credentials while
-`--dev` is active. Rotating only the application values breaks token verification.
+server and LiveKit: Compose turns the same pair into `LIVEKIT_KEYS`, including
+while `--dev` is active. Both values are required; the startup policy rejects
+the public `devkey` / `secret` placeholders. Follow the README Quick Start for
+all required credentials, including a non-template Postgres password and its
+matching `DATABASE_URL`.
 
 Choose a key identifier and generate a random secret of at least 32 characters:
 
@@ -29,7 +34,7 @@ Choose a key identifier and generate a random secret of at least 32 characters:
 openssl rand -base64 32
 ```
 
-Put that pair in `.env` and the config's `keys:` block:
+Put that pair in `.env`:
 
 ```env
 LIVEKIT_API_KEY=meetropolis
@@ -47,12 +52,16 @@ reachable by clients. Rebuild the web image after changing `VITE_*`.
 
 LiveKit does not expand `${LIVEKIT_API_SECRET}` in a mounted YAML file and
 does not read `LK_*` environment variables. Configure RTC/NAT in the file.
-As an alternative to `keys:`, `LIVEKIT_KEYS` accepts a YAML mapping of key
-identifiers to secrets. Keep secrets out of version control.
+`LIVEKIT_KEYS` accepts a YAML mapping of key identifiers to secrets. The shipped
+Compose file already supplies it from the application's pair, so a mounted
+config can omit `keys:`. If you retain a `keys:` block, keep it consistent with
+the configured pair. Keep secrets out of version control.
 
 ## 2. Mount a production config
 
-Copy the companion template and replace its key and host-gateway placeholders:
+Copy the companion template, replace the host-gateway placeholder and either
+remove its `keys:` block (Compose supplies `LIVEKIT_KEYS`) or replace the key
+placeholder with the same pair as `.env`:
 
 ```bash
 cp docs/livekit.yaml.example livekit.yaml
