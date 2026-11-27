@@ -208,6 +208,26 @@ function applySpeechContentHint(track: MediaStreamTrack): void {
   } catch {}
 }
 
+/**
+ * Loads the gate worklet module (bundled locally) and rejects with
+ * {@link VOICE_ISOLATION_TIMEOUT} if it does not settle within
+ * `initTimeoutMs`. Cleaning up the half-built graph is left to the caller.
+ */
+async function loadGateModule(audioContext: AudioContext, initTimeoutMs: number): Promise<void> {
+  const url = new URL('./worklets/rnnoise-processor.js', import.meta.url).toString();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      audioContext.audioWorklet.addModule(url),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(VOICE_ISOLATION_TIMEOUT)), initTimeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 export async function wrapTrackWithVoiceIsolation(
   inputTrack: MediaStreamTrack,
   options: { initTimeoutMs?: number; audioContext?: AudioContext } = {},
@@ -227,21 +247,11 @@ export async function wrapTrackWithVoiceIsolation(
   const mediaStream = new MediaStream([inputTrack]);
   const source = audioContext.createMediaStreamSource(mediaStream);
 
-  // Load worklet module (bundled locally)
-  const url = new URL('./worklets/rnnoise-processor.js', import.meta.url).toString();
-  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([
-      audioContext.audioWorklet.addModule(url),
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error(VOICE_ISOLATION_TIMEOUT)), initTimeoutMs);
-      }),
-    ]);
+    await loadGateModule(audioContext, initTimeoutMs);
   } catch (error) {
     release();
     throw error;
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
   }
 
   const graph = buildDenoiseGraph(audioContext, source);
