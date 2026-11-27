@@ -208,7 +208,9 @@ export function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
   // All one-shot handlers are registered; ask the server for the join seed exactly once.
   try {
     room.send(JOIN_SEED_READY_MESSAGE);
-  } catch {}
+  } catch (e) {
+    logger.debug('[useWorldRoom] Failed to send join_seed_ready', e);
+  }
 
   forceInitialPlayerSync({ room, args, scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes });
 
