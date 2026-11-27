@@ -278,7 +278,7 @@ describe('voiceIsolation (worklet chain)', () => {
       expect(AVLogger.warn).toHaveBeenCalledWith('track.mic.voice_isolation_fallback', {
         reason: 'processor_error',
         detached: true,
-        message: 'boom',
+        error: 'boom',
       });
     });
 
@@ -298,7 +298,7 @@ describe('voiceIsolation (worklet chain)', () => {
       expect(AVLogger.warn).toHaveBeenCalledWith('track.mic.voice_isolation_fallback', {
         reason: 'processor_error',
         detached: false,
-        message: undefined,
+        error: undefined,
       });
     });
   });

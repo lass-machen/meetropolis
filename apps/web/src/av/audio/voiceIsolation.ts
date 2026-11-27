@@ -190,7 +190,7 @@ function bypassGateOnProcessorError(
     AVLogger.warn('track.mic.voice_isolation_fallback', {
       reason: 'processor_error',
       detached,
-      message: processorErrorMessage(event),
+      error: processorErrorMessage(event),
     });
   };
   gate.addEventListener('processorerror', onProcessorError, { once: true });
