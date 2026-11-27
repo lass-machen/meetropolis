@@ -18,6 +18,14 @@ rtc:
   tcp_port: 7881
   port_range_start: 7882
   port_range_end: 7882
+  # Host networking with TURN: exclude Docker bridge subnets so MASQUERADE
+  # cannot rewrite bridge-source packets to the host's TURN relay and break ICE.
+  # Adapt to custom Docker default-address-pools; never exclude the node IP or
+  # default-route interface address. See docs/livekit-production.md.
+  # The getting-started --dev stack disables TURN and does not mount this file.
+  ips:
+    excludes:
+      - 172.16.0.0/12
   # Configure this here; LiveKit does not read LK_* environment variables.
   use_external_ip: false
   # Disable ICE-lite during local development so the server can issue
@@ -29,6 +37,10 @@ rtc:
 # example because of strict NAT or Chrome's loopback filtering).
 turn:
   enabled: true
+  # For a private node IP, allow only that exact SFU IPv4 when TURN is enabled.
+  # Replace this example; leave unset for a public node IP. See the guide.
+  # allow_restricted_peer_cidrs:
+  #   - 192.168.1.10/32
   # TURN/TLS disabled; see docs/livekit-production.md to enable it.
   tls_port: 0
   # TURN over UDP on a separate port.
