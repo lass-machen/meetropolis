@@ -72,7 +72,7 @@ test('pending contract: a separate unauthenticated browser confirms the email ch
   }
 });
 
-test('shows delivery failure without a partial email change during a real SMTP outage and restores delivery', async ({
+test('@stack shows delivery failure without a partial email change during a real SMTP outage and restores delivery', async ({
   stack,
   seed,
   db,
