@@ -343,7 +343,14 @@ async function runMediaFlowKind(
   };
 
   try {
-    const participants = await fixtures.roomUsers(2, { tenant: 'seed', join: false });
+    // LiveKit has one call per tenant world (`<slug>:world`). In the EE stack
+    // every test gets its own fresh tenant, so parallel projects and other
+    // seed-tenant specs never join this call; the OSS stack has no fresh
+    // tenants and keeps the seed tenant.
+    const participants = await fixtures.roomUsers(
+      2,
+      fixtures.stack.edition === 'ee' ? { join: false } : { tenant: 'seed', join: false },
+    );
     const [owner, member] = participants;
     if (!owner || !member || participants.length !== 2) {
       throw new Error('roomUsers did not create exactly two participants.');
