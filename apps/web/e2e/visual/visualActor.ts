@@ -6,7 +6,8 @@ import type { Client } from 'pg';
 
 import { test as base } from '../fixtures';
 import type { TestStackEnv } from '../fixtures';
-import { getSeedTenant, passwordFor } from '../fixtures/helpers';
+import { passwordFor } from '../fixtures/helpers';
+import { createFreshTenant } from '../fixtures/tenant';
 import { createApiRequest, MeetropolisApi } from '../support/api';
 import type { TestUser } from '../support/api';
 import { provisionInvitedUser } from '../support/provisioning';
@@ -51,9 +52,10 @@ export function visualActorEmail(testInfo: TestInfo): string {
 }
 
 /**
- * The account of one visual spec: a fresh member of the seed tenant that
- * only this test owns. It replaces the seed owner as the actor on the screen,
- * so nothing a spec does can change the state of the seeded accounts.
+ * The account of one visual spec: a fresh member (OSS: of the default tenant,
+ * EE: of a fresh tenant) that only this test owns. It replaces the seed owner as
+ * the actor on the screen, so nothing a spec does can change the state of the
+ * seeded accounts.
  */
 export const test = base.extend<VisualActorOptions & VisualActorFixtures>({
   completeOnboarding: [true, { option: true }],
@@ -64,16 +66,18 @@ export const test = base.extend<VisualActorOptions & VisualActorFixtures>({
     testInfo,
   ): Promise<void> => {
     // OSS: the default tenant, authorized by the seed operator as its owner.
-    // EE: the seed file has no default tenant entry, so the actor joins the
-    // seed tenant (getSeedTenant), authorized by that tenant's seeded owner.
-    const seedTenant = stack.edition === 'ee' ? getSeedTenant(seed) : seed.tenants.default;
-    const inviter = stack.edition === 'ee' ? seedTenant?.users.owner : seed.operator;
-    if (!inviter) throw new Error('The seed tenant of the visual actor has no owner.');
+    // EE: the seed file has no default tenant entry, and the visual specs run
+    // in parallel there, so every actor gets a fresh tenant of its own
+    // (createFreshTenant): no other test's actor shows up in its roster, its
+    // member list or its world. That tenant's owner authorizes the invitation.
+    const freshTenant =
+      stack.edition === 'ee' ? await createFreshTenant(playwright.request, stack, testInfo.testId) : null;
+    const inviter = freshTenant ? freshTenant.users.owner : seed.operator;
     const tenantSlug = inviter.tenantSlug;
-    if (stack.edition !== 'ee' && tenantSlug !== DEFAULT_TENANT_SLUG) {
+    if (!freshTenant && tenantSlug !== DEFAULT_TENANT_SLUG) {
       throw new Error(`The seed operator does not belong to the default tenant (${tenantSlug}).`);
     }
-    const tenantId = seedTenant?.tenantId;
+    const tenantId = freshTenant ? freshTenant.tenantId : seed.tenants.default?.tenantId;
     if (!tenantId) throw new Error(`The seed file has no tenant ID for ${tenantSlug}.`);
 
     const email = visualActorEmail(testInfo);
