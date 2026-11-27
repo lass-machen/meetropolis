@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Self-hosted LiveKit now receives the configured API key pair through `LIVEKIT_KEYS`, including in development mode. Compose requires `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` instead of falling back to public demo values; the Quick Start documents all required credentials and the matching database password.
+
 ### Added
 
 - Self-hosting without a mail provider: with `MANUAL_ACCOUNT_CONFIRMATION=true` a super admin can confirm pending accounts by hand (`GET /admin/pending-confirmations`, `POST /admin/users/:id/confirm-email`); pending confirmations expire after 7 days.

@@ -51,6 +51,8 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/meetropolis?schema=public}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required - see README Quick Start}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required - see README Quick Start}
       PRISMA_SCHEMA: /workspace/apps/server/prisma/schema.prisma
       PRISMA_CLI_QUERY_ENGINE_TYPE: library
       PRISMA_CLIENT_ENGINE_TYPE: library
@@ -113,8 +115,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/meetropolis?schema=public}
       LIVEKIT_URL: ${LIVEKIT_URL:-ws://host.docker.internal:7880}
       LIVEKIT_EXTERNAL_URL: ${LIVEKIT_EXTERNAL_URL:-${VITE_LIVEKIT_URL:-ws://localhost:7880}}
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required - see README Quick Start}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required - see README Quick Start}
       API_TOKEN_PEPPER: ${API_TOKEN_PEPPER:?API_TOKEN_PEPPER is required}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       # Exact origins only, required: the web origin of this deployment, both
@@ -178,7 +180,7 @@ services:
 
   livekit:
     image: livekit/livekit-server:latest
-    # --dev mode enables an in-memory key store and relaxed defaults; it is
+    # --dev mode uses the configured LIVEKIT_KEYS with relaxed defaults; it is
     # fine for getting started, but production self-hosters who terminate
     # TLS in front of LiveKit should swap this for `--config /etc/livekit.yaml`
     # with rotated keys and a real TURN/TLS section. See the LiveKit docs.
@@ -186,6 +188,8 @@ services:
       - '--dev'
       - '--bind'
       - '0.0.0.0'
+    environment:
+      LIVEKIT_KEYS: '${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required - see README Quick Start}: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required - see README Quick Start}'
     # Avoid publishing media/relay ranges one port at a time through Docker.
     network_mode: host
     restart: unless-stopped
