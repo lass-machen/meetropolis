@@ -43,14 +43,19 @@ function dbToLin(db) {
 }
 
 // Short-term RMS level of one channel over a render quantum, in dBFS.
+// Non-finite samples are skipped: a single NaN would otherwise turn the level,
+// the target gain and the smoother state into NaN for good.
 function rmsDb(channelData) {
   let sum = 0.0;
+  let count = 0;
   const n = channelData.length;
   for (let i = 0; i < n; i++) {
     const s = channelData[i];
+    if (!Number.isFinite(s)) continue;
     sum += s * s;
+    count++;
   }
-  const rms = Math.sqrt(sum / Math.max(1, n));
+  const rms = Math.sqrt(sum / Math.max(1, count));
   return 20 * Math.log10(Math.max(rms, 1e-8));
 }
 
@@ -118,6 +123,8 @@ class NoiseGateProcessor extends AudioWorkletProcessor {
       readParameter(parameters, 'threshold'),
       readParameter(parameters, 'ratio'),
     );
+    // Defensive: a non-finite smoother state would never recover on its own.
+    if (!Number.isFinite(this.gain)) this.gain = 1.0;
     // The target is constant across the quantum, so the gain moves
     // monotonically towards it and one coefficient covers every sample.
     const timeConstantMs =
@@ -131,7 +138,9 @@ class NoiseGateProcessor extends AudioWorkletProcessor {
       if (!inCh || !outCh) continue;
       const n = Math.min(inCh.length, outCh.length);
       for (let i = 0; i < n; i++) {
-        outCh[i] = inCh[i] * curve[i];
+        const s = inCh[i];
+        // Keep non-finite samples away from the limiter's internal state.
+        outCh[i] = Number.isFinite(s) ? s * curve[i] : 0;
       }
     }
 

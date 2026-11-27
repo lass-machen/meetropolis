@@ -31,6 +31,7 @@ type ProcessFn = (
 
 interface ProcessorInstance {
   process: ProcessFn;
+  gain: number;
 }
 
 type ProcessorCtor = (new () => ProcessorInstance) & {
@@ -225,6 +226,37 @@ describe('rnnoise-processor worklet (noise gate)', () => {
     const attack = runDc(processor, LOUD, quanta, { quantum });
     expect(measuredTimeConstantMs(release, 1, QUIET_TARGET)).toBeCloseTo(VOICE_ISOLATION.releaseMs, 0);
     expect(measuredTimeConstantMs(attack, closed, 1)).toBeCloseTo(VOICE_ISOLATION.attackMs, 1);
+  });
+
+  it('recovers from a NaN sample instead of muting for good', () => {
+    const processor = new (loadProcessor())();
+    const parameters = voiceIsolationParameters();
+    const poisoned = new Float32Array(QUANTUM).fill(LOUD);
+    poisoned[17] = Number.NaN;
+    const poisonedOut = new Float32Array(QUANTUM);
+    processor.process([[poisoned]], [[poisonedOut]], parameters);
+    // The bad sample is dropped, its neighbours still carry signal.
+    expect(poisonedOut[17]).toBe(0);
+    expect(poisonedOut[16]).toBeGreaterThan(0);
+
+    // One second of speech afterwards: the gain stays finite and open.
+    let ratio = 0;
+    for (let q = 0; q < SETTLE_QUANTA; q++) {
+      const input = sineQuantum(0.1, q * QUANTUM);
+      const output = new Float32Array(QUANTUM);
+      processor.process([[input]], [[output]], parameters);
+      ratio = energy(output) / energy(input);
+    }
+    expect(Number.isFinite(processor.gain)).toBe(true);
+    expect(ratio).toBeGreaterThan(0.99);
+  });
+
+  it('resets a non-finite smoother state to an open gate', () => {
+    const processor = new (loadProcessor())();
+    processor.gain = Number.NaN;
+    const gains = runDc(processor, LOUD, 1);
+    expect(gains.every((g) => Number.isFinite(g))).toBe(true);
+    expect(last(gains)).toBeCloseTo(1, 6);
   });
 
   it('falls back to the descriptor defaults when parameter arrays are missing', () => {
