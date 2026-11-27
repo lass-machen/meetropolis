@@ -633,6 +633,9 @@
 /* Body - takes available space, scrolls vertically */
 .sys-modal__body {
   display: grid;
+  /* One column no wider than the body: an implicit auto column grows to the
+     min-content of wide content (an admin table) and pushes it past the modal. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   flex: 1;
   min-height: 0;
