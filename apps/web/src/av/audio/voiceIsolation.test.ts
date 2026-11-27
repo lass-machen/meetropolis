@@ -25,12 +25,14 @@ describe('voiceIsolation (worklet chain)', () => {
   let gateNodes: any[] = [];
   let highpassNodes: any[] = [];
   let limiterNodes: any[] = [];
+  let sourceNodes: any[] = [];
 
   beforeEach(() => {
     createdContexts = [];
     gateNodes = [];
     highpassNodes = [];
     limiterNodes = [];
+    sourceNodes = [];
     vi.mocked(AVLogger.warn).mockClear();
     // Stub AudioWorkletNode presence
     (global as any).window = (global as any).window || {};
@@ -47,6 +49,10 @@ describe('voiceIsolation (worklet chain)', () => {
       this.addEventListener = vi.fn((type: string, handler: (event: Event) => void, options?: unknown) => {
         this.listeners.set(type, { handler, options });
       });
+      this.removeEventListener = vi.fn((type: string, handler: (event: Event) => void) => {
+        if (this.listeners.get(type)?.handler === handler) this.listeners.delete(type);
+      });
+      this.port = { postMessage: vi.fn() };
       gateNodes.push(this);
     } as any;
 
@@ -61,7 +67,11 @@ describe('voiceIsolation (worklet chain)', () => {
     class FakeAudioContext {
       currentTime = 0;
       audioWorklet = fakeWorklet;
-      createMediaStreamSource = vi.fn((_ms: MediaStream) => ({ connect: vi.fn() }) as any);
+      createMediaStreamSource = vi.fn((_ms: MediaStream) => {
+        const node = { connect: vi.fn(), disconnect: vi.fn() };
+        sourceNodes.push(node);
+        return node as any;
+      });
       createBiquadFilter = vi.fn(() => {
         const node = {
           type: 'highpass',
@@ -81,6 +91,7 @@ describe('voiceIsolation (worklet chain)', () => {
           attack: { value: 0 },
           release: { value: 0 },
           connect: vi.fn(),
+          disconnect: vi.fn(),
         };
         limiterNodes.push(node);
         return node as any;
@@ -331,6 +342,49 @@ describe('voiceIsolation (worklet chain)', () => {
       expect(createdContexts[0].close).not.toHaveBeenCalled();
       expect(first.track.stop).not.toHaveBeenCalled();
       expect(first.track.removeEventListener).toHaveBeenCalledWith('ended', expect.any(Function));
+    });
+
+    it('restart tears the old graph down in the shared AudioContext', async () => {
+      const processor = createVoiceIsolationProcessor();
+      const first = makeRawTrack();
+      await processor.init({ kind: 'audio' as any, track: first.track, audioContext: processor.audioContext });
+      const [oldGate] = gateNodes;
+      const [oldSource] = sourceNodes;
+      const [oldHighpass] = highpassNodes;
+      const [oldLimiter] = limiterNodes;
+      const onOldError = oldGate.listeners.get('processorerror').handler;
+
+      await processor.restart({
+        kind: 'audio' as any,
+        track: makeRawTrack().track,
+        audioContext: processor.audioContext,
+      });
+
+      // The context is shared and stays open, so the old chain must be cut
+      // explicitly and the old worklet told to stop.
+      expect(createdContexts[0].close).not.toHaveBeenCalled();
+      for (const node of [oldSource, oldHighpass, oldGate, oldLimiter]) {
+        expect(node.disconnect).toHaveBeenCalledWith();
+      }
+      expect(oldGate.port.postMessage).toHaveBeenCalledWith({ type: 'dispose' });
+      expect(oldGate.removeEventListener).toHaveBeenCalledWith('processorerror', onOldError);
+      expect(oldGate.listeners.has('processorerror')).toBe(false);
+      // The new graph keeps its own listener.
+      expect(gateNodes[1].listeners.has('processorerror')).toBe(true);
+      expect(gateNodes[1].port.postMessage).not.toHaveBeenCalled();
+    });
+
+    it('destroy also disposes the graph, so a late processorerror logs nothing', async () => {
+      const processor = createVoiceIsolationProcessor();
+      await processor.init({ kind: 'audio' as any, track: makeRawTrack().track, audioContext: processor.audioContext });
+      const [gate] = gateNodes;
+      const onError = gate.listeners.get('processorerror').handler;
+
+      await processor.destroy();
+
+      expect(gate.port.postMessage).toHaveBeenCalledWith({ type: 'dispose' });
+      expect(gate.removeEventListener).toHaveBeenCalledWith('processorerror', onError);
+      expect(AVLogger.warn).not.toHaveBeenCalled();
     });
 
     it('destroy stops the processed track and closes its AudioContext once, leaving the raw track to LiveKit', async () => {

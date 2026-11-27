@@ -82,6 +82,13 @@ class NoiseGateProcessor extends AudioWorkletProcessor {
     super();
     this.gain = 1.0;
     this.gainCurve = new Float32Array(0);
+    // Set by the owning graph on teardown; process() then returns false so
+    // the engine can drop the processor instead of running it until the
+    // AudioContext closes.
+    this.disposed = false;
+    this.port.onmessage = (event) => {
+      if (event.data && event.data.type === 'dispose') this.disposed = true;
+    };
   }
 
   // Advances the smoothed gain once per sample and returns the per-sample
@@ -99,6 +106,9 @@ class NoiseGateProcessor extends AudioWorkletProcessor {
   }
 
   process(inputs, outputs, parameters) {
+    if (this.disposed) {
+      return false;
+    }
     const input = inputs[0];
     const output = outputs[0];
     if (!input || input.length === 0 || !output) {

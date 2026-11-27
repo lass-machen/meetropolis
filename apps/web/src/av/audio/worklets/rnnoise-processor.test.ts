@@ -31,7 +31,13 @@ type ProcessFn = (
 
 interface ProcessorInstance {
   process: ProcessFn;
+  port: FakePort;
   gain: number;
+}
+
+/** Stand-in for the MessagePort the AudioWorkletProcessor base class provides. */
+interface FakePort {
+  onmessage: ((event: { data: unknown }) => void) | null;
 }
 
 type ProcessorCtor = (new () => ProcessorInstance) & {
@@ -45,7 +51,9 @@ const WORKLET_SOURCE = readFileSync(resolve(import.meta.dirname, 'rnnoise-proces
 function loadProcessor(): ProcessorCtor {
   const registered = new Map<string, ProcessorCtor>();
   runInNewContext(WORKLET_SOURCE, {
-    AudioWorkletProcessor: class {},
+    AudioWorkletProcessor: class {
+      port: FakePort = { onmessage: null };
+    },
     registerProcessor: (name: string, ctor: ProcessorCtor) => registered.set(name, ctor),
     sampleRate: SAMPLE_RATE,
   });
@@ -257,6 +265,40 @@ describe('rnnoise-processor worklet (noise gate)', () => {
     const gains = runDc(processor, LOUD, 1);
     expect(gains.every((g) => Number.isFinite(g))).toBe(true);
     expect(last(gains)).toBeCloseTo(1, 6);
+  });
+
+  it('stops processing once the graph sends the dispose message', () => {
+    const processor = new (loadProcessor())();
+    const parameters = voiceIsolationParameters();
+    const run = () =>
+      processor.process([[new Float32Array(QUANTUM).fill(LOUD)]], [[new Float32Array(QUANTUM)]], parameters);
+    expect(run()).toBe(true);
+    processor.port.onmessage?.({ data: { type: 'other' } });
+    expect(run()).toBe(true);
+    processor.port.onmessage?.({ data: { type: 'dispose' } });
+    expect(run()).toBe(false);
+  });
+
+  it('applies one linked gain to every channel, driven by the loudest one', () => {
+    const processor = new (loadProcessor())();
+    const parameters = voiceIsolationParameters();
+    let left = new Float32Array(QUANTUM);
+    let right = new Float32Array(QUANTUM);
+    for (let q = 0; q < SETTLE_QUANTA; q++) {
+      left = new Float32Array(QUANTUM);
+      right = new Float32Array(QUANTUM);
+      processor.process(
+        [[new Float32Array(QUANTUM).fill(LOUD), new Float32Array(QUANTUM).fill(QUIET)]],
+        [[left, right]],
+        parameters,
+      );
+    }
+    // A loud left channel holds the gate open for the quiet right channel too:
+    // both carry the same gain, so the stereo image does not shift.
+    for (let i = 0; i < QUANTUM; i++) {
+      expect(left[i] / LOUD).toBeCloseTo(1, 6);
+      expect(right[i] / QUIET).toBeCloseTo(left[i] / LOUD, 6);
+    }
   });
 
   it('falls back to the descriptor defaults when parameter arrays are missing', () => {

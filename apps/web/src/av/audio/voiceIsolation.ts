@@ -79,15 +79,25 @@ function createTeardown(
   return { onInputEnded, stopSource, release };
 }
 
+interface DenoiseGraph {
+  /** Destination node whose stream carries the processed track. */
+  destination: MediaStreamAudioDestinationNode;
+  /**
+   * Disconnects every node and stops the gate worklet. Needed when the
+   * AudioContext outlives the graph (shared processor context): closing the
+   * context would otherwise be the only thing that stops the old chain.
+   */
+  dispose: () => void;
+}
+
+/** Message the gate worklet answers by returning `false` from `process()`. */
+const GATE_DISPOSE_MESSAGE = { type: 'dispose' } as const;
+
 /**
  * Wires the denoise/limiter graph: source -> highpass -> rnnoise(gate) ->
- * limiter -> destination. Returns the destination node whose stream carries
- * the processed track.
+ * limiter -> destination.
  */
-function buildDenoiseGraph(
-  audioContext: AudioContext,
-  source: MediaStreamAudioSourceNode,
-): MediaStreamAudioDestinationNode {
+function buildDenoiseGraph(audioContext: AudioContext, source: MediaStreamAudioSourceNode): DenoiseGraph {
   const highpass = audioContext.createBiquadFilter();
   highpass.type = 'highpass';
   highpass.frequency.value = 100; // rumble/low HVAC entfernen
@@ -116,9 +126,32 @@ function buildDenoiseGraph(
   highpass.connect(rnnoise);
   rnnoise.connect(limiter);
   limiter.connect(destination);
-  bypassGateOnProcessorError(rnnoise, highpass, limiter);
+  const onProcessorError = bypassGateOnProcessorError(rnnoise, highpass, limiter);
 
-  return destination;
+  return { destination, dispose: createGraphDisposer(rnnoise, onProcessorError, [source, highpass, limiter]) };
+}
+
+/** Idempotent teardown for one denoise graph; see {@link DenoiseGraph.dispose}. */
+function createGraphDisposer(
+  gate: AudioWorkletNode,
+  onProcessorError: (event: Event) => void,
+  nodes: AudioNode[],
+): () => void {
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    // A late processorerror of the old gate must not log a fallback for a
+    // graph that is already gone.
+    gate.removeEventListener('processorerror', onProcessorError);
+    // disconnect() without arguments drops all outgoing connections and
+    // never throws, including the bypass edge highpass -> limiter.
+    for (const node of nodes) node.disconnect();
+    gate.disconnect();
+    // process() keeps returning true while the node lives, so a disconnected
+    // gate would keep running until the context closes; tell it to stop.
+    gate.port.postMessage(GATE_DISPOSE_MESSAGE);
+  };
 }
 
 // Chromium dispatches an ErrorEvent carrying the thrown message; the spec
@@ -137,29 +170,31 @@ function processorErrorMessage(event: Event): string | undefined {
  * cannot fail this way; the published track and the LiveKit publication stay
  * untouched.
  */
-function bypassGateOnProcessorError(gate: AudioWorkletNode, upstream: AudioNode, downstream: AudioNode): void {
-  gate.addEventListener(
-    'processorerror',
-    (event: Event) => {
-      // Restore the signal path first; a dead worklet only contributes silence
-      // to the sum until it is disconnected below.
-      upstream.connect(downstream);
-      let detached = true;
-      try {
-        upstream.disconnect(gate);
-        gate.disconnect();
-      } catch {
-        // Only throws if the gate was already detached; the bypass is live either way.
-        detached = false;
-      }
-      AVLogger.warn('track.mic.voice_isolation_fallback', {
-        reason: 'processor_error',
-        detached,
-        message: processorErrorMessage(event),
-      });
-    },
-    { once: true },
-  );
+function bypassGateOnProcessorError(
+  gate: AudioWorkletNode,
+  upstream: AudioNode,
+  downstream: AudioNode,
+): (event: Event) => void {
+  const onProcessorError = (event: Event) => {
+    // Restore the signal path first; a dead worklet only contributes silence
+    // to the sum until it is disconnected below.
+    upstream.connect(downstream);
+    let detached = true;
+    try {
+      upstream.disconnect(gate);
+      gate.disconnect();
+    } catch {
+      // Only throws if the gate was already detached; the bypass is live either way.
+      detached = false;
+    }
+    AVLogger.warn('track.mic.voice_isolation_fallback', {
+      reason: 'processor_error',
+      detached,
+      message: processorErrorMessage(event),
+    });
+  };
+  gate.addEventListener('processorerror', onProcessorError, { once: true });
+  return onProcessorError;
 }
 
 // `contentHint` is part of the MediaStreamTrack WebRTC spec but is still
@@ -209,11 +244,21 @@ export async function wrapTrackWithVoiceIsolation(
     if (timer !== undefined) clearTimeout(timer);
   }
 
-  const destination = buildDenoiseGraph(audioContext, source);
-  const processed = destination.stream.getAudioTracks()[0];
+  const graph = buildDenoiseGraph(audioContext, source);
+  const processed = graph.destination.stream.getAudioTracks()[0];
   applySpeechContentHint(processed);
 
-  return { processed, stopSource, release };
+  return {
+    processed,
+    stopSource: () => {
+      graph.dispose();
+      stopSource();
+    },
+    release: () => {
+      graph.dispose();
+      release();
+    },
+  };
 }
 
 function createAudioContext(): AudioContext {
