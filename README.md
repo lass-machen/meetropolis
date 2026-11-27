@@ -148,8 +148,18 @@ LIVEKIT_EXTERNAL_URL=wss://livekit.example.com
 CORS_ORIGIN=https://meet.example.com,tauri://localhost,http://tauri.localhost
 ```
 
-Rebuild the web image after changing `VITE_*`, and recreate the server after
-changing its environment. Keep the HTTPS frontend origin in `CORS_ORIGIN`.
+Rebuild the web image with the public URLs as build arguments, matching the
+values in `.env` (use the same Compose file selection as at startup):
+
+```bash
+docker compose build \
+  --build-arg VITE_API_BASE=https://api.example.com \
+  --build-arg VITE_LIVEKIT_URL=wss://livekit.example.com web
+```
+
+Set `LIVEKIT_EXTERNAL_URL` explicitly to the same reachable WSS endpoint as
+`VITE_LIVEKIT_URL`, and recreate the server after changing its environment.
+Keep the HTTPS frontend origin in `CORS_ORIGIN`.
 Apply the remaining [production settings](#production-deployment) as well.
 For local invitation links, use `PUBLIC_BASE_URL=http://localhost:5173` with
 `PUBLIC_BASE_URL_ALLOW_LOOPBACK=true` as described above.
@@ -159,7 +169,9 @@ browser profiles, such as a normal and a private window, to keep their login
 cookies separate. Joining twice with the same account replaces its earlier
 world session and does not create a second participant.
 
-1. Choose how to confirm the second account. With a mail provider, use email
+1. Set `PUBLIC_BASE_URL` to the web origin before creating an invitation;
+   localhost also requires `PUBLIC_BASE_URL_ALLOW_LOOPBACK=true`. These link
+   settings are required even without mail. With a mail provider, use email
    verification. Without a mail provider, set `MANUAL_ACCOUNT_CONFIRMATION=true`
    and recreate the server before registration; see
    [manual account confirmation](#manual-account-confirmation).
