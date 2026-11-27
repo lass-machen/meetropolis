@@ -57,8 +57,17 @@ export async function provideRoomUsers(args: {
     const separateBrowser = separateBrowsers || permission !== 'granted';
     let targetBrowser = args.browser;
     if (separateBrowser) {
+      // A granted user gets the project's own launch args (fake device and fake
+      // UI). Without --use-fake-ui-for-media-stream the chromium headless shell
+      // answers every media request with NotSupportedError, because its
+      // WebContentsDelegate has no media permission handler. A denied user keeps
+      // the fake device only, so the denial is not auto-accepted.
+      const chromiumArgs =
+        permission === 'granted'
+          ? (args.testInfo.project.use.launchOptions?.args ?? [])
+          : ['--use-fake-device-for-media-stream'];
       const launchOptions = {
-        ...(args.browserName === 'chromium' ? { args: ['--use-fake-device-for-media-stream'] } : {}),
+        ...(args.browserName === 'chromium' ? { args: chromiumArgs } : {}),
         ...(args.browserName === 'firefox' ? { firefoxUserPrefs: FIREFOX_MEDIA_PREFS } : {}),
         ...(args.testInfo.project.name === 'chrome' ? { channel: 'chrome' as const } : {}),
       };
