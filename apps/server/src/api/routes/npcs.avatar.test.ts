@@ -24,6 +24,12 @@ import jwt from 'jsonwebtoken';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const tenancy = vi.hoisted(() => ({ enabled: false, resolver: vi.fn() }));
+const npcClient = vi.hoisted(() => ({ spawn: vi.fn(), despawn: vi.fn() }));
+
+vi.mock('../utils/npcServiceClient.js', () => ({
+  npcServiceSpawn: npcClient.spawn,
+  npcServiceDespawn: npcClient.despawn,
+}));
 
 vi.mock('../../logger.js', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
@@ -199,6 +205,39 @@ function configureResolver(state: EnterprisePackResolverState): void {
     tenancy.resolver.mockResolvedValue(state.result?.(['shared-pack']));
   }
 }
+
+describe('NPC spawn LiveKit credentials', () => {
+  it.each(['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'])('refuses production spawn without %s', async (key) => {
+    process.env.NODE_ENV = 'production';
+    process.env.LIVEKIT_API_KEY = 'spawn-test-key';
+    process.env.LIVEKIT_API_SECRET = 'spawn-test-secret-at-least-32-characters';
+    delete process.env[key];
+    const { prisma } = makePrisma();
+    const res = await request(makeApp(prisma))
+      .post('/npcs/existing/spawn')
+      .set('Authorization', sessionBearer(ADMIN_USER));
+    expect(res.status).toBe(502);
+    expect(npcClient.spawn).not.toHaveBeenCalled();
+  });
+
+  it('forwards configured production credentials', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.LIVEKIT_API_KEY = 'spawn-test-key';
+    process.env.LIVEKIT_API_SECRET = 'spawn-test-secret-at-least-32-characters';
+    npcClient.spawn.mockResolvedValue({});
+    const { prisma } = makePrisma();
+    const res = await request(makeApp(prisma))
+      .post('/npcs/existing/spawn')
+      .set('Authorization', sessionBearer(ADMIN_USER));
+    expect(res.status).toBe(200);
+    expect(npcClient.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        livekitApiKey: 'spawn-test-key',
+        livekitApiSecret: 'spawn-test-secret-at-least-32-characters',
+      }),
+    );
+  });
+});
 
 describe('NPC avatar enterprise visibility matrix', () => {
   it.each(ENTERPRISE_PACK_RESOLVER_STATES)('applies $name to create, update and command paths', async (state) => {

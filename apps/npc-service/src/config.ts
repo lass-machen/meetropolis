@@ -14,13 +14,16 @@ function readNpcServiceSecret(): string {
   return raw;
 }
 
+const livekitCredentials = readLivekitCredentials(process.env);
+
 export const config = {
   port: Number(process.env.PORT || 3100),
   serverUrl: process.env.SERVER_URL || 'http://server:2567',
   livekitUrl: process.env.LIVEKIT_URL || 'ws://host.docker.internal:7880',
-  livekitApiKey: process.env.LIVEKIT_API_KEY || 'devkey',
-  livekitApiSecret: process.env.LIVEKIT_API_SECRET || 'secret',
+  livekitApiKey: livekitCredentials.apiKey,
+  livekitApiSecret: livekitCredentials.apiSecret,
   npcServiceSecret: readNpcServiceSecret(),
   npcMediaDir: process.env.NPC_MEDIA_DIR || '/data/npc-media',
   logLevel: process.env.LOG_LEVEL || 'info',
 } as const;
+import { readLivekitCredentials } from '@meetropolis/shared';

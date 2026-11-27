@@ -85,6 +85,10 @@ their variable names; set all values **before** the first `docker compose up`.
 The versioned `.env.example` retains those placeholders for reference, so
 copying it alone is insufficient.
 
+Optional NPC integrations require the same configured LiveKit credentials.
+Public demo fallbacks are available only with an explicit `NODE_ENV=development`;
+production, test and unspecified modes reject missing or public placeholder values.
+
 Use the generated hexadecimal key and secret above. The Compose YAML mapping
 does not accept double quotes, backslashes or line breaks inside either value.
 
