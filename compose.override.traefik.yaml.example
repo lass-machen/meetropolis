@@ -82,15 +82,27 @@ services:
       # compose.yaml PORT env var).
       - 'traefik.http.services.meetropolis-server.loadbalancer.server.port=2567'
 
-  # livekit is intentionally left untouched here. Its RTC media ports
-  # (7881/tcp, 7882/udp by default) carry real-time audio/video traffic
-  # and generally need to stay published directly on the host — Traefik's
-  # HTTP/TLS routing model is not a fit for that path, and proxying it
-  # adds latency/jitter for no benefit. Only the signaling port (7880,
-  # plain WebSocket) is a reasonable Traefik candidate if you want a
-  # single `wss://` hostname instead of a raw host:port; if you do that,
-  # remember LIVEKIT_EXTERNAL_URL / VITE_LIVEKIT_URL below still need to
-  # point at whatever hostname clients actually reach LiveKit through.
+  # LiveKit uses the host network: no networks:, ports: or
+  # traefik.docker.network label. Apply docs/livekit-production.md first
+  # (real keys, restricted signalling bind addresses, host firewall).
+  # Traefik's OWN compose service must have:
+  #   extra_hosts: ["host.docker.internal:host-gateway"]
+  # Otherwise host-network TCP services can resolve to Traefik's loopback.
+  livekit:
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.meetropolis-livekit.rule=Host(`livekit.example.com`)'
+      - 'traefik.http.routers.meetropolis-livekit.entrypoints=websecure'
+      - 'traefik.http.routers.meetropolis-livekit.tls=true'
+      - 'traefik.http.routers.meetropolis-livekit.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.meetropolis-livekit.loadbalancer.server.port=7880'
+      # Optional TURN/TLS: enable turn in livekit.yaml, with tls_port: 5349
+      # and external_tls: true. TLS terminates at public :443 (websecure).
+      # - 'traefik.tcp.routers.meetropolis-turn.rule=HostSNI(`turn.example.com`)'
+      # - 'traefik.tcp.routers.meetropolis-turn.entrypoints=websecure'
+      # - 'traefik.tcp.routers.meetropolis-turn.tls=true'
+      # - 'traefik.tcp.routers.meetropolis-turn.tls.certresolver=letsencrypt'
+      # - 'traefik.tcp.services.meetropolis-turn.loadbalancer.server.port=5349'
 
 # ---------------------------------------------------------------------------
 # CRITICAL: rebuilding the web image for your domain

@@ -10,10 +10,12 @@
 # reverse proxy (wss://livekit.example.com).
 port: 7880
 
-# Bind to every interface inside the container. Docker / your reverse
-# proxy decides what is reachable from outside.
+# Signalling only: bind loopback plus the Docker host-gateway address.
+# Replace the placeholder with the address obtained in the production guide.
+# RTC TCP/UDP still listens on all interfaces; enforce access with a firewall.
 bind_addresses:
-  - ''
+  - 127.0.0.1
+  - REPLACE_WITH_DOCKER_HOST_GATEWAY_IPV4
 
 # Real-time media transport.
 rtc:
@@ -26,13 +28,15 @@ rtc:
 
   # Resolve and advertise the server's public IPv4 in ICE candidates.
   # Required on cloud VMs where the container only sees a private NIC.
-  # Leave true unless you set `external_ip` explicitly.
+  # Leave true unless you set `node_ip` explicitly.
   use_external_ip: true
+  # Force IPv4 STUN on dual-stack hosts: TURN needs an IPv4 node address.
+  require_ipv4: true
 
   # Static public IP override. Uncomment and set when the host has a
   # fixed public address that the autodetect cannot determine (for
   # example on multi-homed bare metal).
-  # external_ip: 203.0.113.42
+  # node_ip: 203.0.113.42
 
 # Room defaults. Caps below are conservative for a 25-user OSS cap; raise
 # them only if you have tuned the host accordingly.
@@ -48,8 +52,8 @@ room:
 logging:
   level: info
 
-# Prometheus metrics exporter. Map :9090 in compose.yaml when you scrape
-# this with your own Prometheus.
+# Metrics exporter on the host network. Restrict :9090 with the
+# host firewall before enabling; this endpoint is unauthenticated.
 prometheus:
   port: 9090
 
@@ -58,10 +62,13 @@ prometheus:
 # Disable to a) keep the surface area small or b) run coturn separately.
 turn:
   enabled: false
+  # Applies to both UDP and the TCP backend, not the signalling listener.
+  bind_addresses: ['0.0.0.0']
   # FQDN that resolves to this host. Used as the realm in TURN credentials
   # and as the SNI when external_tls is true.
   # domain: turn.example.com
-  # TURN over TLS port. Standard 5349. Set to 0 to disable TURN/TLS.
+  # Local plain TCP backend when external_tls is true. LiveKit advertises
+  # TURN/TLS on public :443; terminate TLS at the proxy and forward to :5349.
   tls_port: 5349
   # Plain UDP fallback for TURN. Set to 0 to disable.
   udp_port: 3478
@@ -69,6 +76,10 @@ turn:
   # TLS for `domain` and forwards TCP, set this true so LiveKit does not
   # try to load its own certificate.
   external_tls: true
+  # Host-network relay sockets; allow this range in the host firewall.
+  # Never add a Docker ports: mapping for a relay range.
+  relay_range_start: 30000
+  relay_range_end: 40000
   # Cert/key only required when external_tls: false and LiveKit itself
   # terminates TLS.
   # cert_file: /etc/letsencrypt/live/turn.example.com/fullchain.pem

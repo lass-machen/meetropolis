@@ -12,7 +12,7 @@ multi-user engine powered by Colyseus.
 
 ## Quick Start
 
-### Self-host (production-style)
+### Self-host (Linux Docker Engine)
 
 ```bash
 git clone https://github.com/lass-machen/meetropolis.git
@@ -29,6 +29,29 @@ echo "API_TOKEN_PEPPER=$(openssl rand -hex 16)"
 docker compose up -d          # builds OSS images; starts db, server, web, livekit
 ```
 
+LiveKit uses the Linux host network. Its signal and RTC ports listen directly
+on the host; Docker does not publish them. The getting-started `--dev` command
+binds signalling to all interfaces and uses the public `devkey` / `secret` pair.
+Apply [production hardening](docs/livekit-production.md) before public use.
+
+On **macOS / Windows with Docker Desktop**, use the bridge overlay instead:
+
+```bash
+docker compose -f compose.yaml -f compose.docker-desktop.yaml up -d
+```
+
+Alternatively, add `COMPOSE_FILE=compose.yaml:compose.docker-desktop.yaml` to
+`.env` and use `docker compose up -d`. The overlay publishes only three ports,
+keeps TURN disabled and sets LiveKit's `NODE_IP` from `HOST_IP` (default
+`127.0.0.1`). It does not require Docker Desktop's optional host-network setting.
+
+**Upgrade:** change existing `.env` entries from `LIVEKIT_URL=ws://livekit:7880`
+to `LIVEKIT_URL=ws://host.docker.internal:7880`. The server maps that hostname
+to Docker's host gateway. Keep browser-facing `LIVEKIT_EXTERNAL_URL` and
+`VITE_LIVEKIT_URL` set to an address reachable by clients. Linux port changes
+now belong in `livekit.yaml`; `LIVEKIT_*_PORT` publication overrides apply only
+to the Desktop overlay.
+
 After startup:
 
 | Service                  | URL                   |
@@ -36,6 +59,12 @@ After startup:
 | Web app                  | http://localhost:5173 |
 | Server (Colyseus + REST) | http://localhost:2567 |
 | LiveKit signal           | http://localhost:7880 |
+
+| LiveKit port | Linux host network       | Docker Desktop overlay |
+| ------------ | ------------------------ | ---------------------- |
+| 7880/tcp     | Signal listener on host  | Published signal port  |
+| 7881/tcp     | RTC TCP listener on host | Published RTC TCP port |
+| 7882/udp     | RTC UDP listener on host | Published RTC UDP port |
 
 Required env values: `JWT_SECRET`, `API_TOKEN_PEPPER`. Both are empty
 in `.env.example` on purpose — `compose.yaml` refuses to start
@@ -56,13 +85,15 @@ The shipped `compose.yaml` is the production-style self-host stack. For
 hot-reload, bind-mounted source or extra services (Prometheus, Grafana,
 load-test harness, NPC automation), add an uncommitted
 `compose.override.yaml` next to it; Docker Compose picks the override up
-automatically on `up`. The OSS repo intentionally ships only the single
-production-style compose file — extra dev tooling lives in your own
-override or in the (private) deploy repo.
+automatically on `up`. The OSS repo ships the base stack and a Docker Desktop
+overlay; extra dev tooling belongs in your own override. When using explicit
+`-f` flags, include your override explicitly as well.
 
 ### Local development without Docker
 
 Requires a running PostgreSQL instance. Configure `DATABASE_URL` in `.env`.
+For a server running outside Docker, also set `LIVEKIT_URL` to the SFU address
+reachable from that process (for example `ws://localhost:7880` for local LiveKit).
 
 Set `NPC_MEDIA_DIR` to a writable directory (for example `./.data/npc-media`); its default `/data/npc-media` is meant for the Docker volume, and the server logs `npc_media.dir_unavailable` if it cannot create it.
 
@@ -105,10 +136,9 @@ npm run dev
 | PostgreSQL 16           | required for local dev without Docker                    |
 
 > **macOS / Windows + Docker Desktop note:** Chrome filters loopback ICE
-> candidates. For the self-host stack (`compose.yaml`) set `LK_NODE_IP`
-> and / or `LK_NAT_1_TO_1_IPS` to your public IP (or LAN IP for local
-> testing) and restart LiveKit:
-> `docker compose restart livekit`.
+> candidates. With the Desktop overlay, set `HOST_IP` to the host's LAN IP
+> when testing from other devices, then recreate LiveKit with the same Compose
+> files. LiveKit reads `NODE_IP`; it does not read `LK_*` environment variables.
 
 ## Repo structure
 
@@ -575,11 +605,10 @@ in production.
 
 ## LiveKit TURN Setup (optional, recommended for corporate users)
 
-The OSS `compose.yaml` starts LiveKit with `--dev --bind 0.0.0.0` and
-no TURN flags. WebRTC then negotiates connections via STUN only, which
-covers ~80–90 % of home-internet setups. The remaining 10–20 %
-(symmetric NAT, carrier-grade NAT, strict corporate firewalls that
-block UDP) cannot establish audio/video without a TURN relay.
+The OSS `compose.yaml` starts LiveKit with `--dev --bind 0.0.0.0` and TURN
+disabled. Users behind symmetric NAT, carrier-grade NAT or strict corporate
+firewalls may need a TURN relay. The Docker Desktop overlay is a local smoke
+test setup, not a production TURN deployment.
 
 If your users sit behind such networks — typical for remote teams on
 VPN, mobile hotspots or restricted office wifi — enable LiveKit's
@@ -592,10 +621,11 @@ the LiveKit binary ships TURN as a library.
 - A valid TLS certificate for that FQDN. Easiest path: terminate TLS at
   Traefik / Caddy / nginx in front of LiveKit so Let's Encrypt handles
   the renewal automatically.
-- Open ports on the host:
-  - `5349/tcp` (TURN over TLS)
-  - `3478/tcp` and `3478/udp` (TURN/STUN)
-  - `7882/udp` (LiveKit RTC UDP, already exposed by the OSS compose)
+- Host firewall rules for `7881/tcp`, `7882/udp`, `3478/udp` and the configured
+  TURN UDP relay range (the production template uses `30000–40000/udp`).
+- Public `443/tcp` for TURN/TLS, with a TLS-terminating TCP proxy forwarding to
+  host port `5349`. LiveKit advertises TURN/TLS on `443`; `5349` is the local
+  backend port when `external_tls: true`.
 
 ### Enable via `compose.override.yaml`
 
@@ -606,31 +636,43 @@ Compose):
 services:
   livekit:
     command:
-      - --dev
-      - --bind
-      - 0.0.0.0
-      - --turn.enabled=true
-      - --turn.domain=${TURN_HOST}
-      - --turn.tls_port=5349
-      - --turn.external_tls=true
-    ports:
-      # Add the TURN ports on top of the OSS defaults.
-      - '5349:5349/tcp'
-      - '3478:3478/tcp'
-      - '3478:3478/udp'
+      - --config
+      - /etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
 ```
 
-Then set `TURN_HOST` in your `.env`:
+Copy `docs/livekit.yaml.example` to `livekit.yaml`, replace the key and
+host-gateway placeholders, and enable TURN in that file:
 
-```env
-TURN_HOST=turn.example.com
+```yaml
+turn:
+  enabled: true
+  domain: turn.example.com
+  bind_addresses: ['0.0.0.0']
+  tls_port: 5349
+  udp_port: 3478
+  external_tls: true
+  relay_range_start: 30000
+  relay_range_end: 40000
 ```
+
+Keep `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` in `.env` consistent with the
+config. Do not add `ports:` or `networks:` to host-network LiveKit. Relay
+sockets use the host directly; publishing thousands of ports through Docker
+can make startup very slow. Restrict signalling to loopback plus the Docker
+host gateway and allow container-to-host access through the firewall, as
+shown in [the production guide](docs/livekit-production.md).
 
 ### Reverse-proxy snippet (Traefik example)
 
 If you front LiveKit's TURN-TLS port with Traefik, add a TCP router
-that forwards `HostSNI(TURN_HOST):5349` to the `livekit` container.
-Caddy / nginx work analogously with TLS passthrough on port 5349.
+that terminates TLS for `HostSNI(turn.example.com)` on public `:443` and
+forwards plain TCP to host `:5349`. Traefik itself needs
+`extra_hosts: ["host.docker.internal:host-gateway"]` for host-network service
+discovery. See `compose.override.traefik.yaml.example` and the production
+guide for the signalling route and firewall rules. The backend also listens
+for authenticated plain TURN/TCP on `5349`; restrict it to proxy containers.
 
 ### Replacing `--dev` with a real LiveKit config
 
