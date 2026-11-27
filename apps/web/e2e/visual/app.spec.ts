@@ -8,7 +8,11 @@ import {
   selectTenantSettingsTab,
 } from './appVisualHelpers';
 import { test } from './visualActor';
-import { THEMES, captureSurface, prepareSurface, runAxe } from './visualHelpers';
+import { THEMES, captureSurface, guardOssVisualSuite, prepareSurface, runAxe } from './visualHelpers';
+
+// Explicit per file: a guard registered at module level in visualActor.ts only
+// reached the first spec that imported it (module cache).
+guardOssVisualSuite(test);
 
 /**
  * The order is the contract: the surface is brought into its stable state
