@@ -1,9 +1,10 @@
 # Meetropolis self-host stack.
 #
-# This is the single compose file shipped with the OSS repo. A plain
+# Linux Docker Engine uses host networking for LiveKit. A plain
 # `docker compose up -d` in this directory builds the OSS images and brings
 # up a Postgres, the server, the web frontend and a LiveKit media server.
-# No Traefik, no closed-source modules, no `additional_contexts` voodoo —
+# On Docker Desktop, add compose.docker-desktop.yaml (bridge networking).
+# No Traefik, no closed-source modules, no `additional_contexts` —
 # bring your own reverse proxy / TLS terminator.
 #
 # Self-hosters who want hot-reload or extra services (monitoring, NPC
@@ -16,7 +17,7 @@
 #   - User data lives in ./data/postgres and ./data/packs (bind mounts).
 #   - Secrets and runtime config come from ./.env (see .env.example).
 #
-# Ports (mapped to the host):
+# Ports (web/server published; LiveKit listens directly on the Linux host):
 #   web      5173      Nginx serving the built React bundle
 #   server   2567      Express + Colyseus (REST + WebSocket)
 #   livekit  7880      LiveKit signal
@@ -110,7 +111,7 @@ services:
       # on every boot.
       RUN_MIGRATIONS: 'false'
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/meetropolis?schema=public}
-      LIVEKIT_URL: ${LIVEKIT_URL:-ws://livekit:7880}
+      LIVEKIT_URL: ${LIVEKIT_URL:-ws://host.docker.internal:7880}
       LIVEKIT_EXTERNAL_URL: ${LIVEKIT_EXTERNAL_URL:-${VITE_LIVEKIT_URL:-ws://localhost:7880}}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
@@ -123,6 +124,8 @@ services:
       ASSET_PACKS_DIR: /workspace/apps/public/packs
       PRISMA_CLI_QUERY_ENGINE_TYPE: library
       PRISMA_CLIENT_ENGINE_TYPE: library
+    extra_hosts:
+      - host.docker.internal:host-gateway
     volumes:
       # Bind mount: user-uploaded asset packs persist in ./data/packs on the host.
       - ./data/packs:/workspace/apps/public/packs
@@ -183,20 +186,8 @@ services:
       - '--dev'
       - '--bind'
       - '0.0.0.0'
-    environment:
-      LK_API_KEY: ${LIVEKIT_API_KEY:-devkey}
-      LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
-      LK_NODE_IP: ${LK_NODE_IP:-${HOST_IP:-127.0.0.1}}
-      LK_NAT_1_TO_1_IPS: ${LK_NAT_1_TO_1_IPS:-}
-      LK_RTC_USE_EXTERNAL_IP: ${LK_RTC_USE_EXTERNAL_IP:-true}
-      LK_RTC_TCP_PORT: ${LK_RTC_TCP_PORT:-7881}
-      LK_RTC_UDP_PORT: ${LK_RTC_UDP_PORT:-7882}
-    ports:
-      - '${LIVEKIT_SIGNAL_PORT:-7880}:7880'
-      - '${LIVEKIT_RTC_TCP_PORT:-7881}:7881/tcp'
-      - '${LIVEKIT_RTC_UDP_PORT:-7882}:7882/udp'
-    networks:
-      - meetropolis
+    # Avoid publishing media/relay ranges one port at a time through Docker.
+    network_mode: host
     restart: unless-stopped
     logging:
       driver: json-file

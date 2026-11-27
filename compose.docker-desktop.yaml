@@ -1,0 +1,13 @@
+# Docker Desktop runs containers in a VM; use bridge networking without
+# requiring its optional host-network feature. TURN stays disabled by --dev.
+# docker compose -f compose.yaml -f compose.docker-desktop.yaml up -d
+# If 7880 is occupied, set LIVEKIT_SIGNAL_PORT and match LIVEKIT_URL to it.
+services:
+  livekit:
+    network_mode: bridge
+    environment:
+      NODE_IP: ${HOST_IP:-127.0.0.1}
+    ports:
+      - '${LIVEKIT_SIGNAL_PORT:-7880}:7880'
+      - '${LIVEKIT_RTC_TCP_PORT:-7881}:7881/tcp'
+      - '${LIVEKIT_RTC_UDP_PORT:-7882}:7882/udp'

@@ -272,7 +272,7 @@ async function handleSpawnNpc(req: express.Request, res: express.Response, prism
       },
       tenantSlug: tenant.slug,
       serverUrl: process.env.NPC_SERVER_URL || `http://localhost:${process.env.PORT || 2567}`,
-      livekitUrl: process.env.LIVEKIT_URL || 'ws://livekit:7880',
+      livekitUrl: process.env.LIVEKIT_URL || 'ws://host.docker.internal:7880',
       livekitApiKey: process.env.LIVEKIT_API_KEY || 'devkey',
       livekitApiSecret: process.env.LIVEKIT_API_SECRET || 'secret',
     });
