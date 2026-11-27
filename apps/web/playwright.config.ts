@@ -65,9 +65,13 @@ const projects: Project[] = [
     use: {
       ...devices['Desktop Firefox'],
       launchOptions: {
+        // The teststack announces LiveKit with node_ip 127.0.0.1; Firefox
+        // gathers no loopback ICE candidates unless this pref is set (Mozilla
+        // bugs 831926 and 1659672). Keep in sync with e2e/fixtures/roomUsers.ts.
         firefoxUserPrefs: {
           'media.navigator.streams.fake': true,
           'media.navigator.permission.disabled': true,
+          'media.peerconnection.ice.loopback': true,
         },
       },
     },
