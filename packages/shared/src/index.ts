@@ -9,3 +9,4 @@ export * from './zonePrivacy.js';
 export * from './assetProtocol.js';
 export * from './sprite/index.js';
 export * from './displayName.js';
+export * from './livekitCredentials.js';

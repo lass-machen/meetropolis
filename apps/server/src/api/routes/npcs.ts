@@ -10,6 +10,7 @@ import { isAllowedAvatarId, isCustomAvatarId } from '../../services/avatarAccess
 import { npcMediaFilePath } from './npcMedia.js';
 import { resolvePackScope } from '../utils/resolvePackScope.js';
 import { MAX_DISPLAY_NAME_LENGTH } from '../utils/displayName.js';
+import { readLivekitCredentials } from '@meetropolis/shared';
 
 // --- Auth helpers ---
 
@@ -255,6 +256,7 @@ async function handleSpawnNpc(req: express.Request, res: express.Response, prism
   if (!npc) return res.status(404).json({ error: 'not_found' });
 
   try {
+    const credentials = readLivekitCredentials(process.env);
     const result = await npcServiceSpawn({
       npc: {
         id: npc.id,
@@ -273,8 +275,8 @@ async function handleSpawnNpc(req: express.Request, res: express.Response, prism
       tenantSlug: tenant.slug,
       serverUrl: process.env.NPC_SERVER_URL || `http://localhost:${process.env.PORT || 2567}`,
       livekitUrl: process.env.LIVEKIT_URL || 'ws://host.docker.internal:7880',
-      livekitApiKey: process.env.LIVEKIT_API_KEY || 'devkey',
-      livekitApiSecret: process.env.LIVEKIT_API_SECRET || 'secret',
+      livekitApiKey: credentials.apiKey,
+      livekitApiSecret: credentials.apiSecret,
     });
     res.json({ ok: true, ...(result as Record<string, unknown>) });
   } catch (e: unknown) {
