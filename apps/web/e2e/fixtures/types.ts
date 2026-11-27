@@ -36,6 +36,10 @@ export type RoomUserOptions = {
   joinOrder?: 'sequential' | 'parallel';
   permissions?: MediaPermission[];
   join?: boolean;
+  // Every user in a browser instance of its own. WebKit lets only one page per
+  // browser process capture at a time and mutes the others, so two users who
+  // both capture must not share an instance.
+  separateBrowsers?: boolean;
 };
 export type RoomUsersFactory = (n: number, options?: RoomUserOptions) => Promise<RoomUser[]>;
 

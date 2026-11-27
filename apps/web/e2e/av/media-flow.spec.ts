@@ -347,9 +347,13 @@ async function runMediaFlowKind(
     // every test gets its own fresh tenant, so parallel projects and other
     // seed-tenant specs never join this call; the OSS stack has no fresh
     // tenants and keeps the seed tenant.
+    // Each participant in a browser instance of its own: WebKit mutes the
+    // capture of every other page in the same browser process.
     const participants = await fixtures.roomUsers(
       2,
-      fixtures.stack.edition === 'ee' ? { join: false } : { tenant: 'seed', join: false },
+      fixtures.stack.edition === 'ee'
+        ? { join: false, separateBrowsers: true }
+        : { tenant: 'seed', join: false, separateBrowsers: true },
     );
     const [owner, member] = participants;
     if (!owner || !member || participants.length !== 2) {
