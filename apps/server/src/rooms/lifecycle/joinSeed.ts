@@ -15,8 +15,13 @@ const HANDLER_REGISTRATION_DELAY_MS = 200;
 
 const seeds = new WeakMap<Client, { ready: boolean; pending: Array<() => void> }>();
 
+// Keep an early ready that arrives before openJoinSeed; a second ready stays a no-op.
 export function openJoinSeed(client: Client, options: RoomOptions): void {
   if (typeof options?.joinSeedProtocol === 'number' && options.joinSeedProtocol >= JOIN_SEED_PROTOCOL_VERSION) {
+    const existing = seeds.get(client);
+    if (existing?.ready) {
+      return;
+    }
     seeds.set(client, { ready: false, pending: [] });
   } else {
     seeds.delete(client);
@@ -38,8 +43,12 @@ export function deliverJoinSeed(client: Client, send: () => void): void {
 
 export function markJoinSeedReady(client: Client): void {
   const entry = seeds.get(client);
-  if (!entry || entry.ready) {
-    logger.debug('[joinSeed] markJoinSeedReady ignored (no entry or already ready)');
+  if (!entry) {
+    seeds.set(client, { ready: true, pending: [] });
+    return;
+  }
+  if (entry.ready) {
+    logger.debug('[joinSeed] markJoinSeedReady ignored (already ready)');
     return;
   }
   entry.ready = true;

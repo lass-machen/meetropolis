@@ -248,4 +248,56 @@ describe('join seed delivery', () => {
       presence_recent: 0,
     });
   });
+
+  it('delivers immediately when ready arrives before the protocol join', async () => {
+    const { room, client, send } = makeRoomAndClient();
+    markJoinSeedReady(client);
+    await completePendingJoin(
+      room,
+      client,
+      { joinSeedProtocol: 1 },
+      'user-1',
+      FakePlayer as unknown as typeof PlayerCtor,
+    );
+
+    expect(countSeedSends(send)).toEqual({
+      full_state: 1,
+      bubble_state: 1,
+      zone_lock_state: 0,
+      presence_recent: 1,
+    });
+
+    const afterFirst = send.mock.calls.length;
+    markJoinSeedReady(client);
+    expect(send.mock.calls.length).toBe(afterFirst);
+  });
+
+  it('keeps the legacy 200 ms delay when ready arrives before a non-protocol join', async () => {
+    const { room, client, send } = makeRoomAndClient();
+    markJoinSeedReady(client);
+    await completePendingJoin(room, client, {}, 'user-1', FakePlayer as unknown as typeof PlayerCtor);
+
+    expect(countSeedSends(send)).toEqual({
+      full_state: 0,
+      bubble_state: 0,
+      zone_lock_state: 0,
+      presence_recent: 0,
+    });
+
+    await vi.advanceTimersByTimeAsync(199);
+    expect(countSeedSends(send)).toEqual({
+      full_state: 0,
+      bubble_state: 0,
+      zone_lock_state: 0,
+      presence_recent: 0,
+    });
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(countSeedSends(send)).toEqual({
+      full_state: 1,
+      bubble_state: 1,
+      zone_lock_state: 0,
+      presence_recent: 1,
+    });
+  });
 });
