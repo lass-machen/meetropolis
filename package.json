@@ -29,6 +29,7 @@
     "typecheck": "npm run -ws --if-present typecheck",
     "build": "npm -w @meetropolis/web run build && npm -w @meetropolis/server run build",
     "generate": "npm -w @meetropolis/server run prisma:generate",
+    "test:compose": "node --test scripts/livekit-compose.test.mjs",
     "map:atelier:build": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types tools/map-builder/build_atelier_map.ts",
     "ci:local": "bash scripts/ci-local.sh",
     "prisma:migrate": "npm -w @meetropolis/server run prisma:migrate",
@@ -49,7 +50,8 @@
     "prettier": "^3.10.1",
     "stylelint": "17.16.0",
     "typescript-eslint": "^8.73.0",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.0",
+    "yaml": "2.9.1"
   },
   "overrides": {
     "react": "^19.3.1",

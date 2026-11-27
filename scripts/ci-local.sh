@@ -66,6 +66,7 @@ run "gates (hooks, prettierignore)" bash scripts/test-gates.sh
 run "typecheck" npm run typecheck
 
 # --- Job: Unit tests (shared + web + server).
+run "test Compose" npm run test:compose
 run "test @meetropolis/shared" npm -w @meetropolis/shared run test
 run "test @meetropolis/web" npm -w @meetropolis/web run test
 run "test @meetropolis/server" npm -w @meetropolis/server run test

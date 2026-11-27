@@ -4,6 +4,7 @@ import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { parse as parseYaml } from 'yaml';
 
 function renderCompose(files, overrides = {}) {
   const prefix = join(tmpdir(), 'livekit-compose-');
@@ -41,9 +42,10 @@ test('Linux LiveKit uses host networking and the server reaches the host gateway
   assert.equal(livekit.ports, undefined);
   assert.equal(livekit.networks, undefined);
   assert.deepEqual(livekit.command, ['--dev', '--bind', '0.0.0.0']);
-  assert.deepEqual(livekit.environment, {
-    LIVEKIT_KEYS: 'compose-test-key: compose-test-secret-at-least-32-characters',
-  });
+  assert.deepEqual(
+    parseYaml(livekit.environment.LIVEKIT_KEYS, { mapAsMap: true }),
+    new Map([['compose-test-key', 'compose-test-secret-at-least-32-characters']]),
+  );
   for (const service of [server, migrate]) {
     assert.equal(service.environment.LIVEKIT_API_KEY, 'compose-test-key');
     assert.equal(service.environment.LIVEKIT_API_SECRET, 'compose-test-secret-at-least-32-characters');
@@ -56,10 +58,11 @@ test('Desktop replaces host networking with bridge and exactly three published p
   const { livekit, server } = renderCompose(['compose.yaml', 'compose.docker-desktop.yaml']);
   assert.equal(livekit.network_mode, 'bridge');
   assert.equal(livekit.networks, undefined);
-  assert.deepEqual(livekit.environment, {
-    LIVEKIT_KEYS: 'compose-test-key: compose-test-secret-at-least-32-characters',
-    NODE_IP: '127.0.0.1',
-  });
+  assert.equal(livekit.environment.NODE_IP, '127.0.0.1');
+  assert.deepEqual(
+    parseYaml(livekit.environment.LIVEKIT_KEYS, { mapAsMap: true }),
+    new Map([['compose-test-key', 'compose-test-secret-at-least-32-characters']]),
+  );
   assert.deepEqual(
     livekit.ports.map(({ target, published, protocol }) => [target, published, protocol]),
     [
@@ -82,7 +85,10 @@ test('Desktop preserves host IP, signal publication, internal URL and credential
   assert.equal(livekit.environment.NODE_IP, '192.0.2.10');
   assert.equal(livekit.ports[0].published, '17880');
   assert.equal(server.environment.LIVEKIT_URL, 'ws://host.docker.internal:17880');
-  assert.equal(livekit.environment.LIVEKIT_KEYS, 'override-test-key: override-test-secret-at-least-32-characters');
+  assert.deepEqual(
+    parseYaml(livekit.environment.LIVEKIT_KEYS, { mapAsMap: true }),
+    new Map([['override-test-key', 'override-test-secret-at-least-32-characters']]),
+  );
   for (const service of [server, migrate]) {
     assert.equal(service.environment.LIVEKIT_API_KEY, 'override-test-key');
     assert.equal(service.environment.LIVEKIT_API_SECRET, 'override-test-secret-at-least-32-characters');
