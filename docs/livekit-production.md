@@ -53,15 +53,19 @@ reachable by clients. Rebuild the web image after changing `VITE_*`.
 LiveKit does not expand `${LIVEKIT_API_SECRET}` in a mounted YAML file and
 does not read `LK_*` environment variables. Configure RTC/NAT in the file.
 `LIVEKIT_KEYS` accepts a YAML mapping of key identifiers to secrets. The shipped
-Compose file already supplies it from the application's pair, so a mounted
-config can omit `keys:`. If you retain a `keys:` block, keep it consistent with
-the configured pair. Keep secrets out of version control.
+Compose file supplies it from the application's pair. This environment mapping
+**replaces** the entire `keys:` map in a mounted file. Use one effective source:
+either `LIVEKIT_KEYS` for a single pair or the mounted file for multiple pairs.
+Double quotes, backslashes and line breaks are not supported inside the pair
+interpolated by Compose; the README's hexadecimal generation avoids them.
+Keep secrets out of version control.
 
 ## 2. Mount a production config
 
-Copy the companion template, replace the host-gateway placeholder and either
-remove its `keys:` block (Compose supplies `LIVEKIT_KEYS`) or replace the key
-placeholder with the same pair as `.env`:
+Copy the companion template and replace the host-gateway placeholder. For the
+default environment-based pair, remove its `keys:` block. For a file-based
+pair or rotation, replace that block's placeholders and remove `LIVEKIT_KEYS`
+from the service as shown below:
 
 ```bash
 cp docs/livekit.yaml.example livekit.yaml
@@ -224,10 +228,28 @@ On Docker Desktop, use the same `-f` files for every Compose command. If
 
 ## 5. Operations
 
-For key rotation, add the new pair to `livekit.yaml` before changing the
-application pair, recreate both services, then remove the old pair after its
-tokens expire (normally ten minutes). Existing tokens remain valid while their
-signing key remains configured.
+For key rotation, use the mounted file as the sole key source. Add both old and
+new pairs to its `keys:` map and explicitly remove the inherited environment
+mapping in `compose.override.yaml` (requires Compose 2.24.0 or newer):
+
+```yaml
+services:
+  livekit:
+    command: ['--config', '/etc/livekit.yaml']
+    environment:
+      LIVEKIT_KEYS: !reset null
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+```
+
+Recreate LiveKit with both pairs before changing the application's pair in
+`.env` and recreating the server. Use SDK requests signed with each pair to
+verify that both are accepted. After all issued tokens have expired, remove
+the old pair from the file and recreate LiveKit again. The application token
+lifetime defaults to fifteen minutes (`LIVEKIT_TOKEN_TTL_SECONDS` can change
+it); account for that configured lifetime. Existing tokens remain valid only
+while their signing key remains configured. Do not restore `LIVEKIT_KEYS`
+during this process: it would replace the two-key file map.
 
 Use `logging.level: info` for initial verification and `warn` once stable.
 Keep the Compose log size limits or ship logs to your logging service. If
