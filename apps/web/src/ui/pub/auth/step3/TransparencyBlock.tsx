@@ -5,21 +5,27 @@ interface TransparencyBlockProps {
   plan: CatalogPlan;
 }
 
+// The value moves below its label once the block is too narrow for both side
+// by side. A fixed label track next to a `1fr` value track left the value about
+// 66px at the form column's 220px floor (AuthLayout.tsx), and since the form
+// collapses every word's minimum to one letter (`overflow-wrap: anywhere`),
+// short words like "Monat" were cut in half there instead of moving down.
 function Row({ label, value, first }: { label: string; value: string; first?: boolean }) {
   return (
     <div
       style={{
-        display: 'grid',
-        gridTemplateColumns: '96px 1fr',
-        gap: 16,
+        display: 'flex',
+        flexWrap: 'wrap',
+        columnGap: 16,
+        rowGap: 2,
         padding: '8px 0',
         fontSize: 13,
         lineHeight: 1.5,
         borderTop: first ? 'none' : '1px solid var(--pub-border-light)',
       }}
     >
-      <span style={{ color: 'var(--pub-text-secondary)' }}>{label}</span>
-      <span style={{ color: 'var(--pub-text-primary)', fontWeight: 500 }}>{value}</span>
+      <span style={{ flex: '0 0 96px', color: 'var(--pub-text-secondary)' }}>{label}</span>
+      <span style={{ flex: '1 1 140px', minWidth: 0, color: 'var(--pub-text-primary)', fontWeight: 500 }}>{value}</span>
     </div>
   );
 }
