@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking (self-hosting):** LiveKit now uses the Linux host network without Docker port publications. The server default `LIVEKIT_URL` is `ws://host.docker.internal:7880`; update existing environment files that use the former Compose service hostname. On macOS/Windows use `compose.docker-desktop.yaml` for bridge networking with three published ports and `HOST_IP` as `NODE_IP`. Configure production RTC/NAT settings in `livekit.yaml`; ineffective `LK_*` variables have been removed.
+
 - **Breaking (enterprise integration):** The tenant deletion callback in
   `adminLoader` now requires `deletionProtocol: 'tenant-delete-v2'` with a
   managed prepare/cleanup pair and an explicit internal retention plan and

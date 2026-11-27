@@ -1,7 +1,7 @@
 # LiveKit configuration template.
 #
-# This file is NOT mounted into the LiveKit container by default — both
-# compose stacks start LiveKit with `--dev`, which uses an in-memory key
+# This file is NOT mounted into the LiveKit container by default — the
+# self-host stack starts LiveKit with `--dev`, which uses an in-memory key
 # store and relaxed networking defaults that are fine for getting
 # started but inappropriate for production.
 #
@@ -9,6 +9,8 @@
 # command in compose.yaml for `--config /etc/livekit.yaml`, mount this
 # file at that path, and replace the demo keys at the bottom with
 # rotated, 32+ character random values.
+# This is a development template. For production, use docs/livekit.yaml.example
+# and docs/livekit-production.md for restricted signal binds and firewall rules.
 port: 7880
 log_level: info
 
@@ -16,7 +18,7 @@ rtc:
   tcp_port: 7881
   port_range_start: 7882
   port_range_end: 7882
-  # use_external_ip is controlled by the LK_RTC_USE_EXTERNAL_IP env var.
+  # Configure this here; LiveKit does not read LK_* environment variables.
   use_external_ip: false
   # Disable ICE-lite during local development so the server can issue
   # connectivity checks itself (helps with Chrome's loopback filtering).
@@ -27,11 +29,12 @@ rtc:
 # example because of strict NAT or Chrome's loopback filtering).
 turn:
   enabled: true
-  # TURN over TLS on the same port as the WebSocket signalling endpoint.
+  # TURN/TLS disabled; see docs/livekit-production.md to enable it.
   tls_port: 0
   # TURN over UDP on a separate port.
   udp_port: 3478
-  # Relay port range for TURN. These must be exposed on the host.
+  # Relay sockets use the host network. Allow this UDP range in the firewall;
+  # never publish a relay range through Docker ports:.
   relay_range_start: 50000
   relay_range_end: 50010
 
