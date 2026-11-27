@@ -1,5 +1,5 @@
 import { Client, Room } from '@colyseus/sdk';
-import { ASSET_PROTOCOL_VERSION, ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
+import { ASSET_PROTOCOL_VERSION, JOIN_SEED_PROTOCOL_VERSION, ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
 import { logger } from './logger';
 import { readTimeoutMs } from './runtimeConfig';
 import type { WorldRoomState } from '../types/colyseus';
@@ -89,6 +89,9 @@ interface WorldJoinOptions {
   // on (see apps/server/src/rooms/lifecycle/onAuth.ts). Compatibility
   // marker, not a credential; no reason for a caller to override it.
   assetProtocol?: number | undefined;
+  // Join-seed handshake: announces that this client will signal ready after
+  // registering one-shot handlers (see packages/shared/src/joinSeed.ts).
+  joinSeedProtocol?: number | undefined;
 }
 
 async function joinRoomWithTimeout(client: Client, joinOptions: WorldJoinOptions): Promise<Room<WorldRoomState>> {
@@ -180,6 +183,7 @@ export async function joinWorld(
     dnd,
     zonePrivacyVersion: ZONE_PRIVACY_PROTOCOL_VERSION,
     assetProtocol: ASSET_PROTOCOL_VERSION,
+    joinSeedProtocol: JOIN_SEED_PROTOCOL_VERSION,
   });
 
   await awaitInitialStateSync(room);
