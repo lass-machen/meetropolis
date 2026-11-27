@@ -106,6 +106,8 @@ async function startService(): Promise<RunningService> {
     env: {
       ...process.env,
       NODE_ENV: 'production',
+      LIVEKIT_API_KEY: 'http-probe-key',
+      LIVEKIT_API_SECRET: 'http-probe-secret-at-least-32-characters',
       PORT: String(port),
       NPC_SERVICE_SECRET: validSecret,
       SERVER_URL: 'http://127.0.0.1:9',
