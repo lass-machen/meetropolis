@@ -132,6 +132,55 @@ for signalling labels and optional TURN/TLS labels.
 
 ## 3. ICE, NAT and host firewall
 
+### Exclude Docker bridge addresses when using TURN on the host network
+
+With TURN enabled, exclude every Docker bridge subnet from RTC's local
+addresses in the mounted `livekit.yaml`. Otherwise the UDP mux can bind to
+bridge gateway addresses as well as the node IP. Docker's MASQUERADE rules
+can rewrite the source address and port of packets from those bridge sockets
+to the host's TURN relay, causing ICE to fail for TURN/UDP and TURN/TLS.
+
+The templates exclude `172.16.0.0/12`, covering the usual Docker bridge pools
+from `172.17.0.0/16` through `172.31.0.0/16`:
+
+```yaml
+rtc:
+  ips:
+    excludes:
+      - 172.16.0.0/12
+```
+
+Inspect **all** Docker bridge networks on the host, including those belonging
+to other projects, and adapt the exclusions to their actual IPv4 subnets:
+
+```bash
+docker network ls --filter driver=bridge
+docker network inspect <bridge-network> \
+  --format '{{.Name}} {{range .IPAM.Config}}{{.Subnet}} {{end}}'
+```
+
+Custom Docker `default-address-pools` may use other ranges. Do not exclude
+the node IP or the address of the interface carrying the default route;
+narrow the exclusions to the actual bridge subnets if the broad example
+would include either address. These are local RTC address exclusions, not
+firewall rules blocking clients in those networks. The getting-started
+`--dev` stack has TURN disabled and does not require this TURN-specific
+configuration; it does not mount `livekit.yaml` by default.
+
+If the node IP is private, embedded TURN's peer policy also needs an explicit
+exception for that SFU address. Add only the required address to the existing
+`turn:` block, for example:
+
+```yaml
+turn:
+  allow_restricted_peer_cidrs:
+    - 192.168.1.10/32
+```
+
+Replace the example with the actual private node IPv4. Keep this exception
+unset for a public node IP; do not allow an entire private range. This setting
+is relevant only when TURN is enabled and does not replace the RTC exclusions.
+
 ### Shape A: single Linux host with a public IPv4
 
 LiveKit advertises its public address through `rtc.use_external_ip: true`.
@@ -337,6 +386,10 @@ both HTTP checks. Test public `wss://` and TURN/TLS separately. Log in with two
 users, bring their avatars together, and verify bidirectional audio and video.
 Inspect selected ICE transports from a restrictive client network to prove
 TURN fallback; healthy HTTP alone does not prove WebRTC or TURN connectivity.
+With host networking and TURN enabled, check that RTC UDP listeners exclude
+all Docker bridge addresses (for example, `ss -uanp` for the configured UDP
+port), while retaining the node address. Verify TURN/UDP and TURN/TLS with
+two users and bidirectional media after applying the exclusions.
 
 On Docker Desktop, use the same `-f` files for every Compose command. If
 `7880` is occupied, set `LIVEKIT_SIGNAL_PORT` and match `LIVEKIT_URL` to

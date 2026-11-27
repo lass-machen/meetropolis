@@ -26,6 +26,15 @@ rtc:
   # (mux mode) which is friendlier to firewall rules than a port range.
   udp_port: 7882
 
+  # For host networking with TURN: exclude all Docker bridge subnets.
+  # MASQUERADE can rewrite bridge-source packets to the host's TURN relay,
+  # breaking ICE. Adapt to custom Docker default-address-pools; never exclude
+  # the node IP or default-route interface address. See livekit-production.md.
+  # The getting-started --dev stack disables TURN and does not need this.
+  ips:
+    excludes:
+      - 172.16.0.0/12
+
   # Resolve and advertise the server's public IPv4 in ICE candidates.
   # Required on cloud VMs where the container only sees a private NIC.
   # For a static node_ip, change this to false to disable STUN discovery.
@@ -63,6 +72,10 @@ logging:
 # Disable to a) keep the surface area small or b) run coturn separately.
 turn:
   enabled: false
+  # Only with TURN enabled and a private node IP: allow that exact SFU IPv4.
+  # Replace this example; leave unset for a public node IP. See the guide.
+  # allow_restricted_peer_cidrs:
+  #   - 192.168.1.10/32
   # Applies to both UDP and the TCP backend, not the signalling listener.
   bind_addresses: ['0.0.0.0']
   # Public TURN hostname for the advertised TLS endpoint and proxy SNI.
