@@ -33,8 +33,12 @@ for (const device of devices) {
     await expect(toggle).not.toHaveClass(/\bbg-btn-primary\b/);
     await toggle.click();
 
+    // The alert wrapper of CaptureErrorToast has no box of its own: the toast
+    // inside it is position: fixed. The message inside the alert is what the
+    // user sees, so that is what has to be visible.
     const notice = page.getByRole('alert').filter({ hasText: device.label });
-    await expect(notice).toBeVisible();
+    await expect(notice).toHaveCount(1);
+    await expect(notice.getByText(device.label)).toBeVisible();
     await expect(notice).toContainText(/Berechtigung|Zugriff|permission|access/i);
     await expect(toggle).not.toHaveClass(/\bbg-btn-primary\b/);
   });
