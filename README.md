@@ -46,12 +46,19 @@ On a Linux host using UFW, also apply the guide's container-to-host signalling
 rules for the app bridge: host networking needs INPUT permission even for the
 getting-started server-to-LiveKit connection.
 
-On **macOS / Windows with Docker Desktop**, use the bridge overlay instead:
+On Linux with host networking, LiveKit determines its node IP itself. Configure
+the node IP through `livekit.yaml` when needed, following
+[the production guide](docs/livekit-production.md).
+
+### Docker Desktop (macOS/Windows)
+
+Use the bridge overlay:
 
 For real browser calls, first set `HOST_IP` in `.env` to the host's LAN IPv4
 reachable by the browser, including when that browser runs on the same Mac or
 Windows host. The default `127.0.0.1` is only for the HTTP smoke test, not the
-address to use for browser audio/video.
+address to use for browser audio/video. Chrome can filter loopback ICE candidates
+even for a local browser, so use the reachable LAN address for those calls too.
 
 ```bash
 docker compose -f compose.yaml -f compose.docker-desktop.yaml up -d
@@ -64,6 +71,8 @@ or explicitly set `COMPOSE_PATH_SEPARATOR=:` for the colon form. Repeated `-f`
 flags work on all platforms. The overlay publishes only three ports,
 keeps TURN disabled and sets LiveKit's `NODE_IP` from `HOST_IP` (default
 `127.0.0.1`). It does not require Docker Desktop's optional host-network setting.
+
+### Common configuration
 
 **Upgrade:** change existing `.env` entries from `LIVEKIT_URL=ws://livekit:7880`
 to `LIVEKIT_URL=ws://host.docker.internal:7880`. The server maps that hostname
@@ -127,14 +136,14 @@ below for the minimum env surface.
 
 ### Verify a two-browser call
 
-`HOST_IP` is the media address advertised in ICE candidates. It is separate
-from the frontend URL and does not provide a secure browser context. Camera
-and microphone access require a secure context:
+The media address advertised in ICE candidates is separate from the frontend
+URL and does not provide a secure browser context. Camera and microphone access
+require a secure context:
 
 - A browser on the Docker host can open `http://localhost:5173`.
 - Browsers on other devices need an HTTPS frontend origin. A plain HTTP LAN
   URL such as `http://<host-LAN-IP>:5173` is insufficient for camera/microphone
-  access, even with the correct `HOST_IP`.
+  access, even when the media address is configured correctly.
 
 For external browsers, terminate TLS at your reverse proxy and configure
 matching public URLs and allowed origins, for example:
@@ -149,7 +158,7 @@ CORS_ORIGIN=https://meet.example.com,tauri://localhost,http://tauri.localhost
 ```
 
 Rebuild the web image with the public URLs as build arguments, matching the
-values in `.env` (use the same Compose file selection as at startup):
+values in `.env` (use the startup Compose file selection for both commands below):
 
 ```bash
 docker compose build \
@@ -158,7 +167,13 @@ docker compose build \
 ```
 
 Set `LIVEKIT_EXTERNAL_URL` explicitly to the same reachable WSS endpoint as
-`VITE_LIVEKIT_URL`, and recreate the server after changing its environment.
+`VITE_LIVEKIT_URL`, then recreate both running containers so the web service
+serves the new bundle and the server receives its updated environment:
+
+```bash
+docker compose up -d --force-recreate web server
+```
+
 Keep the HTTPS frontend origin in `CORS_ORIGIN`.
 Apply the remaining [production settings](#production-deployment) as well.
 For local invitation links, use `PUBLIC_BASE_URL=http://localhost:5173` with
@@ -246,13 +261,6 @@ npm run dev
 | Docker + Docker Compose | optional, for the full-stack local setup                 |
 | PostgreSQL 16           | required for local dev without Docker                    |
 
-> **macOS / Windows + Docker Desktop note:** Chrome filters loopback ICE
-> candidates. With the Desktop overlay, use the host's reachable LAN IPv4 as
-> `HOST_IP` for browser audio/video, including local browsers that filter
-> loopback. Recreate LiveKit with the same Compose files. The default `127.0.0.1`
-> supports an HTTP smoke test; verify real browser media separately. LiveKit
-> reads `NODE_IP`; it does not read `LK_*` environment variables.
-
 ## Repo structure
 
 ```
@@ -317,7 +325,6 @@ Copy `.env.example` to `.env`. Key variables:
 | `LIVEKIT_URL`        | LiveKit server URL                                                                       |
 | `LIVEKIT_API_KEY`    | LiveKit API key                                                                          |
 | `LIVEKIT_API_SECRET` | LiveKit API secret                                                                       |
-| `HOST_IP`            | Host LAN IP for LiveKit ICE (Docker Desktop on macOS)                                    |
 | `CORS_ORIGIN`        | Exact list of allowed browser origins (required)                                         |
 | `PUBLIC_BASE_URL`    | Absolute public web app URL used for shareable links                                     |
 | `METRICS_PORT`       | Optional scrape listener; unset disables it                                              |
