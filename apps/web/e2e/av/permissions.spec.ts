@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures';
+import { appRouteUrl } from '../fixtures/helpers';
 
 const devices = [
   {
@@ -17,6 +18,7 @@ for (const device of devices) {
   test(`Denied ${device.name} access explains the failure and leaves capture off`, async ({
     roomUsers,
     browserName,
+    stack,
   }) => {
     // Playwright cannot deny camera or microphone access in Firefox: its
     // Firefox grantPermissions knows neither permission (playwright-core
@@ -26,7 +28,16 @@ for (const device of devices) {
     // reason. The denied state cannot be produced there; the other browsers keep
     // the case.
     test.skip(browserName === 'firefox', 'Playwright cannot deny media permissions in Firefox');
-    const [{ page, user }] = await roomUsers(1, { permissions: ['denied'] });
+    const [{ page, user }] = await roomUsers(1, { permissions: ['denied'], join: false });
+
+    // The AV bar is clickable before the AV manager has a room; a toggle click
+    // before that never reaches the capture and shows no notice. Wait for the
+    // product's own connected log (AVLogger info, always on) before the click.
+    // The listener is registered before navigation so the event cannot be missed.
+    const avConnected = page.waitForEvent('console', {
+      predicate: (msg) => /\[AV\]\[info\]\[manager\.connected\]/.test(msg.text()),
+    });
+    await page.goto(appRouteUrl(stack.baseUrl, 'app'));
 
     // A fresh user sees the onboarding wizard over the room on first sign-in;
     // it intercepts clicks on the AV bar. Complete it with "Get started"
@@ -38,6 +49,7 @@ for (const device of devices) {
 
     // DeviceSelector currently exposes the device through its icon. In
     // particular, the camera toggle has no accessible name yet.
+    await avConnected;
     const toggle = page.locator('button.bg-button').filter({ has: page.locator(device.icons) });
     await expect(toggle).toHaveCount(1);
     await expect(toggle).toBeEnabled();
