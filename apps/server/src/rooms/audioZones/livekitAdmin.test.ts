@@ -18,15 +18,15 @@ import { mapLivekitUrlToHttp, createLivekitAdminClient } from './livekitAdmin.js
 
 describe('mapLivekitUrlToHttp', () => {
   it('maps wss:// to https://', () => {
-    expect(mapLivekitUrlToHttp('wss://livekit.meetropolis.me')).toBe('https://livekit.meetropolis.me');
+    expect(mapLivekitUrlToHttp('wss://livekit.example.com')).toBe('https://livekit.example.com');
   });
 
   it('maps ws:// to http://', () => {
-    expect(mapLivekitUrlToHttp('ws://livekit:7880')).toBe('http://livekit:7880');
+    expect(mapLivekitUrlToHttp('ws://host.docker.internal:7880')).toBe('http://host.docker.internal:7880');
   });
 
   it('passes through an already-http(s) URL unchanged', () => {
-    expect(mapLivekitUrlToHttp('https://livekit.meetropolis.me')).toBe('https://livekit.meetropolis.me');
+    expect(mapLivekitUrlToHttp('https://livekit.example.com')).toBe('https://livekit.example.com');
   });
 });
 
@@ -38,7 +38,7 @@ describe('createLivekitAdminClient', () => {
     updateSubscriptionsMock.mockReset();
     process.env.LIVEKIT_API_KEY = 'devkey';
     process.env.LIVEKIT_API_SECRET = 'secret';
-    process.env.LIVEKIT_URL = 'ws://livekit:7880';
+    process.env.LIVEKIT_URL = 'ws://host.docker.internal:7880';
   });
 
   afterEach(() => {

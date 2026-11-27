@@ -460,7 +460,7 @@ describe('handleLivekitToken: world presence gate', () => {
 describe('handleReadyz: livekitAdmin visibility', () => {
   beforeEach(() => {
     createLivekitTokenMock.mockResolvedValue('jwt-token');
-    process.env.LIVEKIT_URL = 'ws://livekit:7880';
+    process.env.LIVEKIT_URL = 'ws://host.docker.internal:7880';
   });
 
   it('reports livekitAdmin ok when API key/secret/URL are all configured, without affecting `ok`', async () => {

@@ -4,97 +4,89 @@
   "approvals": [
     {
       "path": ".env.example",
-      "line": 39,
+      "line": 40,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-001"
     },
     {
       "path": ".env.example",
-      "line": 40,
+      "line": 41,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-002"
     },
     {
       "path": ".env.example",
-      "line": 69,
+      "line": 70,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-003"
     },
     {
       "path": ".env.example",
-      "line": 87,
+      "line": 88,
       "code": "ENV_EXAMPLE_CREDENTIAL_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-004"
     },
     {
       "path": ".env.example",
-      "line": 90,
+      "line": 91,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-005"
     },
     {
       "path": ".env.example",
-      "line": 91,
+      "line": 92,
       "code": "ENV_EXAMPLE_CREDENTIAL_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-006"
     },
     {
       "path": ".env.example",
-      "line": 92,
+      "line": 93,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-007"
     },
     {
       "path": ".env.example",
-      "line": 103,
+      "line": 105,
       "code": "ENV_EXAMPLE_ADDRESS_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
-      "decisionRef": "ENV-DECISION-008"
+      "decisionRef": "ENV-DECISION-041"
     },
     {
       "path": ".env.example",
-      "line": 111,
+      "line": 113,
       "code": "ENV_EXAMPLE_CREDENTIAL_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-009"
     },
     {
       "path": ".env.example",
-      "line": 112,
+      "line": 114,
       "code": "ENV_EXAMPLE_CREDENTIAL_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-010"
     },
     {
       "path": ".env.example",
-      "line": 130,
-      "code": "ENV_EXAMPLE_ADDRESS_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
-      "approvedBy": "project-lead",
-      "decisionRef": "ENV-DECISION-011"
-    },
-    {
-      "path": ".env.example",
       "line": 150,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-012"
     },
@@ -102,7 +94,7 @@
       "path": ".env.example",
       "line": 151,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-013"
     },
@@ -110,7 +102,7 @@
       "path": ".env.example",
       "line": 152,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-014"
     },
@@ -118,7 +110,7 @@
       "path": ".env.example",
       "line": 215,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-015"
     },
@@ -126,7 +118,7 @@
       "path": ".env.example",
       "line": 216,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-016"
     },
@@ -134,7 +126,7 @@
       "path": ".env.example",
       "line": 232,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-017"
     },
@@ -142,7 +134,7 @@
       "path": ".env.example",
       "line": 252,
       "code": "ENV_EXAMPLE_ADDRESS_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-018"
     },
@@ -150,7 +142,7 @@
       "path": ".env.example",
       "line": 254,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-019"
     },
@@ -158,7 +150,7 @@
       "path": ".env.example",
       "line": 285,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-020"
     },
@@ -166,7 +158,7 @@
       "path": ".env.example",
       "line": 286,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-021"
     },
@@ -174,7 +166,7 @@
       "path": ".env.example",
       "line": 290,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-022"
     },
@@ -182,7 +174,7 @@
       "path": ".env.example",
       "line": 291,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-023"
     },
@@ -190,7 +182,7 @@
       "path": ".env.example",
       "line": 294,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-024"
     },
@@ -198,7 +190,7 @@
       "path": ".env.example",
       "line": 295,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-025"
     },
@@ -206,7 +198,7 @@
       "path": ".env.example",
       "line": 299,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-026"
     },
@@ -214,7 +206,7 @@
       "path": ".env.example",
       "line": 300,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-027"
     },
@@ -222,7 +214,7 @@
       "path": ".env.example",
       "line": 367,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-028"
     },
@@ -230,7 +222,7 @@
       "path": ".env.example",
       "line": 368,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-029"
     },
@@ -238,7 +230,7 @@
       "path": ".env.example",
       "line": 429,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-030"
     },
@@ -246,7 +238,7 @@
       "path": ".env.example",
       "line": 430,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-031"
     },
@@ -254,7 +246,7 @@
       "path": ".env.example",
       "line": 431,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-032"
     },
@@ -262,7 +254,7 @@
       "path": ".env.example",
       "line": 465,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-033"
     },
@@ -270,7 +262,7 @@
       "path": ".env.example",
       "line": 489,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-034"
     },
@@ -278,7 +270,7 @@
       "path": ".env.example",
       "line": 519,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-035"
     },
@@ -286,7 +278,7 @@
       "path": ".env.example",
       "line": 522,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-036"
     },
@@ -294,7 +286,7 @@
       "path": ".env.example",
       "line": 540,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-037"
     },
@@ -302,7 +294,7 @@
       "path": ".env.example",
       "line": 557,
       "code": "ENV_EXAMPLE_ADDRESS_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-038"
     },
@@ -310,7 +302,7 @@
       "path": ".env.example",
       "line": 568,
       "code": "ENV_EXAMPLE_VALUE_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-039"
     },
@@ -318,7 +310,7 @@
       "path": ".env.example",
       "line": 571,
       "code": "ENV_EXAMPLE_ADDRESS_REVIEW_REQUIRED",
-      "blobOid": "389323e6c9b4080d352abeafa57acc571d9fa81f",
+      "blobOid": "fc17909bd59293a09ba0262a879b1e6b0d5518d5",
       "approvedBy": "project-lead",
       "decisionRef": "ENV-DECISION-040"
     }
