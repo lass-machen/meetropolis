@@ -21,11 +21,15 @@ type BrowserTypes = { chromium: BrowserType; firefox: BrowserType; webkit: Brows
 // Same media prefs as the firefox project in playwright.config.ts (keep both in
 // sync). The teststack announces LiveKit with node_ip 127.0.0.1, and Firefox
 // gathers no loopback ICE candidates unless media.peerconnection.ice.loopback
-// is set (Mozilla bugs 831926 and 1659672); without it ICE fails.
+// is set (Mozilla bugs 831926 and 1659672); without it ICE fails. It also
+// gathers only default-route addresses unless the page captures or holds a
+// persistent camera or microphone permission, hence permissions.default.*.
 const FIREFOX_MEDIA_PREFS = {
   'media.navigator.streams.fake': true,
   'media.navigator.permission.disabled': true,
   'media.peerconnection.ice.loopback': true,
+  'permissions.default.camera': 1,
+  'permissions.default.microphone': 1,
 };
 
 export async function provideRoomUsers(args: {

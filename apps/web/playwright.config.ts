@@ -67,11 +67,18 @@ const projects: Project[] = [
       launchOptions: {
         // The teststack announces LiveKit with node_ip 127.0.0.1; Firefox
         // gathers no loopback ICE candidates unless this pref is set (Mozilla
-        // bugs 831926 and 1659672). Keep in sync with e2e/fixtures/roomUsers.ts.
+        // bugs 831926 and 1659672). Without an active capture or a persistent
+        // camera or microphone permission, Firefox gathers default-route
+        // addresses only (PeerConnectionImpl::GetPrefDefaultAddressOnly), so no
+        // loopback candidate exists and ICE fails. The permissions.default.*
+        // prefs are Firefox's counterpart of the camera and microphone grant
+        // in the chromium projects. Keep in sync with e2e/fixtures/roomUsers.ts.
         firefoxUserPrefs: {
           'media.navigator.streams.fake': true,
           'media.navigator.permission.disabled': true,
           'media.peerconnection.ice.loopback': true,
+          'permissions.default.camera': 1,
+          'permissions.default.microphone': 1,
         },
       },
     },
