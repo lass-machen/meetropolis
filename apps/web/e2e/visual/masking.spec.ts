@@ -103,6 +103,31 @@ async function assertSnapshotStyleScope(
   }
 }
 
+/**
+ * Two consecutive captures of the same unchanged surface can still differ by
+ * one intensity level where a translucent layer is composited. Capture until
+ * two consecutive captures are byte-identical, the way toHaveScreenshot
+ * settles a page, bounded by the configured expect timeout. A surface that
+ * never settles keeps the case red. The comparison after it stays byte-exact.
+ */
+async function stableScreenshot(label: string, capture: () => Promise<Buffer>): Promise<Buffer> {
+  let previous: Buffer | null = null;
+  let stable: Buffer | null = null;
+  await expect
+    .poll(
+      async () => {
+        const shot = await capture();
+        if (previous?.equals(shot)) stable = shot;
+        previous = shot;
+        return stable !== null;
+      },
+      { message: `The ${label} capture never settled.` },
+    )
+    .toBe(true);
+  if (!stable) throw new Error(`The ${label} capture did not settle.`);
+  return stable;
+}
+
 async function compareSurfaceWithReferenceStyle(
   page: Page,
   testInfo: TestInfo,
@@ -123,24 +148,30 @@ async function compareSurfaceWithReferenceStyle(
     const clip: Box = { x: box.x, y: box.y, width: box.width, height: box.height };
     expect(await handleVisibility(canvas)).toBe('visible');
 
-    const reference = await page.screenshot({
-      animations: 'disabled',
-      caret: 'hide',
-      fullPage: false,
-      clip,
-      style: await readSnapshotStyle(),
-    });
+    const referenceStyle = await readSnapshotStyle();
+    const reference = await stableScreenshot('reference', () =>
+      page.screenshot({
+        animations: 'disabled',
+        caret: 'hide',
+        fullPage: false,
+        clip,
+        style: referenceStyle,
+      }),
+    );
 
     expect(await handleVisibility(canvas)).toBe('visible');
     await assertTargetUnchanged(target, box);
 
     const { maxDiffPixelRatio: _tolerance, stylePath, ...options } = surfaceScreenshotOptions();
-    const actual = await page.screenshot({
-      ...options,
-      fullPage: false,
-      clip,
-      ...(stylePath ? { style: await readFile(path.resolve(testInfo.config.rootDir, stylePath), 'utf8') } : {}),
-    });
+    const actualStyle = stylePath ? await readFile(path.resolve(testInfo.config.rootDir, stylePath), 'utf8') : null;
+    const actual = await stableScreenshot('actual', () =>
+      page.screenshot({
+        ...options,
+        fullPage: false,
+        clip,
+        ...(actualStyle !== null ? { style: actualStyle } : {}),
+      }),
+    );
 
     expect(await handleVisibility(canvas)).toBe('visible');
     await assertTargetUnchanged(target, box);
