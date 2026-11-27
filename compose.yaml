@@ -189,7 +189,7 @@ services:
       - '--bind'
       - '0.0.0.0'
     environment:
-      LIVEKIT_KEYS: '${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required - see README Quick Start}: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required - see README Quick Start}'
+      LIVEKIT_KEYS: '"${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required - see README Quick Start}": "${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required - see README Quick Start}"'
     # Avoid publishing media/relay ranges one port at a time through Docker.
     network_mode: host
     restart: unless-stopped

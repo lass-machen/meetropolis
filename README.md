@@ -85,6 +85,21 @@ their variable names; set all values **before** the first `docker compose up`.
 The versioned `.env.example` retains those placeholders for reference, so
 copying it alone is insufficient.
 
+Use the generated hexadecimal key and secret above. The Compose YAML mapping
+does not accept double quotes, backslashes or line breaks inside either value.
+
+The migration service currently allows a failed seed command to finish with
+exit code 0. A healthy server therefore does not prove that the initial admin
+or office map was created. Inspect `docker compose logs migrate` for seed errors.
+After correcting the seed credentials, rerun the seed without suppressing its
+exit status:
+
+```bash
+docker compose run --rm --no-deps migrate npx prisma db seed --schema /workspace/apps/server/prisma/schema.prisma
+```
+
+Confirm that it succeeds and that the configured initial administrator can log in.
+
 Set `PUBLIC_BASE_URL` to the absolute public URL of the web app (for example `https://meet.example.com`). It is the only base for invitation, guest, email-verification, password-reset and welcome links. Without a usable value the server logs a warning at startup and refuses to create those links (`public_base_url_missing`) instead of handing out a broken one. A loopback or `*.localhost` base is accepted only with `PUBLIC_BASE_URL_ALLOW_LOOPBACK=true`, for a local try-out on `http://localhost:5173`; never set that flag in production.
 **Breaking change:** earlier versions fell back to relative links, to `BILLING_PUBLIC_URL` or to the request origin or host. These fallbacks are gone, so set `PUBLIC_BASE_URL` before upgrading.
 
