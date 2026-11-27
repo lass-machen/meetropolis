@@ -60,9 +60,9 @@ class NoiseGateProcessor extends AudioWorkletProcessor {
     const ratio = parameters.ratio?.length ? parameters.ratio[0] : 0.2;
     const makeupDb = parameters.makeupGainDb?.length ? parameters.makeupGainDb[0] : 0;
 
-    const sampleRate = sampleRate; // global in worklet scope
-    const attackCoeff = Math.exp(-1.0 / (0.001 * attackMs * sampleRate));
-    const releaseCoeff = Math.exp(-1.0 / (0.001 * releaseMs * sampleRate));
+    const sr = sampleRate; // global in worklet scope
+    const attackCoeff = Math.exp(-1.0 / (0.001 * attackMs * sr));
+    const releaseCoeff = Math.exp(-1.0 / (0.001 * releaseMs * sr));
 
     // Handle mono and multi-channel input identically
     for (let ch = 0; ch < input.length; ch++) {
